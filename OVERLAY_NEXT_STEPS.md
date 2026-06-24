@@ -1,457 +1,672 @@
-# PoE2 Item Coach Overlay — Next Fixes & Improvements
+# PoE2 Item Coach — Next Steps & Improvements
 
-This file tracks the next practical improvements for the PoE2 Item Coach overlay after the v2 UI rebuild.
-
-## Priority 1 — Correctness / Trust Fixes
-
-### 1. Improve the “why this item won/lost” explanation
-The overlay now shows build-fit score deltas, but the user still needs clearer plain-English reasons.
-
-**Goal:** When an item is better or worse, explain the deciding factors.
-
-Example:
-
-```text
-Worse than equipped
-Reason:
-- Loses flat physical/cold attack damage
-- Gains accuracy, but hit chance is already high
-- No resistance help while Fire/Lightning are negative
-```
-
-**Implementation notes:**
-- Expand comparison output to include top 3 positive deltas and top 3 negative deltas.
-- Add special-case explanations for stats that are technically positive but low priority.
-- Show these in the Coach panel under “Why it won/lost.”
+This file tracks actionable improvements for the PoE2 Item Coach overlay after the v2 UI rebuild.
+Organized by impact tier. Items marked ✅ are done; items marked 🔧 are in-progress.
 
 ---
 
-### 2. Lower accuracy value when hit chance is already high
-Current scoring can overvalue accuracy-heavy items, especially quivers.
+## Priority 1 — Windows Platform Optimization
 
-**Current problem:**
-A quiver with accuracy + attack speed may look better than it should, even when pobb.in reports ~95–96% hit chance.
+These are specific to the Windows target and have the highest day-to-day impact.
 
-**Goal:** If imported hit chance is already high, reduce or ignore accuracy scoring.
+### 1.1 Fix clipboard polling race on Windows
+**Problem:** Windows clipboard access can briefly throw `Access Denied` or return an empty string
+when another process (e.g. the game's anti-cheat, Discord, or a password manager) holds the
+clipboard open. The current catch-all silently swallows these errors, causing missed detections.
 
-Suggested logic:
-
-```text
-Hit chance >= 95%: accuracy has very low value
-Hit chance 90–94%: accuracy has medium value
-Hit chance < 90%: accuracy has normal/high value
+**Fix:**
+```js
+// In startClipboardWatcher():
+let missCount = 0;
+const text = (() => { try { return clipboard.readText(); } catch { return null; } })();
+if (text === null) { missCount++; return; } // retry next tick
+missCount = 0;
 ```
-
-**Affected slots:**
-- Quiver
-- Gloves
-- Rings
-- Weapon
+Also add a `CLIPBOARD_RETRY_MS = 80` short-retry after a null read before the next full poll.
 
 ---
 
-### 3. Put resist emergency context directly in the overlay
-The health report correctly identifies low Fire/Lightning/Cold resistance, but the Ctrl+C overlay should also use that context.
+### 1.2 Use Windows DPI-aware window positioning
+**Problem:** On Windows with display scaling (125%, 150%, 200%) the overlay `cursor.x/cursor.y`
+values from `screen.getCursorScreenPoint()` are in physical pixels but `setPosition()` expects
+logical pixels. This causes the popup to appear in the wrong quadrant on high-DPI monitors.
 
-**Goal:** When resists are bad, the overlay should say whether the copied item helps or ignores that problem.
-
-Example:
-
-```text
-Build warning:
-Lightning and Fire resistance are currently negative.
-This item does not help either resistance, so damage gains are less important.
+**Fix in `showOverlay()`:**
+```js
+const scaleFactor = display.scaleFactor || 1;
+const logicalX = Math.round((cursor.x - display.bounds.x) / scaleFactor) + display.workArea.x;
+const logicalY = Math.round((cursor.y - display.bounds.y) / scaleFactor) + display.workArea.y;
 ```
-
-Or:
-
-```text
-This item helps Fire resistance but still leaves Lightning as the major problem.
-```
-
-**Implementation notes:**
-- Use pobb.in final resist stats when available.
-- Calculate resistance gaps from final character stats, not only gear affixes.
-- Add “Current problem match” to scoring/explanation.
+Test: 1080p at 100%, 1440p at 125%, 4K at 150%, and 4K at 200%.
 
 ---
 
-### 4. Preserve imported guide identity after pobb.in import
-Sometimes the build label can become truncated or reduced to one stage after importing Mobalytics text or pobb.in.
+### 1.3 Add Windows startup-with-system option
+Allow the overlay to start automatically when Windows boots, so players don't need to launch it
+before each PoE2 session.
 
-**Observed issue:**
+**Implementation:**
+- Use Electron's `app.setLoginItemSettings({ openAtLogin: true })` (built-in, no extra packages).
+- Add a checkbox in Settings: **"Launch at Windows startup"**.
+- Store the preference in `session.json` and apply it on save.
+- Add a corresponding tray menu entry: **"Start with Windows (on/off)"**.
 
-```text
-Build: 0.5 Ice Shot Deadeye Levelin (1 stages)
-```
-
-**Goal:** Keep the full `.build` guide as the target build:
-
-```text
-0.5 Ice Shot Deadeye Leveling (6 stages)
-```
-
-**Implementation notes:**
-- Treat `.build` import as the target guide.
-- Treat pobb.in as the current character/build state.
-- Do not let pobb.in overwrite guide stages unless explicitly requested.
-- Fix display-name cleanup: `Levelin` → `Leveling`.
-
----
-
-### 5. Continue hardening item slot detection
-The parser has improved, but this should stay a major test area.
-
-**Must remain correct:**
-- Belts with `Charm Slots` are still Belt, not Charm.
-- Charms are utility items, not armor/ring/belt.
-- Flasks are utility items, not gear-score items.
-- Ring 1 and Ring 2 are separate.
-- Empty pobb.in placeholders are ignored.
-- Normal/white items trigger the overlay.
-
-**Regression tests to add manually or in code:**
-- Normal body armor
-- Magic quiver
-- Rare belt with charm slot
-- Unique helmet
-- Charm
-- Flask
-- Two rings
-- Empty placeholder item from raw pobb.in decode
-
----
-
-## Priority 2 — Overlay UX Improvements
-
-### 6. Add an “Urgent build needs” strip at the top of the overlay
-A small strip under the item title could show the current major build problems.
-
-Example:
-
-```text
-Current needs: Lightning Res +108 to cap · Fire Res +84 to cap · Cold Res +32 to cap
-```
-
-This makes every item comparison easier to interpret.
-
----
-
-### 7. Improve category bar labels
-The six score bars are useful, but they should show what contributed.
-
-Example:
-
-```text
-Damage +19
-- +9% attack speed
-- no flat cold/physical damage
-```
-
-Or:
-
-```text
-Resistance +20
-- +20% Fire Resistance
+```js
+ipcMain.on("system:set-startup", (_event, enabled) => {
+  app.setLoginItemSettings({ openAtLogin: Boolean(enabled), openAsHidden: true });
+});
+ipcMain.handle("system:get-startup", () => app.getLoginItemSettings().openAtLogin);
 ```
 
 ---
 
-### 8. Add “Keep / Replace / Future / Vendor” action labels
-The verdict should be actionable, not just numerical.
+### 1.4 Prevent Escape from closing the game's own menus
+**Problem:** The global `Escape` hotkey registered in `registerHotkeys()` fires even when the
+overlay is not visible. If a player presses Escape to close a PoE2 menu, the shortcut intercepts
+it and the game may not receive the key.
 
-Suggested verdicts:
+**Fix:** Only register the Escape shortcut while the overlay is visible:
+```js
+function showOverlay(itemText) {
+  // ... existing logic ...
+  if (!globalShortcut.isRegistered("Escape")) {
+    globalShortcut.register("Escape", () => hideOverlay());
+  }
+}
 
-```text
-Equip now
-Keep equipped item
-Sidegrade / test in-game
-Future item — blocked by level/stat
-Stash for later
-Vendor/sell
-```
-
----
-
-### 9. Add confidence level
-Some comparisons are straightforward, while others need in-game testing.
-
-Example:
-
-```text
-Confidence: High — copied item loses major damage stats.
-Confidence: Medium — copied item trades damage for resistance.
-Confidence: Low — current gear affixes are incomplete from pobb.in.
-```
-
-This is useful when the parser has names but not full affixes.
-
----
-
-### 10. Add “Why accuracy/crit may not matter yet” warnings
-For leveling Ice Shot Deadeye, crit and accuracy can be useful, but they should not automatically beat flat damage/resists.
-
-Example warnings:
-
-```text
-Accuracy is lower priority because hit chance is already high.
-Crit damage is not enough by itself unless crit chance/scaling is also strong.
-```
-
----
-
-## Priority 3 — Health Report Improvements
-
-### 11. Add Act/Progress checkpoint logic
-The tool should change advice based on campaign progress.
-
-Suggested stages:
-
-```text
-Act 1: damage, movement speed, basic attributes
-Act 2: attributes, life, early resists
-Act 3: resists and life become priority
-Cruel / later campaign: push toward capped elemental resists
-Early maps: cap elemental resists and improve life/eHP
-```
-
-For Act 3, the report should strongly prefer fixing negative Fire/Lightning over small DPS upgrades.
-
----
-
-### 12. Add resistance priority table
-The current gap section is useful; make it more visual and sortable.
-
-Example:
-
-```text
-Resistance | Current | To 0% | To 50% | To 75% | Priority
-Lightning  | -33%    | +33   | +83    | +108   | Critical
-Fire       | -9%     | +9    | +59    | +84    | Critical
-Cold       | 43%     | +0    | +7     | +32    | Improve soon
-Chaos      | 0%      | +0    | +50    | +75    | Later
-```
-
----
-
-### 13. Improve weakest-slot explanations
-Instead of only saying “add resistance,” explain why the slot is weak.
-
-Example:
-
-```text
-Ring 2 is weak because rings are your best place to fix Lightning/Fire resistance, but this one has little defensive value.
-```
-
----
-
-### 14. Separate “damage upgrades” from “survival upgrades”
-Health report should split next actions:
-
-```text
-Survival upgrades:
-1. Ring with Lightning + Fire resistance
-2. Belt with life + resistance
-3. Body armor with life + resistance
-
-Damage upgrades:
-1. Gloves with attack speed / flat cold or physical damage
-2. Quiver with flat damage and bow/projectile damage
-3. Bow with higher physical/cold attack damage
-```
-
-This prevents the report from mixing priorities.
-
----
-
-### 15. Improve full gear import summary
-After pobb.in import, show whether the gear import is complete.
-
-Example:
-
-```text
-pobb.in import quality:
-- Character stats: imported
-- Equipped gear names: imported
-- Full item affixes: imported
-- Attributes: imported
-- Final resists: imported
-```
-
-If full affixes are missing, warn that overlay comparisons may be lower confidence.
-
----
-
-## Priority 4 — AI Coach Improvements
-
-### 16. Make AI Coach use structured context
-The AI should receive a compact JSON summary instead of raw text only.
-
-Include:
-- copied item parsed stats
-- equipped item parsed stats
-- category deltas
-- pobb.in final stats
-- current urgent build needs
-- selected guide stage priorities
-- player level/attributes
-
-Ask AI to return structured output:
-
-```json
-{
-  "verdict": "Keep equipped item",
-  "summary": "The copied quiver gains attack speed but loses key flat attack damage.",
-  "topReasons": ["..."],
-  "nextAction": "Keep Oblivion Quill and look for Lightning/Fire resistance on rings or belt."
+function hideOverlay() {
+  globalShortcut.unregister("Escape");
+  // ... existing hide logic ...
 }
 ```
 
 ---
 
-### 17. Add AI “short answer” mode
-The overlay should default to a short answer for readability.
+### 1.5 Sign the Windows installer (or document the unsigned bypass)
+Unsigned `.exe` files trigger Windows Defender SmartScreen ("Windows protected your PC").
+This causes many users to think the app is malware.
 
-Example:
+**Options (in order of preference):**
+1. Add a `SIGNING.md` that explains how to self-sign with a free EV cert for personal use.
+2. Add a step to the build script that calls `signtool.exe` when `CODE_SIGN_CERT` env var is set.
+3. In `README.md`, add a "If Windows warns you" section with the click-through steps.
 
-```text
-Keep your current quiver. This one has attack speed, but it loses flat damage and does not fix your resists.
+**Minimum action:** Add the following to `README.md` under "Quick start":
 ```
-
-A longer explanation can stay in the full compare panel.
-
----
-
-### 18. Add AI provider/model test details
-The Test AI button should show:
-
-```text
-Gemini OK — gemini-3.5-flash
-OpenAI OK — gpt-5.4-nano
-```
-
-If it fails, show a useful reason:
-- missing API key
-- invalid model
-- network error
-- rate limit
-- bad JSON response
-
----
-
-## Priority 5 — Developer Workflow / GitHub
-
-### 19. Add GitHub Actions build workflow
-Build Windows artifacts automatically on push or release tag.
-
-Suggested workflow:
-
-```text
-.github/workflows/build.yml
-- checkout
-- setup node
-- npm ci
-- npm run check
-- npm run build-win
-- upload artifact
+> **Windows SmartScreen warning?**  
+> Click "More info" → "Run anyway". This happens because the installer is not yet code-signed.  
+> The app only reads your clipboard — it does not write files outside its own userData folder.
 ```
 
 ---
 
-### 20. Add release checklist
+### 1.6 Reduce tray icon flash on Windows 10/11
+On Windows, showing a previously hidden window causes the taskbar to briefly flash. Use
+`overlayWindow.setSkipTaskbar(true)` (already set) and verify `showInactive()` doesn't
+trigger a taskbar entry on every detection.
+
+**Add to `createOverlayWindow()`:**
+```js
+overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+```
+This keeps the overlay above the game even when PoE2 is in fullscreen mode (important since
+PoE2 defaults to fullscreen on Windows).
+
+---
+
+### 1.7 Support Windows fullscreen (DirectX exclusive mode)
+PoE2 on Windows can run in exclusive fullscreen mode. Electron `alwaysOnTop` does not pierce
+DirectX exclusive fullscreen by default.
+
+**Recommended overlay guidance:** Document in `README.md` that the overlay requires PoE2 to run
+in **Windowed Fullscreen** mode (not exclusive fullscreen). Add a note in the overlay itself:
+
+```
+If the overlay does not appear, switch PoE2 to Windowed Fullscreen mode.
+(In-game: Options → Display → Fullscreen Mode → Windowed)
+```
+
+Add the following to `createOverlayWindow()` for best results on Windows:
+```js
+overlayWindow.setAlwaysOnTop(true, "screen-saver", 1);
+```
+The `"screen-saver"` level is the highest available on Windows without requiring admin rights.
+
+---
+
+### 1.8 Bundle as a portable .exe (no-install option)
+Many Windows users prefer a single portable `.exe` they can run without an installer.
+
+**Add to `package.json` build section:**
+```json
+"win": {
+  "target": [
+    { "target": "nsis", "arch": ["x64"] },
+    { "target": "portable", "arch": ["x64"] }
+  ],
+  "icon": "src/assets/icon.ico"
+}
+```
+
+Add `npm run build-win-portable` script:
+```json
+"build-win-portable": "electron-builder --win portable --x64"
+```
+
+---
+
+## Priority 2 — Correctness / Scoring Fixes
+
+### 2.1 Improve the "why this item won/lost" explanation
+The overlay shows build-fit score deltas but not plain-English reasons for the verdict.
+
+**Goal:** Show top 3 positive and top 3 negative deltas under "Why it won/lost."
+
+```text
+Worse than equipped
+Reason:
+- Loses flat cold/physical attack damage (-18 pts)
+- Gains accuracy, but hit chance is already high (low priority)
+- Does not help Fire/Lightning resistance (critical need)
+```
+
+**Implementation:**
+- In `overlay-renderer.js`, after scoring collect the top 3 contributing rules per category.
+- Pass them through `window.poe2Coach.onItemDetected` as `topGains` and `topLosses` arrays.
+- Render them in the coach panel under "Why it won/lost."
+
+---
+
+### 2.2 Lower accuracy value when hit chance is already high
+Quivers with accuracy + attack speed can outscore better quivers when the character already has
+~95% hit chance from pobb.in.
+
+**Scoring adjustment logic:**
+```js
+function accuracyMultiplier(hitChance) {
+  if (!hitChance || hitChance >= 95) return 0.15; // near-zero value
+  if (hitChance >= 90) return 0.5;                // medium value
+  return 1.0;                                      // full value
+}
+```
+Apply to any scoring rule that matches `/accuracy|accuracy rating/i` before accumulating points.
+
+**Affected slots:** Quiver, Gloves, Rings, Weapon.
+
+---
+
+### 2.3 Add resist-emergency context to every overlay comparison
+When Fire/Lightning resistances are negative (from pobb.in import), the overlay should flag
+whether the copied item helps or ignores that problem.
+
+**Example output in coach panel:**
+```text
+Build warning: Lightning (-33%) and Fire (-9%) are uncapped.
+This item does not help either resistance — damage upgrades are lower priority right now.
+```
+or:
+```text
+This item adds +20 Fire Resistance, reducing one critical gap. Lightning (-33%) still needs fixing.
+```
+
+**Implementation:**
+- Read `session.pobStats.resistances` in the renderer.
+- Compare copied item's resistance mods against the gaps.
+- Emit a `resistWarning` string that renders at the top of the coach panel.
+
+---
+
+### 2.4 Preserve imported guide identity after pobb.in import
+The build label sometimes becomes `"Levelin (1 stages)"` instead of keeping the full guide name.
+
+**Fix:**
+- Treat `.build` import as the canonical guide name/stages.
+- Treat pobb.in as current character state only.
+- Never let pobb.in import overwrite guide stages.
+- Fix the typo-trimmer: change `Levelin` back to `Leveling` if the last character before the
+  space is `n` and the preceding 6 characters spell `leveli`.
+
+---
+
+### 2.5 Harden item slot detection (regression test list)
+The parser has improved through v28, but slot detection should be locked down with explicit tests.
+
+**Items that must classify correctly:**
+| Item | Expected slot |
+|------|--------------|
+| Belt with Charm Slots | `belt` |
+| Thawing Charm | `charm` |
+| Divine Life Flask | `flask` |
+| Iron Ring | `ring` |
+| Quiver (rare, no Item Class) | `quiver` |
+| Body Armour (normal rarity) | `body` |
+| Unique Helmet | `helmet` |
+| Empty pobb.in placeholder `Item Class: Quivers` | ignored |
+
+Add `scripts/test-parser.js` (see Priority 5, item 5.3).
+
+---
+
+## Priority 3 — Overlay UX Improvements
+
+### 3.1 Add "Urgent build needs" strip at the top of the overlay
+A compact strip below the item title that always shows the current top deficiencies.
+
+```text
+Needs: ⚡ Lightning +108 to cap  🔥 Fire +84 to cap  ❄ Cold +32 to cap
+```
+
+This makes every item comparison easier to interpret without opening the health report.
+
+**Implementation:**
+- Read from `session.pobStats.resistances` (already imported from pobb.in).
+- Calculate gaps to 75% cap.
+- Render as colored chips: red for negative, orange for 0–74%, green for capped.
+
+---
+
+### 3.2 Improve category bar breakdown labels
+The six score bars should show what stat contributed to the score.
+
+```text
+Damage  +19
+  ↳ +9% attack speed (+13)  · no flat cold/physical damage (−4)
+
+Resistance  +20
+  ↳ +20% Fire Resistance (+8 × slot weight 1.3 = +10)
+```
+
+Add an expandable "detail" section per bar (click to expand or always show on hover).
+
+---
+
+### 3.3 Add "Keep / Replace / Future / Vendor" action labels
+The verdict should be actionable, not just numerical.
+
+| Score range | Label |
+|-------------|-------|
+| > +20 | **Equip now** |
+| +5 to +20 | **Equip — clear upgrade** |
+| -5 to +5 | **Sidegrade — test in-game** |
+| Blocked by level/attribs | **Future item — save for later** |
+| -5 to -20 | **Keep equipped item** |
+| < -20 | **Vendor / sell** |
+
+---
+
+### 3.4 Add confidence level indicator
+Some comparisons are definitive; others depend on incomplete affix data.
+
+```text
+Confidence: High — both items fully parsed, decisive score gap.
+Confidence: Medium — item trades damage for resistance. Try in-game.
+Confidence: Low — equipped item affixes incomplete (pobb.in gear names only).
+```
+
+Confidence rules:
+- **High:** Equipped item has full affix text AND score delta > 15.
+- **Medium:** Score delta 5–15, or resistance/damage trade-off detected.
+- **Low:** Equipped item was imported as a name only (no affixes).
+
+---
+
+### 3.5 Add "Why accuracy/crit may not matter yet" inline warnings
+For leveling, show context-sensitive notes when accuracy or crit are lower priority:
+
+```text
+⚠ Accuracy is lower priority — hit chance is already 95%.
+⚠ Crit scaling is low — crit damage alone does not outweigh flat attack damage at this stage.
+```
+
+---
+
+### 3.6 Persist overlay position between sessions
+If the user moves the overlay to a preferred screen corner, remember it.
+
+**Implementation:**
+- On `overlay:dismiss`, record `{ x, y }` from `overlayWindow.getBounds()` in `session.json`.
+- On `showOverlay()`, if a saved position exists and it fits on the current display, use it
+  instead of the cursor-relative default.
+- Add a "Reset overlay position" option in the tray menu.
+
+---
+
+## Priority 4 — Health Report Improvements
+
+### 4.1 Add Act/Progress checkpoint logic
+Build advice should shift based on campaign progress, not just build stage.
+
+| Stage | Top priorities |
+|-------|---------------|
+| Act 1 | Damage, movement speed, basic attributes |
+| Act 2 | Attributes, life, early resists |
+| Act 3 | Resists and life before DPS |
+| Cruel / late campaign | Push toward capped elemental resists |
+| Early maps | Cap elemental resists + life/eHP |
+
+**Implementation:** Add an "Act" dropdown alongside the Stage selector. When Act 2 or later is
+selected, boost resistance weights in the active profile automatically.
+
+---
+
+### 4.2 Add resistance priority table to health report
+Make the resistance gap section visual and sortable.
+
+```text
+Resistance | Current | To 0% | To 50% | To 75% | Priority
+Lightning  | -33%    | +33   | +83    | +108   | Critical
+Fire       | -9%     | +9    | +59    | +84    | Critical
+Cold       | 43%     |  —    |  +7    |  +32   | Improve soon
+Chaos      |  0%     |  —    | +50    |  +75   | Later
+```
+
+Highlight cells: red = negative, orange = 0–74%, green = capped.
+
+---
+
+### 4.3 Separate "survival upgrades" from "damage upgrades"
+The health report currently mixes priorities. Split into two lists:
+
+```text
+Survival upgrades (do first):
+  1. Ring with Lightning + Fire resistance
+  2. Belt with life + resistance
+  3. Body armor with life + resistance
+
+Damage upgrades (after resists improve):
+  1. Gloves with attack speed / flat cold damage
+  2. Quiver with flat damage + bow/projectile damage
+  3. Bow with higher physical/cold attack damage
+```
+
+---
+
+### 4.4 Improve weakest-slot explanations
+Instead of only "add resistance here," explain the opportunity:
+
+```text
+Ring 2 is weak: rings can carry 2 resistance mods + attributes. This slot is your best
+lever for fixing Lightning/Fire without losing damage.
+```
+
+---
+
+### 4.5 Show pobb.in import completeness after import
+After a pobb.in import, show a quality summary in the settings panel:
+
+```text
+pobb.in import quality:
+✅ Player level imported (47)
+✅ Resistances imported (Fire -9 / Cold 43 / Lightning -33 / Chaos 0)
+✅ Life / eHP imported
+✅ Full item affixes decoded (13 items)
+⚠ Str/Dex/Int: not exposed by pobb.in — enter manually
+```
+
+---
+
+## Priority 5 — AI Coach Improvements
+
+### 5.1 Send structured context to AI instead of raw text
+Replace the raw JSON dump with a compact, well-labeled summary the AI can use reliably.
+
+```json
+{
+  "copiedItem": { "name": "...", "slot": "quiver", "mods": ["..."] },
+  "equippedItem": { "name": "...", "slot": "quiver", "mods": ["..."] },
+  "categoryDeltas": { "damage": -8, "resistance": 0, "synergy": +5 },
+  "buildContext": {
+    "stage": "leveling",
+    "hitChance": 95,
+    "resistGaps": { "lightning": -108, "fire": -84 },
+    "playerLevel": 47,
+    "urgentNeeds": ["lightning resistance", "fire resistance"]
+  }
+}
+```
+
+Return structured output:
+```json
+{
+  "verdict": "Keep equipped item",
+  "summary": "The copied quiver gains attack speed but loses flat damage and ignores resist gaps.",
+  "topReasons": ["Loses flat cold damage (-18 pts)", "No Lightning/Fire resistance help"],
+  "nextAction": "Look for a quiver with Lightning/Fire resist + flat cold damage for rings upgrade first."
+}
+```
+
+---
+
+### 5.2 Add AI "short answer" mode as overlay default
+The overlay should show the 1–2 sentence summary immediately, with a "Show full analysis" button.
+
+```text
+Keep your current quiver. This one trades flat damage for attack speed but ignores
+your uncapped Lightning/Fire resistances.
+
+[Show full analysis ▾]
+```
+
+---
+
+### 5.3 Show model name and version in Test AI result
+The "Test AI" button should confirm exactly what model responded:
+
+```text
+✅ Gemini OK — gemini-2.5-flash (200 tokens, 1.2s)
+✅ OpenAI OK — gpt-4.1-nano (180 tokens, 0.9s)
+```
+
+If it fails, show a specific reason:
+- `Missing API key` → link to the key field
+- `Invalid model ID` → suggest checking the model dropdown
+- `Rate limited` → suggest waiting or switching models
+- `Network error` → check connection
+
+---
+
+### 5.4 Add Claude (Anthropic) as an AI provider option
+The app currently supports Gemini and OpenAI. Claude models (especially `claude-haiku-4-5`) are
+fast, inexpensive, and produce structured JSON reliably.
+
+**Provider config addition in `main.js`:**
+```js
+// In callClaude():
+const body = {
+  model: settings.model || "claude-haiku-4-5-20251001",
+  max_tokens: 512,
+  messages: [{ role: "user", content: prompt }],
+};
+const res = await httpsJsonRequest("https://api.anthropic.com/v1/messages", {
+  headers: {
+    "x-api-key": settings.apiKey,
+    "anthropic-version": "2023-06-01",
+  },
+  body,
+});
+const text = res?.content?.[0]?.text || "";
+return { provider: "claude", model: settings.model, advice: parsePossiblyJson(text), rawText: text };
+```
+
+Add to `defaultAISettings()`:
+```js
+// model presets for Claude
+{ label: "Claude Haiku 4.5 (fast, cheap)", value: "claude-haiku-4-5-20251001" },
+{ label: "Claude Sonnet 4.6 (balanced)", value: "claude-sonnet-4-6" },
+```
+
+---
+
+## Priority 6 — Developer Workflow
+
+### 6.1 Add GitHub Actions build workflow
+Automate Windows builds on push and release tags.
+
+**Create `.github/workflows/build.yml`:**
+```yaml
+name: Build Windows
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build-win:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci
+      - run: npm run check
+      - run: npm run build-win
+      - uses: actions/upload-artifact@v4
+        with:
+          name: poe2-gear-coach-windows
+          path: dist/*.exe
+```
+
+---
+
+### 6.2 Add parser regression test script
+Prevent item-slot classification regressions.
+
+**Create `scripts/test-parser.js`:**
+```js
+// Run with: node scripts/test-parser.js
+// Tests each case and reports PASS / FAIL
+const cases = [
+  { label: "Magic quiver",        text: "Item Class: Quivers\nRarity: Magic\n...", expect: "quiver" },
+  { label: "Rare belt w/ charm",  text: "Item Class: Belts\nRarity: Rare\nCharm Slots: 1\n...", expect: "belt" },
+  { label: "Charm",               text: "Item Class: Charms\nRarity: Normal\n...", expect: "charm" },
+  { label: "Flask",               text: "Item Class: Flasks\nRarity: Normal\n...", expect: "flask" },
+  { label: "Normal body armour",  text: "Rarity: Normal\nSilk Robe\n--------\nEnergy Shield: 14\n...", expect: "body" },
+  { label: "Unique helmet",       text: "Item Class: Helmets\nRarity: Unique\n...", expect: "helmet" },
+  { label: "Empty placeholder",   text: "Item Class: Quivers\n", expect: null },
+];
+```
+
+Add to `package.json`:
+```json
+"test:parser": "node scripts/test-parser.js"
+```
+
+---
+
+### 6.3 Add release checklist
 Create `RELEASE_CHECKLIST.md`:
 
 ```text
-- npm run check passes
-- settings opens
-- .build import works
-- pobb.in import works
-- normal/magic/rare/unique item overlay works
-- Set as equipped works
-- AI test works
-- Windows build created
+Before each release:
+- [ ] npm run check passes (all .js files pass syntax check)
+- [ ] Settings opens from tray icon
+- [ ] .build folder import loads all guide stages
+- [ ] pobb.in import fills stats, resistances, and gear names
+- [ ] Ctrl+C on a normal item triggers overlay
+- [ ] Ctrl+C on a rare item triggers overlay
+- [ ] Ctrl+C on non-item text hides overlay
+- [ ] Set as equipped updates the saved gear slot
+- [ ] AI Test returns a valid response (Gemini or OpenAI)
+- [ ] Build Health Report generates and exports correctly
+- [ ] Windows NSIS installer runs without SmartScreen block (or bypass is documented)
+- [ ] Portable .exe runs without installation
+- [ ] Overlay appears above PoE2 in Windowed Fullscreen
+- [ ] Overlay does not appear on taskbar while game is active
 ```
 
 ---
 
-### 21. Add lightweight parser tests
-A small test script would prevent regressions.
+### 6.4 Use electron-updater for in-app auto-update (optional)
+For users running the installed build, auto-update saves having to re-download manually.
 
-Suggested file:
-
-```text
-scripts/test-parser.js
+**Add to `package.json` devDependencies:**
+```json
+"electron-updater": "^6.x"
 ```
 
-Test cases:
-- magic quiver
-- rare quiver
-- belt with charm slots
-- charm
-- flask
-- normal gear
-- pobb.in decoded gear block
-
-Run with:
-
-```bash
-npm run test:parser
+**In `main.js`:**
+```js
+const { autoUpdater } = require("electron-updater");
+autoUpdater.checkForUpdatesAndNotify();
 ```
+
+**In `electron-builder` config:**
+```json
+"publish": {
+  "provider": "github",
+  "owner": "rpeters1430",
+  "repo": "poe2-item-coach"
+}
+```
+
+Requires a GitHub release with build artifacts. Electron-updater handles diff updates.
 
 ---
 
 ## Near-Term Suggested Roadmap
 
-### v2.1
-- Fix guide name/stage preservation
-- Add urgent build needs strip to overlay
-- Improve item won/lost explanations
-- Lower accuracy value if hit chance is already high
+### v2.1 — Windows Stability
+- Fix clipboard race condition on Windows (1.1)
+- Fix DPI-aware overlay positioning (1.2)
+- Add Windows startup option (1.3)
+- Fix Escape-key game interference (1.4)
+- Document SmartScreen bypass (1.5)
+- Set overlay above fullscreen with `"screen-saver"` level (1.7)
 
-### v2.2
-- Add resistance priority table
-- Add separate survival vs damage upgrade sections
-- Improve Ring 1/Ring 2 and utility display
-- Add parser regression tests
+### v2.2 — Scoring & Explanations
+- Add "why it won/lost" plain-English breakdown (2.1)
+- Lower accuracy value when hit chance is high (2.2)
+- Add resist-emergency context in every overlay (2.3)
+- Add "Urgent build needs" strip at top of overlay (3.1)
+- Add action label verdict (3.3)
 
-### v2.3
-- Improve AI structured output
-- Add short AI coach mode
-- Add GitHub Actions build workflow
-- Add release checklist
+### v2.3 — Health Report & UX
+- Add resistance priority table (4.2)
+- Separate survival vs damage upgrade sections (4.3)
+- Add Act/Progress checkpoint logic (4.1)
+- Add confidence level indicator (3.4)
+- Add pobb.in import quality summary (4.5)
 
-## Current Gameplay Context Used for Tuning
+### v2.4 — AI & Build
+- Structured AI context (5.1)
+- Short-answer AI overlay mode (5.2)
+- Add Claude as provider option (5.4)
+- Add GitHub Actions build workflow (6.1)
+- Add parser regression tests (6.2)
 
-Current Ice Shot Deadeye imported from pobb.in around level 47:
+### v2.5 — Polish & Distribution
+- Bundle portable .exe option (1.8)
+- Add in-app auto-updater (6.4)
+- Persist overlay position (3.6)
+- Add release checklist (6.3)
 
-```text
-Fire: -9%
-Cold: 43%
-Lightning: -33%
-Chaos: 0%
-Life/eHP: modest for level
-```
+---
 
-For this state, the coach should heavily favor:
+## Current Gameplay Context (used for scoring tuning)
 
-```text
-1. Lightning resistance
-2. Fire resistance
-3. Cold resistance
-4. Life/eHP
-5. Damage upgrades after resist problems improve
-```
+Ice Shot Deadeye, approximately level 47, imported from pobb.in:
 
-Preferred gear slots to solve defenses:
+| Resistance | Current | Gap to 75% cap |
+|-----------|---------|----------------|
+| Fire       | -9%     | +84            |
+| Cold       | 43%     | +32            |
+| Lightning  | -33%    | +108           |
+| Chaos      | 0%      | +75            |
 
-```text
-Rings
-Belt
-Body Armor
-Helmet
-Gloves
-Boots
-Amulet
-```
+**Priority order for this character:**
+1. Lightning resistance (+108 to cap — critical)
+2. Fire resistance (+84 to cap — critical)
+3. Cold resistance (+32 to cap — improve soon)
+4. Life / eHP — modest for level
+5. Damage upgrades — after resist gaps improve
 
-Weapon and quiver should remain mostly damage-focused unless a replacement also fixes resistances without losing meaningful damage.
+**Slots best used for defensive fixes:**
+Rings → Belt → Body Armor → Helmet → Gloves → Boots → Amulet
+
+**Weapon and quiver** should stay damage-focused unless a replacement also fixes resistances
+without meaningful damage loss.
+
+**Accuracy scoring note:** Hit chance is ~95% for this character. Accuracy mods should be
+scored at 15% of their default value until hit chance drops below 90%.
