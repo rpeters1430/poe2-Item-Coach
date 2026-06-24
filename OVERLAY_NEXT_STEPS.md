@@ -14,15 +14,40 @@ These are specific to the Windows target and have the highest day-to-day impact.
 when another process (e.g. the game's anti-cheat, Discord, or a password manager) holds the
 clipboard open. The current catch-all silently swallows these errors, causing missed detections.
 
-**Fix:**
+**Fix:** Refactor from `setInterval` to recursive `setTimeout` so the retry delay can vary
+per tick. With `setInterval` you cannot insert an 80ms short-retry — returning early from the
+callback just waits for the next 400ms tick. Recursive `setTimeout` schedules the next poll
+dynamically based on outcome:
+
 ```js
-// In startClipboardWatcher():
-let missCount = 0;
-const text = (() => { try { return clipboard.readText(); } catch { return null; } })();
-if (text === null) { missCount++; return; } // retry next tick
-missCount = 0;
+const CLIPBOARD_POLL_MS = 400;
+const CLIPBOARD_RETRY_MS = 80; // short retry after a transient Windows clipboard lock
+
+function scheduleClipboardPoll(delayMs = CLIPBOARD_POLL_MS) {
+  clipboardPoller = setTimeout(() => {
+    try {
+      const text = clipboard.readText();
+      if (text !== lastClipboardText) {
+        lastClipboardText = text;
+        if (isPoe2Item(text)) showOverlay(text);
+        else hideOverlay();
+      }
+      scheduleClipboardPoll(CLIPBOARD_POLL_MS); // normal cadence on success
+    } catch (_err) {
+      scheduleClipboardPoll(CLIPBOARD_RETRY_MS); // short retry on Windows clipboard lock
+    }
+  }, delayMs);
+}
+
+function startClipboardWatcher() {
+  lastClipboardText = (() => { try { return clipboard.readText(); } catch { return ""; } })();
+  scheduleClipboardPoll();
+}
+
+function stopClipboardWatcher() {
+  if (clipboardPoller) { clearTimeout(clipboardPoller); clipboardPoller = null; }
+}
 ```
-Also add a `CLIPBOARD_RETRY_MS = 80` short-retry after a null read before the next full poll.
 
 ---
 
@@ -181,6 +206,17 @@ Reason:
 Quivers with accuracy + attack speed can outscore better quivers when the character already has
 ~95% hit chance from pobb.in.
 
+**Prerequisite — plumb `hitChance` into `currentSession`:**
+`hitChance` is parsed from pobb.in in `main.js` and lives in `session.pobStats.hitChance`, but
+the scoring engine in `overlay-renderer.js` does not currently copy it into `currentSession`.
+Add to the `onItemDetected` handler before calling `scoreItem`:
+
+```js
+// In overlay-renderer.js — onItemDetected handler:
+const ps = session?.pobStats || {};
+currentSession.hitChance = Number(ps.hitChance) || null;
+```
+
 **Scoring adjustment logic:**
 ```js
 function accuracyMultiplier(hitChance) {
@@ -189,7 +225,8 @@ function accuracyMultiplier(hitChance) {
   return 1.0;                                      // full value
 }
 ```
-Apply to any scoring rule that matches `/accuracy|accuracy rating/i` before accumulating points.
+Apply to any scoring rule that matches `/accuracy|accuracy rating/i` before accumulating points,
+passing `currentSession.hitChance` as the argument.
 
 **Affected slots:** Quiver, Gloves, Rings, Weapon.
 
@@ -533,19 +570,57 @@ jobs:
 ### 6.2 Add parser regression test script
 Prevent item-slot classification regressions.
 
+**Prerequisite — extract parsing into `src/parser.js`:**
+`overlay-renderer.js` references browser globals (`document`, `window`) at the top level,
+so it cannot be `require()`d directly in Node.js — doing so throws
+`ReferenceError: document is not defined`. Before writing the test script, extract the
+pure parsing functions (`parseItem`, `inferSlotFromText`, `isModLike`, etc.) into a new
+DOM-independent file that works in both Node and the Electron renderer:
+
+```
+src/parser.js       ← pure text parsing, no DOM references
+src/overlay-renderer.js  ← imports from parser.js, keeps all DOM/UI code
+```
+
 **Create `scripts/test-parser.js`:**
 ```js
 // Run with: node scripts/test-parser.js
-// Tests each case and reports PASS / FAIL
+"use strict";
+const { parseItem, inferSlotFromText } = require("../src/parser.js");
+
 const cases = [
-  { label: "Magic quiver",        text: "Item Class: Quivers\nRarity: Magic\n...", expect: "quiver" },
-  { label: "Rare belt w/ charm",  text: "Item Class: Belts\nRarity: Rare\nCharm Slots: 1\n...", expect: "belt" },
-  { label: "Charm",               text: "Item Class: Charms\nRarity: Normal\n...", expect: "charm" },
-  { label: "Flask",               text: "Item Class: Flasks\nRarity: Normal\n...", expect: "flask" },
-  { label: "Normal body armour",  text: "Rarity: Normal\nSilk Robe\n--------\nEnergy Shield: 14\n...", expect: "body" },
-  { label: "Unique helmet",       text: "Item Class: Helmets\nRarity: Unique\n...", expect: "helmet" },
-  { label: "Empty placeholder",   text: "Item Class: Quivers\n", expect: null },
+  { label: "Magic quiver",       text: "Item Class: Quivers\nRarity: Magic\n--------\nRequires: Level 5\n", expect: "quiver" },
+  { label: "Rare belt w/ charm", text: "Item Class: Belts\nRarity: Rare\nCharm Slots: 1\n--------\n", expect: "belt" },
+  { label: "Charm",              text: "Item Class: Charms\nRarity: Normal\n--------\n", expect: "charm" },
+  { label: "Flask",              text: "Item Class: Flasks\nRarity: Normal\n--------\n", expect: "flask" },
+  { label: "Normal body armour", text: "Rarity: Normal\nSilk Robe\n--------\nEnergy Shield: 14\n", expect: "body" },
+  { label: "Unique helmet",      text: "Item Class: Helmets\nRarity: Unique\n--------\n", expect: "helmet" },
+  { label: "Empty placeholder",  text: "Item Class: Quivers\n", expect: null },
 ];
+
+let failed = 0;
+for (const c of cases) {
+  try {
+    const parsed = parseItem(c.text);
+    const slot = parsed?.slot ?? null;
+    if (slot === c.expect) {
+      console.log(`PASS: ${c.label}`);
+    } else {
+      console.error(`FAIL: ${c.label} — expected "${c.expect}", got "${slot}"`);
+      failed++;
+    }
+  } catch (err) {
+    console.error(`FAIL: ${c.label} — threw: ${err.message}`);
+    failed++;
+  }
+}
+
+if (failed > 0) {
+  console.error(`\n${failed} test(s) failed.`);
+  process.exit(1);
+} else {
+  console.log("\nAll tests passed.");
+}
 ```
 
 Add to `package.json`:
