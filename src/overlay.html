@@ -3,384 +3,440 @@
 <head>
   <meta charset="utf-8" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';" />
-  <title>PoE2 Gear Coach Overlay</title>
+  <title>PoE2 Gear Coach</title>
   <style>
-    /* ── Reset & base ──────────────────────────────────────────────────────── */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
+    /* ── PoE2 colour palette (mirrors in-game tooltip colours) ── */
     :root {
-      --bg:          rgba(12, 10, 18, 0.93);
-      --bg-card:     rgba(22, 18, 32, 0.97);
-      --border:      rgba(120, 90, 200, 0.35);
-      --accent:      #a78bfa;
-      --accent-dim:  #7c5cbf;
-      --good:        #4ade80;
-      --warn:        #facc15;
-      --bad:         #f87171;
-      --text:        #e2d9f3;
-      --muted:       #9d8ec4;
-      --radius:      14px;
-      --shadow:      0 8px 32px rgba(0,0,0,0.65);
-      --font:        system-ui, -apple-system, "Segoe UI", sans-serif;
+      --poe-bg:          #0d0b08;
+      --poe-bg-card:     #110f0b;
+      --poe-border:      #5c4a1e;
+      --poe-border-dim:  #3a2f10;
+      --poe-gold:        #af8c54;
+      --poe-gold-bright: #c8a96e;
+      --poe-rare:        #ffef99;
+      --poe-magic:       #8888ff;
+      --poe-unique:      #af6025;
+      --poe-normal:      #c8c8c8;
+      --poe-gem:         #1aa76d;
+      --poe-mod:         #8888ff;
+      --poe-fire:        #e05030;
+      --poe-cold:        #6090e0;
+      --poe-lightning:   #c8b400;
+      --poe-chaos:       #d02090;
+      --poe-life:        #d03020;
+      --poe-white:       #c8c8c8;
+      --poe-muted:       #7f7f7f;
+      --poe-separator:   #4b3a1e;
+
+      /* verdict colours */
+      --good:   #78d49a;
+      --warn:   #ffd166;
+      --bad:    #ff8b8b;
+      --accent: #78a6ff;
+
+      --font-body: "Fontin SmallCaps", "Segoe UI", system-ui, sans-serif;
+      --font-mono: "JetBrains Mono", "Consolas", monospace;
+      --radius: 4px;
+      --shadow: 0 8px 40px rgba(0,0,0,0.85), 0 0 0 1px rgba(92,74,30,0.5);
     }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     html, body {
       background: transparent;
-      font-family: var(--font);
-      font-size: 16px;
-      color: var(--text);
-      width: 620px;
-      min-height: 60px;
+      font-family: var(--font-body);
+      color: var(--poe-white);
+      width: 680px;
       overflow: hidden;
-      -webkit-app-region: no-drag;
       user-select: none;
+      -webkit-app-region: no-drag;
     }
 
-    /* ── Card shell ───────────────────────────────────────────────────────── */
-    #card {
-      background: var(--bg);
-      border: 1px solid var(--border);
+    /* ── Outer shell ───────────────────────────────────────────── */
+    #shell {
+      display: none;
+      background: var(--poe-bg);
+      border: 1px solid var(--poe-border);
       border-radius: var(--radius);
       box-shadow: var(--shadow);
       overflow: hidden;
-      display: none; /* hidden until an item arrives */
     }
-    #card.visible { display: block; }
+    #shell.visible { display: flex; flex-direction: column; }
 
-    /* ── Header bar ───────────────────────────────────────────────────────── */
-    #header {
+    /* ── Drag handle / title bar ───────────────────────────────── */
+    #titlebar {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 12px 16px 10px;
-      background: rgba(30, 20, 50, 0.6);
-      border-bottom: 1px solid var(--border);
-      -webkit-app-region: drag; /* drag the overlay by the header */
+      padding: 7px 12px 6px;
+      background: linear-gradient(180deg, #1a1508 0%, #110f08 100%);
+      border-bottom: 1px solid var(--poe-border-dim);
+      -webkit-app-region: drag;
     }
-    #header-left {
-      display: flex;
-      align-items: center;
-      gap: 12px;
+    #titlebar-left {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 11px; color: var(--poe-gold); letter-spacing: 0.1em;
+      text-transform: uppercase; font-weight: 700;
     }
-    #poe-logo {
-      font-size: 20px;
-      line-height: 1;
-    }
-    #header-title {
-      font-size: 14px;
-      font-weight: 700;
-      color: var(--accent);
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-    }
-    #header-actions {
-      display: flex;
-      align-items: center;
-      gap: 6px;
+    #titlebar-right {
+      display: flex; gap: 6px; align-items: center;
       -webkit-app-region: no-drag;
     }
-    .hdr-btn {
-      background: none;
-      border: 1px solid var(--border);
-      border-radius: 5px;
-      color: var(--muted);
-      font-size: 14px;
-      padding: 5px 10px;
-      cursor: pointer;
-      transition: color 0.15s, border-color 0.15s;
+    .tb-btn {
+      background: none; border: 1px solid var(--poe-border-dim); border-radius: 3px;
+      color: var(--poe-muted); font-size: 11px; padding: 3px 8px;
+      cursor: pointer; font-family: inherit; letter-spacing: 0.04em;
+      transition: color 0.12s, border-color 0.12s;
     }
-    .hdr-btn:hover { color: var(--text); border-color: var(--accent-dim); }
-    #close-btn {
-      font-size: 18px;
-      padding: 5px 10px;
-      color: var(--muted);
-    }
+    .tb-btn:hover { color: var(--poe-gold); border-color: var(--poe-border); }
+    #close-btn { font-size: 14px; padding: 2px 7px; }
     #close-btn:hover { color: var(--bad); border-color: var(--bad); }
 
-    /* ── Body ─────────────────────────────────────────────────────────────── */
-    #body { padding: 16px; }
+    /* ── Stage / slot selectors ────────────────────────────────── */
+    #selectors {
+      display: flex; gap: 8px; align-items: center;
+      padding: 7px 12px; background: #0d0b08;
+      border-bottom: 1px solid var(--poe-border-dim);
+    }
+    .sel-label { font-size: 11px; color: var(--poe-muted); white-space: nowrap; }
+    #selectors select {
+      flex: 1; background: #1a1508; border: 1px solid var(--poe-border-dim);
+      border-radius: 3px; color: var(--poe-gold); font-size: 12px;
+      font-family: inherit; padding: 4px 6px; cursor: pointer;
+    }
+    #selectors select:focus { outline: none; border-color: var(--poe-border); }
 
-    /* ── Slot selector ────────────────────────────────────────────────────── */
-    #slot-row {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 14px;
-    }
-    #slot-row label {
-      font-size: 14px;
-      color: var(--muted);
-      white-space: nowrap;
-    }
-    #slot-select, #stage-select {
-      flex: 1;
-      background: rgba(255,255,255,0.06);
-      border: 1px solid var(--border);
-      border-radius: 5px;
-      color: var(--text);
-      font-size: 15px;
-      padding: 7px 10px;
-    }
-
-    /* ── Item name ────────────────────────────────────────────────────────── */
-    #item-name {
-      font-size: 18px;
-      font-weight: 800;
-      color: #ffd580;
-      margin-bottom: 4px;
-    }
-    #item-class {
-      font-size: 14px;
-      color: var(--muted);
-      margin-bottom: 10px;
-    }
-
-    /* ── Verdict banner ───────────────────────────────────────────────────── */
-    #verdict {
-      border-radius: 6px;
-      padding: 12px 14px;
-      margin-bottom: 14px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    #verdict.good  { background: rgba(74, 222, 128, 0.12); border: 1px solid rgba(74,222,128,0.35); }
-    #verdict.warn  { background: rgba(250, 204, 21,  0.10); border: 1px solid rgba(250,204,21, 0.35); }
-    #verdict.bad   { background: rgba(248, 113, 113, 0.10); border: 1px solid rgba(248,113,113,0.35); }
-    #verdict-icon  { font-size: 24px; line-height: 1; flex-shrink: 0; }
-    #verdict-text  { }
-    #verdict-label {
-      font-size: 18px;
-      font-weight: 800;
-    }
-    #verdict-label.good { color: var(--good); }
-    #verdict-label.warn { color: var(--warn); }
-    #verdict-label.bad  { color: var(--bad); }
-    #verdict-opinion { font-size: 14px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
-
-    /* ── Score chips ──────────────────────────────────────────────────────── */
-    #score-grid {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-bottom: 14px;
-    }
-    .score-chip {
-      border-radius: 4px;
-      padding: 6px 10px;
-      font-size: 14px;
-      display: flex;
-      gap: 7px;
-      border: 1px solid transparent;
-    }
-    .score-chip .chip-label { color: var(--muted); }
-    .score-chip.positive { background: rgba(74,222,128,0.09); border-color: rgba(74,222,128,0.2); }
-    .score-chip.negative { background: rgba(248,113,113,0.09); border-color: rgba(248,113,113,0.2); }
-    .score-chip.neutral  { background: rgba(255,255,255,0.05); }
-    .score-chip .chip-val.positive { color: var(--good); }
-    .score-chip .chip-val.negative { color: var(--bad); }
-    .score-chip .chip-val.neutral  { color: var(--muted); }
-
-    /* ── Pros / Cons ──────────────────────────────────────────────────────── */
-    #detail-grid {
+    /* ── Body: two-column layout ───────────────────────────────── */
+    #body {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      margin-bottom: 14px;
+      gap: 0;
     }
-    .detail-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 6px;
+
+    /* ── LEFT: PoE-style item tooltip ──────────────────────────── */
+    #item-tooltip {
+      border-right: 1px solid var(--poe-border-dim);
       padding: 12px 14px;
-    }
-    .detail-card h4 {
-      font-size: 13px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--accent-dim);
-      margin-bottom: 8px;
-    }
-    .detail-card ul { list-style: none; }
-    .detail-card li {
-      font-size: 14px;
-      line-height: 1.5;
-      color: var(--text);
-      padding: 1px 0;
-    }
-    .detail-card li.good::before { content: "✓ "; color: var(--good); }
-    .detail-card li.bad::before  { content: "✗ "; color: var(--bad); }
-    .detail-card li.warn::before { content: "⚠ "; color: var(--warn); }
-    .detail-card li.empty { color: var(--muted); font-style: italic; }
-
-
-    #pros-list, #cons-list {
-      max-height: 145px;
-      overflow-y: auto;
-      padding-right: 4px;
+      display: flex; flex-direction: column; gap: 0;
+      min-width: 0;
     }
 
-    #saved-compare-body, #ai-coach-box {
-      max-height: 170px;
-      overflow-y: auto;
+    /* Item header */
+    .item-header { text-align: center; margin-bottom: 6px; }
+    .item-rarity-bar {
+      height: 3px; border-radius: 2px; margin-bottom: 8px;
+      background: var(--poe-gold);
+    }
+    .item-rarity-bar.rare    { background: linear-gradient(90deg, transparent, #c8b400, transparent); }
+    .item-rarity-bar.magic   { background: linear-gradient(90deg, transparent, #8888ff, transparent); }
+    .item-rarity-bar.unique  { background: linear-gradient(90deg, transparent, #af6025, transparent); }
+    .item-rarity-bar.normal  { background: linear-gradient(90deg, transparent, #7f7f7f, transparent); }
+
+    .item-name {
+      font-size: 17px; font-weight: 700; letter-spacing: 0.02em;
+      line-height: 1.2; margin-bottom: 1px;
+    }
+    .item-name.rare    { color: var(--poe-rare); }
+    .item-name.magic   { color: var(--poe-magic); }
+    .item-name.unique  { color: var(--poe-unique); }
+    .item-name.normal  { color: var(--poe-normal); }
+
+    .item-base { font-size: 13px; color: var(--poe-white); }
+
+    /* Separator */
+    .sep {
+      width: 100%; height: 1px; margin: 7px 0;
+      background: linear-gradient(90deg, transparent, var(--poe-separator) 30%, var(--poe-separator) 70%, transparent);
     }
 
-    /* ── Footer ───────────────────────────────────────────────────────────── */
+    /* Property rows */
+    .prop-row { display: flex; justify-content: space-between; gap: 8px; }
+    .prop-label { color: var(--poe-white); font-size: 13px; }
+    .prop-val   { color: var(--poe-blue, #8888ff); font-size: 13px; font-weight: 600; }
+    .prop-val.aug { color: #8888ff; }
+    .prop-val.norm { color: var(--poe-white); }
+
+    /* Requirements */
+    .req-line { font-size: 12px; color: var(--poe-white); }
+    .req-unmet { color: var(--bad) !important; }
+    .req-val { color: var(--poe-white); }
+    .req-val.unmet { color: var(--bad); }
+
+    /* Item level */
+    .ilvl-line { font-size: 12px; color: var(--poe-muted); }
+
+    /* Affix section */
+    .affix-block { display: flex; flex-direction: column; gap: 2px; }
+    .affix-line { font-size: 13px; color: #8888ff; line-height: 1.35; }
+    .affix-line.fire      { color: #e05030; }
+    .affix-line.cold      { color: #6090e0; }
+    .affix-line.lightning { color: #c8b400; }
+    .affix-line.chaos     { color: #d02090; }
+    .affix-line.life      { color: #d03020; }
+    .affix-line.move      { color: var(--good); }
+    .affix-line.phys      { color: #c8c8c8; }
+    .affix-line.plain     { color: var(--poe-white); }
+    .affix-line.neg       { color: var(--bad); opacity: 0.85; }
+
+    /* Flavour / unique text */
+    .flavour { font-size: 12px; color: #af8c54; font-style: italic; text-align: center; }
+
+    /* ── RIGHT: Coach panel ────────────────────────────────────── */
+    #coach-panel {
+      padding: 12px 14px;
+      display: flex; flex-direction: column; gap: 10px;
+      overflow-y: auto; max-height: 520px;
+    }
+
+    /* Verdict badge */
+    #verdict-badge {
+      border-radius: 4px; padding: 9px 12px;
+      display: flex; align-items: flex-start; gap: 10px;
+    }
+    #verdict-badge.good { background: rgba(120,212,154,0.12); border: 1px solid rgba(120,212,154,0.35); }
+    #verdict-badge.warn { background: rgba(255,209,102,0.10); border: 1px solid rgba(255,209,102,0.35); }
+    #verdict-badge.bad  { background: rgba(255,139,139,0.10); border: 1px solid rgba(255,139,139,0.35); }
+
+    .verdict-icon  { font-size: 20px; line-height: 1; flex-shrink: 0; margin-top: 1px; }
+    .verdict-inner {}
+    .verdict-label { font-size: 15px; font-weight: 800; letter-spacing: 0.01em; }
+    .verdict-label.good { color: var(--good); }
+    .verdict-label.warn { color: var(--warn); }
+    .verdict-label.bad  { color: var(--bad); }
+    .verdict-opinion { font-size: 12px; color: rgba(255,255,255,0.65); margin-top: 3px; line-height: 1.45; }
+
+    /* Score total */
+    #score-total {
+      display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap;
+    }
+    .score-total-label { font-size: 11px; color: var(--poe-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+    .score-total-val { font-size: 22px; font-weight: 800; }
+    .score-total-val.positive { color: var(--good); }
+    .score-total-val.negative { color: var(--bad); }
+    .score-total-val.neutral  { color: var(--poe-muted); }
+    .score-vs { font-size: 12px; color: var(--poe-muted); }
+
+    /* Category bars */
+    #cat-bars { display: flex; flex-direction: column; gap: 5px; }
+    .cat-bar-row { display: grid; grid-template-columns: 64px 1fr 32px; gap: 6px; align-items: center; }
+    .cat-bar-label { font-size: 11px; color: var(--poe-muted); text-align: right; }
+    .cat-bar-track { height: 6px; border-radius: 3px; background: rgba(255,255,255,0.07); position: relative; overflow: visible; }
+    .cat-bar-fill  { height: 100%; border-radius: 3px; transition: width 0.25s ease; }
+    .cat-bar-fill.positive { background: var(--good); }
+    .cat-bar-fill.negative { background: var(--bad); }
+    .cat-bar-fill.neutral  { background: var(--poe-muted); }
+    .cat-bar-delta { font-size: 11px; text-align: right; font-weight: 700; }
+    .cat-bar-delta.positive { color: var(--good); }
+    .cat-bar-delta.negative { color: var(--bad); }
+    .cat-bar-delta.neutral  { color: var(--poe-muted); }
+
+    /* Equipped comparison */
+    #equipped-compare {
+      background: rgba(255,255,255,0.035);
+      border: 1px solid var(--poe-border-dim);
+      border-radius: 4px; padding: 9px 11px;
+    }
+    .eq-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--poe-muted); margin-bottom: 5px; }
+    .eq-name  { font-size: 13px; color: var(--poe-gold); font-weight: 700; margin-bottom: 4px; }
+    .eq-delta-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .eq-delta-chip {
+      font-size: 11px; padding: 2px 7px; border-radius: 99px; font-weight: 700;
+      border: 1px solid transparent;
+    }
+    .eq-delta-chip.positive { color: var(--good); border-color: rgba(120,212,154,0.35); background: rgba(120,212,154,0.08); }
+    .eq-delta-chip.negative { color: var(--bad);  border-color: rgba(255,139,139,0.35); background: rgba(255,139,139,0.08); }
+    .eq-delta-chip.neutral  { color: var(--poe-muted); border-color: rgba(255,255,255,0.1); }
+    #set-equipped-btn {
+      font-size: 11px; padding: 4px 10px; border-radius: 3px;
+      background: rgba(92,74,30,0.35); border: 1px solid var(--poe-border);
+      color: var(--poe-gold); font-family: inherit; cursor: pointer; margin-top: 7px;
+    }
+    #set-equipped-btn:hover { background: rgba(92,74,30,0.6); }
+
+    /* Pros / cons */
+    .pca-section { }
+    .pca-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--poe-muted); margin-bottom: 5px; }
+    .pca-list { display: flex; flex-direction: column; gap: 3px; }
+    .pca-item { font-size: 12px; line-height: 1.4; display: flex; gap: 6px; align-items: flex-start; }
+    .pca-bullet { flex-shrink: 0; margin-top: 1px; }
+    .pca-item.good .pca-bullet { color: var(--good); }
+    .pca-item.bad  .pca-bullet { color: var(--bad); }
+    .pca-item.warn .pca-bullet { color: var(--warn); }
+    .pca-item.good .pca-text { color: rgba(255,255,255,0.85); }
+    .pca-item.bad  .pca-text { color: rgba(255,139,139,0.85); }
+    .pca-item.warn .pca-text { color: rgba(255,209,102,0.85); }
+    .pca-empty { font-size: 12px; color: var(--poe-muted); font-style: italic; }
+
+    /* AI coach area */
+    #ai-area {
+      background: rgba(120,100,255,0.06);
+      border: 1px solid rgba(120,100,255,0.2);
+      border-radius: 4px; padding: 9px 11px;
+      display: none;
+    }
+    #ai-area.visible { display: block; }
+    #ai-text { font-size: 12px; line-height: 1.55; color: rgba(255,255,255,0.8); white-space: pre-wrap; }
+    #ai-loading { font-size: 12px; color: var(--poe-muted); }
+
+    /* Footer */
     #footer {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 10px 16px 14px;
-      border-top: 1px solid var(--border);
-    }
-    #footer-hint { font-size: 13px; color: var(--muted); }
-    #compare-btn, #ai-coach-btn {
-      background: var(--accent-dim);
-      border: none;
-      border-radius: 5px;
-      color: #fff;
-      font-size: 14px;
-      font-weight: 700;
-      padding: 5px 10px;
-      cursor: pointer;
-      transition: background 0.15s;
-    }
-    #ai-coach-btn { background: rgba(124,92,191,.55); border: 1px solid rgba(167,139,250,.35); }
-    #compare-btn:hover, #ai-coach-btn:hover { background: var(--accent); }
-    #ai-coach-box {
-      display: none;
-      background: rgba(255,255,255,0.045);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 12px 14px;
-      margin-bottom: 10px;
-      font-size: 11px;
-      line-height: 1.45;
-      color: var(--text);
-      white-space: pre-wrap;
-    }
-
-    .saved-compare {
-      background: rgba(255,255,255,0.045);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 12px 14px;
-      margin-bottom: 10px;
-    }
-    .saved-compare-title {
-      font-size: 13px;
-      text-transform: uppercase;
-      letter-spacing: .05em;
-      color: var(--accent-dim);
-      font-weight: 700;
-      margin-bottom: 3px;
-    }
-    .saved-compare-body {
-      font-size: 14px;
-      color: var(--muted);
-      line-height: 1.45;
-      margin-bottom: 7px;
-    }
-    .saved-compare-btn {
-      background: rgba(124,92,191,.35);
-      border: 1px solid rgba(167,139,250,.5);
-      color: var(--text);
-      border-radius: 5px;
+      display: flex; align-items: center; justify-content: space-between;
       padding: 7px 12px;
-      font-size: 14px;
-      cursor: pointer;
+      border-top: 1px solid var(--poe-border-dim);
+      background: #0d0b08;
     }
-    .saved-compare-btn:hover { background: rgba(124,92,191,.55); }
-
-    /* ── Loading / empty state ────────────────────────────────────────────── */
-    #loading {
-      padding: 24px 18px;
-      text-align: center;
-      color: var(--muted);
-      font-size: 15px;
+    #footer-hint { font-size: 10px; color: var(--poe-muted); }
+    #footer-actions { display: flex; gap: 6px; }
+    .foot-btn {
+      font-size: 11px; padding: 4px 11px; border-radius: 3px;
+      background: rgba(92,74,30,0.25); border: 1px solid var(--poe-border-dim);
+      color: var(--poe-gold); font-family: inherit; cursor: pointer;
+      transition: background 0.12s;
     }
+    .foot-btn:hover { background: rgba(92,74,30,0.55); }
+    .foot-btn.primary {
+      background: rgba(120,166,255,0.18); border-color: rgba(120,166,255,0.4);
+      color: var(--accent);
+    }
+    .foot-btn.primary:hover { background: rgba(120,166,255,0.32); }
 
-    /* ── No-build warning ─────────────────────────────────────────────────── */
-    #no-build-warning {
-      background: rgba(250,204,21,0.08);
-      border: 1px solid rgba(250,204,21,0.3);
-      border-radius: 6px;
-      padding: 12px 14px;
-      font-size: 11px;
-      color: var(--warn);
-      margin-bottom: 10px;
-      display: none;
+    /* No-build warning */
+    #no-build-warn {
+      margin: 8px 12px 0;
+      padding: 7px 10px; border-radius: 3px;
+      background: rgba(255,209,102,0.08); border: 1px solid rgba(255,209,102,0.3);
+      font-size: 11px; color: var(--warn); display: none;
     }
   </style>
 </head>
 <body>
-<div id="card">
-  <div id="header">
-    <div id="header-left">
-      <span id="poe-logo">⚗</span>
-      <span id="header-title">Gear Coach</span>
+
+<div id="shell">
+
+  <!-- Title bar -->
+  <div id="titlebar">
+    <div id="titlebar-left">
+      <span>⚗</span>
+      <span>PoE2 Gear Coach</span>
     </div>
-    <div id="header-actions">
-      <button class="hdr-btn" id="settings-btn" title="Open Settings">⚙ Settings</button>
-      <button class="hdr-btn" id="close-btn" title="Dismiss (Esc)">✕</button>
+    <div id="titlebar-right">
+      <button class="tb-btn" id="settings-btn">⚙ Settings</button>
+      <button class="tb-btn" id="close-btn">✕</button>
     </div>
   </div>
 
+  <!-- No-build warning -->
+  <div id="no-build-warn">No build imported — using default Frost Crossbow profile. Open Settings to import.</div>
+
+  <!-- Stage / slot selectors -->
+  <div id="selectors">
+    <span class="sel-label">Slot</span>
+    <select id="slot-select"></select>
+    <span class="sel-label">Stage</span>
+    <select id="stage-select"></select>
+  </div>
+
+  <!-- Two-column body -->
   <div id="body">
-    <div id="no-build-warning">
-      No build imported yet — using default Frost Crossbow profile.<br>
-      Open Settings to import your build files.
-    </div>
 
-    <div id="slot-row">
-      <label for="slot-select">Slot</label>
-      <select id="slot-select"></select>
-      <label for="stage-select">Stage</label>
-      <select id="stage-select"></select>
-    </div>
+    <!-- LEFT: PoE-style tooltip -->
+    <div id="item-tooltip">
+      <div class="item-header">
+        <div class="item-rarity-bar" id="rarity-bar"></div>
+        <div class="item-name" id="item-name">—</div>
+        <div class="item-base" id="item-base"></div>
+      </div>
 
-    <div id="item-name">—</div>
-    <div id="item-class"></div>
+      <div class="sep"></div>
 
-    <div id="verdict" class="warn">
-      <div id="verdict-icon">⏳</div>
-      <div id="verdict-text">
-        <div id="verdict-label" class="warn">Analyzing…</div>
-        <div id="verdict-opinion"></div>
+      <!-- item level / quality -->
+      <div id="item-meta"></div>
+
+      <!-- requirements -->
+      <div id="item-reqs"></div>
+
+      <div class="sep" id="sep-reqs" style="display:none"></div>
+
+      <!-- properties (armour, evasion, etc) -->
+      <div id="item-props"></div>
+      <div class="sep" id="sep-props" style="display:none"></div>
+
+      <!-- implicit mods -->
+      <div id="item-implicits" class="affix-block"></div>
+      <div class="sep" id="sep-implicits" style="display:none"></div>
+
+      <!-- explicit mods -->
+      <div id="item-affixes" class="affix-block"></div>
+
+      <!-- flavour text -->
+      <div id="item-flavour" style="display:none">
+        <div class="sep"></div>
+        <div class="flavour" id="flavour-text"></div>
       </div>
     </div>
 
-    <div id="score-grid"></div>
+    <!-- RIGHT: Coach panel -->
+    <div id="coach-panel">
 
-    <div id="saved-compare" class="saved-compare" style="display:none;">
-      <div id="saved-compare-title" class="saved-compare-title"></div>
-      <div id="saved-compare-body" class="saved-compare-body"></div>
-      <button id="set-equipped-btn" class="saved-compare-btn" type="button">Set as equipped</button>
-    </div>
-
-    <div id="ai-coach-box"></div>
-
-    <div id="detail-grid">
-      <div class="detail-card">
-        <h4>Why it helps</h4>
-        <ul id="pros-list"><li class="empty">—</li></ul>
+      <!-- Verdict -->
+      <div id="verdict-badge" class="warn">
+        <div class="verdict-icon" id="verdict-icon">◈</div>
+        <div class="verdict-inner">
+          <div class="verdict-label warn" id="verdict-label">Analyzing…</div>
+          <div class="verdict-opinion" id="verdict-opinion"></div>
+        </div>
       </div>
-      <div class="detail-card">
-        <h4>Watch out for</h4>
-        <ul id="cons-list"><li class="empty">—</li></ul>
-      </div>
-    </div>
-  </div>
 
+      <!-- Score total -->
+      <div id="score-total">
+        <span class="score-total-label">Build fit</span>
+        <span class="score-total-val" id="score-val">—</span>
+        <span class="score-vs" id="score-vs"></span>
+      </div>
+
+      <!-- Category bars -->
+      <div id="cat-bars"></div>
+
+      <!-- Equipped comparison -->
+      <div id="equipped-compare" style="display:none">
+        <div class="eq-title">vs. your equipped</div>
+        <div class="eq-name" id="eq-name"></div>
+        <div class="eq-delta-row" id="eq-deltas"></div>
+        <button id="set-equipped-btn">Set as equipped ↑</button>
+      </div>
+
+      <!-- Pros -->
+      <div class="pca-section">
+        <div class="pca-title">Why it fits</div>
+        <div class="pca-list" id="pros-list"></div>
+      </div>
+
+      <!-- Cons / warnings -->
+      <div class="pca-section">
+        <div class="pca-title">Watch out for</div>
+        <div class="pca-list" id="cons-list"></div>
+      </div>
+
+      <!-- AI area -->
+      <div id="ai-area">
+        <div class="pca-title">AI Coach</div>
+        <div id="ai-loading" style="display:none">Asking AI…</div>
+        <div id="ai-text"></div>
+      </div>
+
+    </div>
+  </div><!-- /#body -->
+
+  <!-- Footer -->
   <div id="footer">
-    <span id="footer-hint">Ctrl+C on any item in-game • Esc to dismiss</span>
-    <span>
-      <button id="ai-coach-btn">AI Coach</button>
-      <button id="compare-btn">Full Compare ↗</button>
-    </span>
+    <span id="footer-hint">Ctrl+C on item in-game · Esc to dismiss</span>
+    <div id="footer-actions">
+      <button class="foot-btn" id="ai-btn">✦ AI Coach</button>
+      <button class="foot-btn primary" id="fullcompare-btn">Full Report ↗</button>
+    </div>
   </div>
-</div>
+
+</div><!-- /#shell -->
 
 <script src="overlay-renderer.js"></script>
 </body>
