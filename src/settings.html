@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';" />
+  <title>PoE2 Gear Coach — Settings</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    /* ── Electron-specific overrides ─────────────────────────────────────── */
+
+    /* Extra banner at the top explaining the overlay workflow */
+    .electron-banner {
+      background: linear-gradient(135deg, rgba(124, 92, 191, 0.18) 0%, rgba(60, 40, 100, 0.12) 100%);
+      border: 1px solid rgba(124, 92, 191, 0.4);
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+    }
+    .electron-banner-icon { font-size: 28px; line-height: 1; flex-shrink: 0; }
+    .electron-banner h2   { margin: 0 0 4px; font-size: 15px; }
+    .electron-banner p    { margin: 0; font-size: 12px; color: var(--text-muted, #aaa); line-height: 1.5; }
+    .electron-banner code { font-size: 11px; background: rgba(255,255,255,0.08); padding: 1px 5px; border-radius: 3px; }
+
+    /* Save-to-overlay button */
+    #saveToOverlayBtn {
+      background: #7c5cbf;
+      color: #fff;
+      border: none;
+      border-radius: 7px;
+      padding: 9px 20px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    #saveToOverlayBtn:hover { background: #9b7de0; }
+
+    .overlay-save-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 18px;
+      background: rgba(124, 92, 191, 0.08);
+      border: 1px solid rgba(124, 92, 191, 0.25);
+      border-radius: 8px;
+      margin-top: 20px;
+    }
+    .overlay-save-row p {
+      margin: 0;
+      font-size: 12px;
+      color: #aaa;
+      flex: 1;
+    }
+    #overlaySaveStatus {
+      font-size: 12px;
+      color: #4ade80;
+    }
+    .ai-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .ai-grid label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--text-muted, #aaa); }
+    .ai-grid input, .ai-grid select { padding: 8px; border-radius: 6px; border: 1px solid rgba(124,92,191,.35); background: rgba(255,255,255,.05); color: inherit; }
+    .ai-check { flex-direction: row !important; align-items: center; }
+    .ai-output { white-space: pre-wrap; line-height: 1.45; margin-top: 12px; }
+    .danger-lite { border-color: rgba(248,113,113,.35) !important; }
+  </style>
+</head>
+<body>
+  <main class="app-shell">
+
+    <!-- ── Electron overlay explainer ───────────────────────────────────── -->
+    <div class="electron-banner">
+      <div class="electron-banner-icon">⚗</div>
+      <div>
+        <h2>PoE2 Gear Coach — Overlay Mode</h2>
+        <p>
+          This is the settings window. Import your build files or Mobalytics guide text below,
+          set your player level and attributes, then click <strong>Save to Overlay</strong>.<br>
+          Once saved, the overlay will automatically pop up near your cursor whenever you press
+          <code>Ctrl+C</code> on an item in-game. Close this window when done — the app keeps running in the system tray.
+        </p>
+      </div>
+    </div>
+
+    <!-- ── Save to Overlay row ───────────────────────────────────────────── -->
+    <div class="overlay-save-row">
+      <p>
+        After importing your build and entering your player stats below, save your configuration
+        so the overlay knows which build to use.
+      </p>
+      <button id="saveToOverlayBtn">💾 Save to Overlay</button>
+      <span id="overlaySaveStatus"></span>
+    </div>
+
+    <!-- ── ================================================================ -->
+    <!-- ── Everything below this line is the unmodified browser app UI.     -->
+    <!-- ── We just inject the Electron save hook at the bottom.             -->
+    <!-- ── ================================================================ -->
+
+    <header class="hero">
+      <div>
+        <p class="eyebrow">PoE2 Gear Coach — Overlay Edition</p>
+        <h1>Import a build. Paste gear. Get a practical verdict.</h1>
+        <p class="subtitle">
+          Import PoE2 <code>.build</code> files or paste Mobalytics guide text to configure the overlay.
+          Then use the <strong>Item Comparison</strong> section to test comparisons manually.
+        </p>
+      </div>
+      <div class="hero-card">
+        <span class="hero-card-label">Overlay</span>
+        <strong>Ctrl+C in-game</strong>
+        <p>Press Ctrl+C on any hovered item in PoE2 and the overlay pops up automatically.</p>
+      </div>
+    </header>
+
+    <section class="panel import-panel">
+      <div class="panel-title-row import-title-row">
+        <div>
+          <h2>Import PoE2 .build files</h2>
+          <p class="mini-note">Select one or more <code>.build</code> files. In the Windows picker you can use Ctrl/Shift-click, or use <strong>Choose build folder</strong> after extracting a zip.</p>
+        </div>
+        <div class="button-row import-buttons">
+          <label class="file-button">
+            Choose .build files
+            <input id="buildFileInput" type="file" accept=".build,application/json,.json" multiple />
+          </label>
+          <label class="file-button secondary-file-button">
+            Choose build folder
+            <input id="buildFolderInput" type="file" accept=".build,application/json,.json" webkitdirectory directory multiple />
+          </label>
+        </div>
+      </div>
+      <div id="importSummary" class="import-summary muted-box">
+        No build imported yet. Using the default Frost Crossbow/Bow profile.
+      </div>
+    </section>
+
+    <section class="panel import-panel">
+      <div class="panel-title-row import-title-row">
+        <div>
+          <h2>Import Mobalytics guide text</h2>
+          <p class="mini-note">Paste copied Mobalytics guide text or a Mobalytics URL.</p>
+        </div>
+        <div class="button-row">
+          <button id="sampleMobalyticsBtn" type="button">Load sample guide text</button>
+          <button id="importMobalyticsBtn" class="primary small-primary" type="button">Import guide text</button>
+        </div>
+      </div>
+      <textarea id="mobalyticsGuideText" class="compact-textarea guide-textarea" spellcheck="false" placeholder="Paste a Mobalytics build URL or copied guide page text here..."></textarea>
+      <div id="mobalyticsSummary" class="import-summary muted-box">No Mobalytics guide imported yet.</div>
+    </section>
+
+
+
+    <section class="panel import-panel">
+      <div class="panel-title-row import-title-row">
+        <div>
+          <h2>Import PoB / pobb.in current build</h2>
+          <p class="mini-note">Paste a pobb.in link to pull current level, visible stats, gear names, and gems. Full affix parsing from the encoded PoB export can come later.</p>
+        </div>
+        <div class="button-row">
+          <button id="importPobbBtn" class="primary small-primary" type="button">Import pobb.in</button>
+        </div>
+      </div>
+      <input id="pobbInput" type="text" class="wide-input" spellcheck="false" placeholder="https://pobb.in/..." />
+      <div id="pobbSummary" class="import-summary muted-box">No pobb.in build imported yet.</div>
+    </section>
+
+    <section class="controls panel">
+      <label>Build profile <select id="buildSelect"></select></label>
+      <label>Gear slot     <select id="slotSelect"></select></label>
+      <label>Build stage   <select id="stageSelect"></select></label>
+      <label>Player level  <input id="playerLevel" type="number" min="1" max="100" value="1" /></label>
+      <label>Strength      <input id="playerStr" type="number" min="0" max="999" value="0" /></label>
+      <label>Dexterity     <input id="playerDex" type="number" min="0" max="999" value="0" /></label>
+      <label>Intelligence  <input id="playerInt" type="number" min="0" max="999" value="0" /></label>
+    </section>
+
+    <div id="stageDetails" class="hidden"></div>
+
+    <section class="panel comparison-panel">
+      <div class="panel-title-row">
+        <div>
+          <h2>Item comparison</h2>
+          <p class="mini-note">Paste your currently equipped item on the left and the item you found on the right. Or use the overlay — just press Ctrl+C in-game.</p>
+        </div>
+        <div class="button-row">
+          <button id="loadTargetBtn" type="button">Load guide target →</button>
+          <button id="clearBtn" type="button">Clear</button>
+        </div>
+      </div>
+      <div class="compare-grid">
+        <div>
+          <div class="compare-label">
+            <span>Current item</span>
+            <button id="sampleCurrentBtn" type="button" class="mini-btn">Sample</button>
+          </div>
+          <textarea id="currentItem" class="item-textarea" spellcheck="false" placeholder="Paste your equipped item here (Ctrl+C on it in game)"></textarea>
+        </div>
+        <div>
+          <div class="compare-label">
+            <span>Replacement item</span>
+            <button id="sampleNewBtn" type="button" class="mini-btn">Sample</button>
+          </div>
+          <textarea id="newItem" class="item-textarea" spellcheck="false" placeholder="Paste the new item you found"></textarea>
+        </div>
+      </div>
+      <div class="button-row" style="margin-top: 12px;">
+        <button id="analyzeBtn" class="primary" type="button">Compare items</button>
+      </div>
+    </section>
+
+    <div id="results" class="hidden"></div>
+
+    <section class="panel health-panel">
+      <div class="panel-title-row">
+        <div>
+          <h2>Build health report</h2>
+          <p class="mini-note">Paste your full gear set here (all items copied from the game) and run the report.</p>
+        </div>
+        <div class="button-row">
+          <button id="sampleGearSetBtn" type="button">Load sample</button>
+          <button id="refreshEquipmentBtn" type="button">Refresh equipment</button>
+          <button id="healthReportBtn" class="primary" type="button">Run report</button>
+        </div>
+      </div>
+      <textarea id="fullGearText" class="compact-textarea gear-textarea" spellcheck="false" placeholder="Paste your full gear set here (each item separated by a blank line)..."></textarea>
+      <div id="equipmentFields" class="hidden"></div>
+    </section>
+
+    <div id="healthResults" class="hidden"></div>
+
+
+    <section class="panel ai-panel">
+      <div class="panel-title-row">
+        <div>
+          <h2>Optional AI Coach</h2>
+          <p class="mini-note">For your private use: API keys are saved locally in Electron userData, not inside exported reports or build files. The rule engine still works with AI off.</p>
+        </div>
+        <div class="button-row">
+          <button id="saveAISettingsBtn" type="button">Save AI settings</button>
+          <button id="testAISettingsBtn" type="button">Test AI</button>
+          <button id="aiExplainReportBtn" class="primary small-primary" type="button">AI explain latest report</button>
+        </div>
+      </div>
+      <div class="ai-grid">
+        <label class="ai-check"><input id="aiEnabled" type="checkbox" /> Enable AI Coach</label>
+        <label>Provider
+          <select id="aiProvider">
+            <option value="gemini">Gemini</option>
+            <option value="openai">OpenAI</option>
+          </select>
+        </label>
+        <label>Model
+          <select id="aiModelPreset">
+            <option value="gemini-3.5-flash" data-provider="gemini">Gemini 3.5 Flash</option>
+            <option value="gemini-2.5-flash" data-provider="gemini">Gemini 2.5 Flash</option>
+            <option value="gemini-2.5-flash-lite" data-provider="gemini">Gemini 2.5 Flash Lite</option>
+            <option value="gpt-5.4-nano" data-provider="openai">GPT-5.4 Nano</option>
+            <option value="gpt-5.1-mini" data-provider="openai">GPT-5.1 Mini</option>
+            <option value="custom">Custom model...</option>
+          </select>
+        </label>
+        <label id="aiCustomModelWrap" class="hidden">Custom model
+          <input id="aiModelCustom" type="text" placeholder="Exact API model id" />
+        </label>
+        <label>API key
+          <input id="aiApiKey" type="password" placeholder="Leave blank to keep saved key" autocomplete="off" />
+        </label>
+        <label class="ai-check"><input id="aiClearKey" type="checkbox" /> Clear saved API key</label>
+      </div>
+      <div id="aiStatus" class="mini-note export-status"></div>
+      <div id="aiOutput" class="muted-box ai-output hidden"></div>
+    </section>
+
+    <section class="panel export-panel">
+      <div class="panel-title-row">
+        <div>
+          <h2>Session &amp; export</h2>
+          <p class="mini-note">Save your session to disk or copy the health report for sharing.</p>
+        </div>
+        <div class="button-row">
+          <button id="saveSessionBtn" type="button">Save session</button>
+          <button id="loadSessionBtn" type="button">Load session</button>
+          <button id="exportReportBtn" type="button">Copy report</button>
+        </div>
+      </div>
+      <div id="exportStatus" class="mini-note export-status"></div>
+    </section>
+
+  </main>
+
+  <!-- The original scoring/UI engine (unchanged from the browser app) -->
+  <script src="app.js"></script>
+
+  <!-- Electron-specific: save current settings so the overlay can use them -->
+  <script>
+    /**
+     * Serialize the current profile's statRules so they can be saved to JSON.
+     * Regex objects need to be converted to strings.
+     */
+    function serializeStatRules(rules) {
+      return (rules || []).map(rule => ({
+        ...rule,
+        match: rule.match instanceof RegExp ? rule.match.toString() : String(rule.match),
+      }));
+    }
+
+    function collectSessionForOverlay() {
+      // Grab the currently active profile from the global BUILD_PROFILES object
+      const buildKey = document.getElementById("buildSelect")?.value;
+      const profile  = (typeof BUILD_PROFILES !== "undefined" && BUILD_PROFILES[buildKey]) || null;
+
+      const data = {
+        version: 9,
+        buildKey,
+        slot:  document.getElementById("slotSelect")?.value,
+        stage: document.getElementById("stageSelect")?.value,
+        playerLevel: document.getElementById("playerLevel")?.value,
+        playerStr:   document.getElementById("playerStr")?.value,
+        playerDex:   document.getElementById("playerDex")?.value,
+        playerInt:   document.getElementById("playerInt")?.value,
+        fullGearText:  document.getElementById("fullGearText")?.value,
+        currentItem:   document.getElementById("currentItem")?.value,
+        newItem:       document.getElementById("newItem")?.value,
+        mobalyticsGuideText: document.getElementById("mobalyticsGuideText")?.value,
+        pobbInput: document.getElementById("pobbInput")?.value,
+        pobbBuild: window.currentPobbBuild || null,
+      };
+
+      // Attach a serialized version of the active profile for the overlay to use
+      if (profile) {
+        data.importedProfile = {
+          name: profile.name,
+          slots: profile.slots,
+          baseWeights: profile.baseWeights,
+          stages: profile.stages,
+          statRules: serializeStatRules(profile.statRules),
+          slotRules: profile.slotRules,
+          importedStages: profile.importedStages || [],
+        };
+      }
+
+      return data;
+    }
+
+    document.getElementById("saveToOverlayBtn").addEventListener("click", () => {
+      const data = collectSessionForOverlay();
+      window.poe2Coach.saveSession(data);
+      const statusEl = document.getElementById("overlaySaveStatus");
+      statusEl.textContent = "✓ Saved — overlay will use this build";
+      setTimeout(() => { statusEl.textContent = ""; }, 3500);
+    });
+
+    // On load, restore session from disk so the settings window reflects what's saved
+    window.poe2Coach.loadSession().then(saved => {
+      if (!saved) return;
+      // The browser app's loadSession() function uses localStorage; in Electron
+      // we mirror the saved data into localStorage so the existing code picks it up.
+      try {
+        localStorage.setItem("poe2GearCoachSession", JSON.stringify(saved));
+        if (typeof loadSession === "function") loadSession();
+      } catch (_err) { /* ignore */ }
+    });
+
+
+    // Optional AI Coach settings and report explanation.
+    const aiEls = {
+      enabled: document.getElementById("aiEnabled"),
+      provider: document.getElementById("aiProvider"),
+      modelPreset: document.getElementById("aiModelPreset"),
+      modelCustom: document.getElementById("aiModelCustom"),
+      customModelWrap: document.getElementById("aiCustomModelWrap"),
+      apiKey: document.getElementById("aiApiKey"),
+      clearKey: document.getElementById("aiClearKey"),
+      status: document.getElementById("aiStatus"),
+      output: document.getElementById("aiOutput"),
+    };
+
+    function setAIStatus(message, tone = "") {
+      if (!aiEls.status) return;
+      aiEls.status.textContent = message || "";
+      aiEls.status.style.color = tone === "bad" ? "#f87171" : tone === "good" ? "#4ade80" : "";
+    }
+
+    function modelDefaultFor(provider) {
+      return provider === "openai" ? "gpt-5.4-nano" : "gemini-3.5-flash";
+    }
+
+    function providerModels(provider) {
+      return Array.from(aiEls.modelPreset.options).filter(opt => opt.value === "custom" || opt.dataset.provider === provider);
+    }
+
+    function syncModelOptionsForProvider(selectedModel = "") {
+      const provider = aiEls.provider.value;
+      const options = Array.from(aiEls.modelPreset.options);
+      options.forEach(opt => {
+        opt.hidden = !(opt.value === "custom" || opt.dataset.provider === provider);
+      });
+
+      const visibleValues = providerModels(provider).map(opt => opt.value);
+      if (selectedModel && visibleValues.includes(selectedModel)) {
+        aiEls.modelPreset.value = selectedModel;
+        aiEls.modelCustom.value = "";
+      } else if (selectedModel && selectedModel !== modelDefaultFor(provider)) {
+        aiEls.modelPreset.value = "custom";
+        aiEls.modelCustom.value = selectedModel;
+      } else {
+        aiEls.modelPreset.value = modelDefaultFor(provider);
+        aiEls.modelCustom.value = "";
+      }
+      updateCustomModelVisibility();
+    }
+
+    function selectedAIModel() {
+      return aiEls.modelPreset.value === "custom"
+        ? aiEls.modelCustom.value.trim()
+        : aiEls.modelPreset.value;
+    }
+
+    function updateCustomModelVisibility() {
+      const isCustom = aiEls.modelPreset.value === "custom";
+      aiEls.customModelWrap.classList.toggle("hidden", !isCustom);
+    }
+
+    async function loadAISettingsIntoForm() {
+      if (!window.poe2Coach?.loadAISettings) return;
+      try {
+        const settings = await window.poe2Coach.loadAISettings();
+        aiEls.enabled.checked = Boolean(settings.enabled);
+        aiEls.provider.value = settings.provider || "gemini";
+        syncModelOptionsForProvider(settings.model || modelDefaultFor(aiEls.provider.value));
+        aiEls.apiKey.placeholder = settings.hasApiKey ? "Saved key present — leave blank to keep it" : "Paste API key";
+        setAIStatus(settings.hasApiKey ? "AI key saved locally." : "No AI key saved yet.");
+      } catch (err) {
+        setAIStatus(`Could not load AI settings: ${err.message}`, "bad");
+      }
+    }
+
+    async function saveAISettingsFromForm() {
+      if (!window.poe2Coach?.saveAISettings) return null;
+      const payload = {
+        enabled: aiEls.enabled.checked,
+        provider: aiEls.provider.value,
+        model: selectedAIModel() || modelDefaultFor(aiEls.provider.value),
+        apiKey: aiEls.apiKey.value.trim(),
+        clearApiKey: aiEls.clearKey.checked,
+      };
+      const saved = await window.poe2Coach.saveAISettings(payload);
+      aiEls.apiKey.value = "";
+      aiEls.clearKey.checked = false;
+      aiEls.apiKey.placeholder = saved.hasApiKey ? "Saved key present — leave blank to keep it" : "Paste API key";
+      setAIStatus(saved.hasApiKey ? "AI settings saved. Key is stored locally outside the project files." : "AI settings saved, but no key is stored.", saved.hasApiKey ? "good" : "");
+      return saved;
+    }
+
+    function renderAIAdviceResult(result) {
+      const out = aiEls.output;
+      if (!out) return;
+      if (!result?.ok) {
+        out.classList.remove("hidden");
+        out.textContent = `AI Coach error: ${result?.error || "Unknown error"}`;
+        setAIStatus("AI request failed.", "bad");
+        return;
+      }
+      const a = result.advice || {};
+      const lines = [];
+      if (a.summary) lines.push(`Summary: ${a.summary}`);
+      if (Array.isArray(a.nextActions) && a.nextActions.length) lines.push(`\nNext actions:\n- ${a.nextActions.join("\n- ")}`);
+      if (Array.isArray(a.lookFor) && a.lookFor.length) lines.push(`\nLook for:\n- ${a.lookFor.join("\n- ")}`);
+      if (Array.isArray(a.warnings) && a.warnings.length) lines.push(`\nWarnings:\n- ${a.warnings.join("\n- ")}`);
+      if (Array.isArray(a.doNotWorryAbout) && a.doNotWorryAbout.length) lines.push(`\nDo not worry about yet:\n- ${a.doNotWorryAbout.join("\n- ")}`);
+      out.classList.remove("hidden");
+      out.textContent = lines.join("\n") || result.rawText || "AI returned an empty response.";
+      setAIStatus(`AI Coach response from ${result.provider} / ${result.model}.`, "good");
+    }
+
+    async function explainLatestReportWithAI() {
+      try {
+        await saveAISettingsFromForm();
+        if (!window.lastHealthReport && typeof analyzeBuildHealth === "function") analyzeBuildHealth();
+        const reportText = typeof buildExportText === "function" ? buildExportText(window.lastHealthReport) : "No report text available.";
+        setAIStatus("Asking AI Coach to explain the latest report...");
+        const result = await window.poe2Coach.requestAIAdvice({
+          kind: "health-report",
+          reportText,
+          session: collectSessionForOverlay(),
+        });
+        renderAIAdviceResult(result);
+      } catch (err) {
+        setAIStatus(`AI Coach failed: ${err.message}`, "bad");
+      }
+    }
+
+    document.getElementById("saveAISettingsBtn")?.addEventListener("click", () => saveAISettingsFromForm().catch(err => setAIStatus(err.message, "bad")));
+    document.getElementById("testAISettingsBtn")?.addEventListener("click", async () => {
+      try {
+        await saveAISettingsFromForm();
+        setAIStatus("Testing AI Coach...");
+        const result = await window.poe2Coach.requestAIAdvice({ kind: "test", message: "Return a short success response for PoE2 Gear Coach." });
+        renderAIAdviceResult(result);
+      } catch (err) {
+        setAIStatus(`AI test failed: ${err.message}`, "bad");
+      }
+    });
+    document.getElementById("aiExplainReportBtn")?.addEventListener("click", explainLatestReportWithAI);
+    document.getElementById("aiProvider")?.addEventListener("change", () => {
+      syncModelOptionsForProvider(modelDefaultFor(aiEls.provider.value));
+    });
+    document.getElementById("aiModelPreset")?.addEventListener("change", updateCustomModelVisibility);
+    loadAISettingsIntoForm();
+
+  </script>
+</body>
+</html>

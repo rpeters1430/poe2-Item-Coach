@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';" />
+  <title>PoE2 Gear Coach Overlay</title>
+  <style>
+    /* ── Reset & base ──────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          rgba(12, 10, 18, 0.93);
+      --bg-card:     rgba(22, 18, 32, 0.97);
+      --border:      rgba(120, 90, 200, 0.35);
+      --accent:      #a78bfa;
+      --accent-dim:  #7c5cbf;
+      --good:        #4ade80;
+      --warn:        #facc15;
+      --bad:         #f87171;
+      --text:        #e2d9f3;
+      --muted:       #9d8ec4;
+      --radius:      14px;
+      --shadow:      0 8px 32px rgba(0,0,0,0.65);
+      --font:        system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+
+    html, body {
+      background: transparent;
+      font-family: var(--font);
+      font-size: 16px;
+      color: var(--text);
+      width: 620px;
+      min-height: 60px;
+      overflow: hidden;
+      -webkit-app-region: no-drag;
+      user-select: none;
+    }
+
+    /* ── Card shell ───────────────────────────────────────────────────────── */
+    #card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      display: none; /* hidden until an item arrives */
+    }
+    #card.visible { display: block; }
+
+    /* ── Header bar ───────────────────────────────────────────────────────── */
+    #header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px 10px;
+      background: rgba(30, 20, 50, 0.6);
+      border-bottom: 1px solid var(--border);
+      -webkit-app-region: drag; /* drag the overlay by the header */
+    }
+    #header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    #poe-logo {
+      font-size: 20px;
+      line-height: 1;
+    }
+    #header-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    #header-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      -webkit-app-region: no-drag;
+    }
+    .hdr-btn {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      color: var(--muted);
+      font-size: 14px;
+      padding: 5px 10px;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .hdr-btn:hover { color: var(--text); border-color: var(--accent-dim); }
+    #close-btn {
+      font-size: 18px;
+      padding: 5px 10px;
+      color: var(--muted);
+    }
+    #close-btn:hover { color: var(--bad); border-color: var(--bad); }
+
+    /* ── Body ─────────────────────────────────────────────────────────────── */
+    #body { padding: 16px; }
+
+    /* ── Slot selector ────────────────────────────────────────────────────── */
+    #slot-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    #slot-row label {
+      font-size: 14px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    #slot-select, #stage-select {
+      flex: 1;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      color: var(--text);
+      font-size: 15px;
+      padding: 7px 10px;
+    }
+
+    /* ── Item name ────────────────────────────────────────────────────────── */
+    #item-name {
+      font-size: 18px;
+      font-weight: 800;
+      color: #ffd580;
+      margin-bottom: 4px;
+    }
+    #item-class {
+      font-size: 14px;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    /* ── Verdict banner ───────────────────────────────────────────────────── */
+    #verdict {
+      border-radius: 6px;
+      padding: 12px 14px;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    #verdict.good  { background: rgba(74, 222, 128, 0.12); border: 1px solid rgba(74,222,128,0.35); }
+    #verdict.warn  { background: rgba(250, 204, 21,  0.10); border: 1px solid rgba(250,204,21, 0.35); }
+    #verdict.bad   { background: rgba(248, 113, 113, 0.10); border: 1px solid rgba(248,113,113,0.35); }
+    #verdict-icon  { font-size: 24px; line-height: 1; flex-shrink: 0; }
+    #verdict-text  { }
+    #verdict-label {
+      font-size: 18px;
+      font-weight: 800;
+    }
+    #verdict-label.good { color: var(--good); }
+    #verdict-label.warn { color: var(--warn); }
+    #verdict-label.bad  { color: var(--bad); }
+    #verdict-opinion { font-size: 14px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+
+    /* ── Score chips ──────────────────────────────────────────────────────── */
+    #score-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .score-chip {
+      border-radius: 4px;
+      padding: 6px 10px;
+      font-size: 14px;
+      display: flex;
+      gap: 7px;
+      border: 1px solid transparent;
+    }
+    .score-chip .chip-label { color: var(--muted); }
+    .score-chip.positive { background: rgba(74,222,128,0.09); border-color: rgba(74,222,128,0.2); }
+    .score-chip.negative { background: rgba(248,113,113,0.09); border-color: rgba(248,113,113,0.2); }
+    .score-chip.neutral  { background: rgba(255,255,255,0.05); }
+    .score-chip .chip-val.positive { color: var(--good); }
+    .score-chip .chip-val.negative { color: var(--bad); }
+    .score-chip .chip-val.neutral  { color: var(--muted); }
+
+    /* ── Pros / Cons ──────────────────────────────────────────────────────── */
+    #detail-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .detail-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px 14px;
+    }
+    .detail-card h4 {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--accent-dim);
+      margin-bottom: 8px;
+    }
+    .detail-card ul { list-style: none; }
+    .detail-card li {
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--text);
+      padding: 1px 0;
+    }
+    .detail-card li.good::before { content: "✓ "; color: var(--good); }
+    .detail-card li.bad::before  { content: "✗ "; color: var(--bad); }
+    .detail-card li.warn::before { content: "⚠ "; color: var(--warn); }
+    .detail-card li.empty { color: var(--muted); font-style: italic; }
+
+
+    #pros-list, #cons-list {
+      max-height: 145px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    #saved-compare-body, #ai-coach-box {
+      max-height: 170px;
+      overflow-y: auto;
+    }
+
+    /* ── Footer ───────────────────────────────────────────────────────────── */
+    #footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px 14px;
+      border-top: 1px solid var(--border);
+    }
+    #footer-hint { font-size: 13px; color: var(--muted); }
+    #compare-btn, #ai-coach-btn {
+      background: var(--accent-dim);
+      border: none;
+      border-radius: 5px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      padding: 5px 10px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    #ai-coach-btn { background: rgba(124,92,191,.55); border: 1px solid rgba(167,139,250,.35); }
+    #compare-btn:hover, #ai-coach-btn:hover { background: var(--accent); }
+    #ai-coach-box {
+      display: none;
+      background: rgba(255,255,255,0.045);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+      font-size: 11px;
+      line-height: 1.45;
+      color: var(--text);
+      white-space: pre-wrap;
+    }
+
+    .saved-compare {
+      background: rgba(255,255,255,0.045);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+    }
+    .saved-compare-title {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--accent-dim);
+      font-weight: 700;
+      margin-bottom: 3px;
+    }
+    .saved-compare-body {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.45;
+      margin-bottom: 7px;
+    }
+    .saved-compare-btn {
+      background: rgba(124,92,191,.35);
+      border: 1px solid rgba(167,139,250,.5);
+      color: var(--text);
+      border-radius: 5px;
+      padding: 7px 12px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .saved-compare-btn:hover { background: rgba(124,92,191,.55); }
+
+    /* ── Loading / empty state ────────────────────────────────────────────── */
+    #loading {
+      padding: 24px 18px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    /* ── No-build warning ─────────────────────────────────────────────────── */
+    #no-build-warning {
+      background: rgba(250,204,21,0.08);
+      border: 1px solid rgba(250,204,21,0.3);
+      border-radius: 6px;
+      padding: 12px 14px;
+      font-size: 11px;
+      color: var(--warn);
+      margin-bottom: 10px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+<div id="card">
+  <div id="header">
+    <div id="header-left">
+      <span id="poe-logo">⚗</span>
+      <span id="header-title">Gear Coach</span>
+    </div>
+    <div id="header-actions">
+      <button class="hdr-btn" id="settings-btn" title="Open Settings">⚙ Settings</button>
+      <button class="hdr-btn" id="close-btn" title="Dismiss (Esc)">✕</button>
+    </div>
+  </div>
+
+  <div id="body">
+    <div id="no-build-warning">
+      No build imported yet — using default Frost Crossbow profile.<br>
+      Open Settings to import your build files.
+    </div>
+
+    <div id="slot-row">
+      <label for="slot-select">Slot</label>
+      <select id="slot-select"></select>
+      <label for="stage-select">Stage</label>
+      <select id="stage-select"></select>
+    </div>
+
+    <div id="item-name">—</div>
+    <div id="item-class"></div>
+
+    <div id="verdict" class="warn">
+      <div id="verdict-icon">⏳</div>
+      <div id="verdict-text">
+        <div id="verdict-label" class="warn">Analyzing…</div>
+        <div id="verdict-opinion"></div>
+      </div>
+    </div>
+
+    <div id="score-grid"></div>
+
+    <div id="saved-compare" class="saved-compare" style="display:none;">
+      <div id="saved-compare-title" class="saved-compare-title"></div>
+      <div id="saved-compare-body" class="saved-compare-body"></div>
+      <button id="set-equipped-btn" class="saved-compare-btn" type="button">Set as equipped</button>
+    </div>
+
+    <div id="ai-coach-box"></div>
+
+    <div id="detail-grid">
+      <div class="detail-card">
+        <h4>Why it helps</h4>
+        <ul id="pros-list"><li class="empty">—</li></ul>
+      </div>
+      <div class="detail-card">
+        <h4>Watch out for</h4>
+        <ul id="cons-list"><li class="empty">—</li></ul>
+      </div>
+    </div>
+  </div>
+
+  <div id="footer">
+    <span id="footer-hint">Ctrl+C on any item in-game • Esc to dismiss</span>
+    <span>
+      <button id="ai-coach-btn">AI Coach</button>
+      <button id="compare-btn">Full Compare ↗</button>
+    </span>
+  </div>
+</div>
+
+<script src="overlay-renderer.js"></script>
+</body>
+</html>

@@ -1,0 +1,34 @@
+{
+  "name": "poe2-gear-coach-overlay",
+  "version": "0.28.0",
+  "description": "PoE2 Gear Coach \u2014 clipboard-first gear coach overlay with optional AI advice",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "build-win": "electron-builder --win --x64",
+    "build-mac": "electron-builder --mac",
+    "build-linux": "electron-builder --linux",
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/overlay-renderer.js && node --check src/app.js"
+  },
+  "build": {
+    "appId": "com.poe2.gearcoach",
+    "productName": "PoE2 Gear Coach",
+    "files": [
+      "src/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "src/assets/icon.ico"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.0.0"
+  }
+}
