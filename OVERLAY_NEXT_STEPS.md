@@ -52,15 +52,23 @@ function stopClipboardWatcher() {
 ---
 
 ### 1.2 Use Windows DPI-aware window positioning
-**Problem:** On Windows with display scaling (125%, 150%, 200%) the overlay `cursor.x/cursor.y`
-values from `screen.getCursorScreenPoint()` are in physical pixels but `setPosition()` expects
-logical pixels. This causes the popup to appear in the wrong quadrant on high-DPI monitors.
+**Problem:** On Windows with display scaling (125%, 150%, 200%) the overlay can appear in the
+wrong position. `screen.getCursorScreenPoint()` and `display.bounds` both use Electron's DIP
+(device-independent pixel) space, so manual `scaleFactor` arithmetic mixes coordinate spaces
+incorrectly on multi-monitor setups with different per-monitor scaling.
 
-**Fix in `showOverlay()`:**
+**Fix in `showOverlay()`:** Use Electron's built-in conversion helpers to stay in DIP throughout:
 ```js
-const scaleFactor = display.scaleFactor || 1;
-const logicalX = Math.round((cursor.x - display.bounds.x) / scaleFactor) + display.workArea.x;
-const logicalY = Math.round((cursor.y - display.bounds.y) / scaleFactor) + display.workArea.y;
+// cursor is already in DIP — use it directly with workArea bounds (also DIP)
+const { width: sw, height: sh, x: sx, y: sy } = display.workArea;
+const [ow, oh] = [620, 720];
+let wx = cursor.x + 24;
+let wy = cursor.y + 24;
+if (wx + ow > sx + sw) wx = cursor.x - ow - 8;
+if (wy + oh > sy + sh) wy = cursor.y - oh - 8;
+overlayWindow.setPosition(Math.round(wx), Math.round(wy));
+// If physical-pixel conversion is ever needed, use screen.screenToDipPoint(point)
+// rather than dividing by scaleFactor, which breaks on mixed-DPI multi-monitor setups.
 ```
 Test: 1080p at 100%, 1440p at 125%, 4K at 150%, and 4K at 200%.
 
@@ -112,9 +120,13 @@ Unsigned `.exe` files trigger Windows Defender SmartScreen ("Windows protected y
 This causes many users to think the app is malware.
 
 **Options (in order of preference):**
-1. Add a `SIGNING.md` that explains how to self-sign with a free EV cert for personal use.
+1. **Paid OV/EV code-signing cert** — the only way to fully suppress SmartScreen for end users.
+   EV (Extended Validation) certs cost ~$200–$500/year from a CA (DigiCert, Sectigo, etc.).
+   Self-signed certs do **not** satisfy SmartScreen — they are only useful for internal testing
+   on machines where you manually trust the cert. Document this in `SIGNING.md`.
 2. Add a step to the build script that calls `signtool.exe` when `CODE_SIGN_CERT` env var is set.
-3. In `README.md`, add a "If Windows warns you" section with the click-through steps.
+3. In `README.md`, add a "If Windows warns you" section with the click-through steps (minimum
+   action for unsigned personal builds).
 
 **Minimum action:** Add the following to `README.md` under "Quick start":
 ```
@@ -126,9 +138,11 @@ This causes many users to think the app is malware.
 ---
 
 ### 1.6 Reduce tray icon flash on Windows 10/11
-On Windows, showing a previously hidden window causes the taskbar to briefly flash. Use
-`overlayWindow.setSkipTaskbar(true)` (already set) and verify `showInactive()` doesn't
-trigger a taskbar entry on every detection.
+On Windows, showing a previously hidden window causes the taskbar to briefly flash. The overlay
+already sets `skipTaskbar: true` as a `BrowserWindow` constructor option (in `createOverlayWindow()`),
+which suppresses the taskbar entry. Verify that `showInactive()` doesn't cause a taskbar flash
+on your Windows version — if it does, the runtime method `overlayWindow.setSkipTaskbar(true)`
+can be called again before each `showInactive()` as a workaround.
 
 **Add to `createOverlayWindow()`:**
 ```js
@@ -490,8 +504,8 @@ your uncapped Lightning/Fire resistances.
 The "Test AI" button should confirm exactly what model responded:
 
 ```text
-✅ Gemini OK — gemini-2.5-flash (200 tokens, 1.2s)
-✅ OpenAI OK — gpt-4.1-nano (180 tokens, 0.9s)
+✅ Gemini OK — gemini-3.5-flash (200 tokens, 1.2s)
+✅ OpenAI OK — gpt-5.4-nano (180 tokens, 0.9s)
 ```
 
 If it fails, show a specific reason:
@@ -525,12 +539,28 @@ const text = res?.content?.[0]?.text || "";
 return { provider: "claude", model: settings.model, advice: parsePossiblyJson(text), rawText: text };
 ```
 
-Add to `defaultAISettings()`:
-```js
-// model presets for Claude
-{ label: "Claude Haiku 4.5 (fast, cheap)", value: "claude-haiku-4-5-20251001" },
-{ label: "Claude Sonnet 4.6 (balanced)", value: "claude-sonnet-4-6" },
-```
+**Settings UI and validation changes** (do not add `{ label, value }` entries to `defaultAISettings()` —
+that function returns a flat settings object, not a preset list):
+
+1. Add `"claude"` as a valid provider in `saveAISettings()` alongside `"gemini"` and `"openai"`.
+2. Add Claude model options to the provider dropdown in `settings.html`:
+   ```html
+   <optgroup label="Claude (Anthropic)">
+     <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (fast, cheap)</option>
+     <option value="claude-sonnet-4-6">Claude Sonnet 4.6 (balanced)</option>
+   </optgroup>
+   ```
+3. In `saveAISettings()`, extend the provider guard:
+   ```js
+   const validProviders = ["gemini", "openai", "claude"];
+   provider: validProviders.includes(data.provider) ? data.provider : "gemini",
+   ```
+4. In `requestAIAdvice()`, add the Claude branch:
+   ```js
+   const data = settings.provider === "openai" ? await callOpenAI(settings, prompt)
+              : settings.provider === "claude"  ? await callClaude(settings, prompt)
+              : await callGemini(settings, prompt);
+   ```
 
 ---
 
