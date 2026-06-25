@@ -663,7 +663,9 @@ function escapeRegExp(value) {
 }
 
 function normalizeBuildFile(data, fileName) {
-  const name = data.name || fileName.replace(/\.build$/i, "");
+  let name = data.name || fileName.replace(/\.build$/i, "");
+  // Fix the typo-trimmer: change Levelin back to Leveling
+  name = name.replace(/\b([Ll]eveli)n\b/g, "$1ng").replace(/\b([Ll]eveli)N\b/g, "$1NG");
   const range = extractLevelRange(name, data);
   const inventory = Array.isArray(data.inventory_slots) ? data.inventory_slots.map(normalizeInventorySlot) : [];
   const skills = Array.isArray(data.skills) ? data.skills.map(normalizeSkill) : [];
@@ -806,10 +808,12 @@ function createImportedProfile(stages) {
 
 function commonBuildName(stages) {
   const first = stages[0];
-  const cleaned = first.name
+  let cleaned = first.name
     .replace(/lvl\s*\d+\s*-\s*\d+\s*-\s*/i, "")
     .replace(/lvl\s*\d+\+\s*-\s*/i, "")
     .trim();
+  // Fix the typo-trimmer: change Levelin back to Leveling
+  cleaned = cleaned.replace(/\b([Ll]eveli)n\b/g, "$1ng").replace(/\b([Ll]eveli)N\b/g, "$1NG");
   return `${cleaned || "Imported PoE2 Build"} (${stages.length} stages)`;
 }
 
@@ -1537,6 +1541,7 @@ function buildSessionData() {
   return {
     version: 30,
     buildKey: buildSelect.value,
+    startWithWindows: document.getElementById("startupCheckbox")?.checked || false,
     slot: slotSelect.value,
     stage: stageSelect.value,
     playerLevel: playerLevelInput.value,
@@ -1584,6 +1589,9 @@ function loadSession() {
     return;
   }
   const data = JSON.parse(raw);
+  if (typeof data.startWithWindows === "boolean" && document.getElementById("startupCheckbox")) {
+    document.getElementById("startupCheckbox").checked = data.startWithWindows;
+  }
   if (data.mobalyticsGuideText) {
     mobalyticsGuideText.value = data.mobalyticsGuideText;
     handleMobalyticsImport();

@@ -93,111 +93,49 @@ const DEFAULT_PROFILES = {
   },
 };
 
-// ─── Item parsing ─────────────────────────────────────────────────────────────
+// ─── Item parsing (Loaded from parser.js) ─────────────────────────────────────
 
-function parseItem(text) {
-  const raw = String(text || "");
-  // Split on PoE's "--------" separator to get sections
-  const sections = raw.split(/\r?\n--------\r?\n/).map(s => s.trim()).filter(Boolean);
-  const allLines  = raw.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+function accuracyMultiplier(hitChance) {
+  if (hitChance === null || hitChance === undefined) return 1.0;
+  if (hitChance >= 95) return 0.15; // near-zero value
+  if (hitChance >= 90) return 0.5;  // medium value
+  return 1.0;                       // full value
+}
 
-  const itemClass = extractMeta(allLines, /^Item Class:\s*(.+)$/i);
-  const rarity    = extractMeta(allLines, /^Rarity:\s*(.+)$/i);
-  const ilvl      = extractMeta(allLines, /^Item Level:\s*(\d+)$/i);
-  const quality   = extractMeta(allLines, /^Quality:\s*([^(]+)/i);
+function getResistWarning(scored, resistances) {
+  if (!resistances) return null;
+  const fire = Number(resistances.fire) || 0;
+  const cold = Number(resistances.cold) || 0;
+  const lightning = Number(resistances.lightning) || 0;
 
-  // Name(s): lines right after Rarity: line, not matching meta patterns
-  const rarityIdx = allLines.findIndex(l => /^Rarity:/i.test(l));
-  const names = [];
-  for (let i = rarityIdx + 1; i < allLines.length && names.length < 2; i++) {
-    if (/^(Item Class|Requires|Item Level|Quality|Unidentified|Corrupted|Mirrored):/i.test(allLines[i])) break;
-    if (allLines[i] === "--------") break;
-    names.push(allLines[i]);
-  }
+  const criticals = [];
+  if (fire < 0) criticals.push({ name: "Fire", val: fire });
+  if (lightning < 0) criticals.push({ name: "Lightning", val: lightning });
+  if (cold < 0) criticals.push({ name: "Cold", val: cold });
 
-  // Requirements section
-  const reqLine = allLines.find(l => /^Requires:/i.test(l)) || "";
-  const reqLevel  = Number((reqLine.match(/Level\s+(\d+)/i)||[])[1]||0) || Number((allLines.join(" ").match(/Requires.*?Level\s+(\d+)/i)||[])[1]||0);
-  const reqStr    = Number((reqLine.match(/(\d+)\s*Str/i)||[])[1]||0);
-  const reqDex    = Number((reqLine.match(/(\d+)\s*Dex/i)||[])[1]||0);
-  const reqInt    = Number((reqLine.match(/(\d+)\s*Int/i)||[])[1]||0);
+  if (criticals.length === 0) return null;
 
-  // Properties (armour, evasion, energy shield, damage, etc) — lines between meta and mods
-  const propLines = [];
-  const modLines  = [];
-  let inMods = false;
-  for (const line of allLines) {
-    if (/^(Item Class|Rarity|Requires|Item Level|Quality|Unidentified|Corrupted|Mirrored):/i.test(line)) continue;
-    if (/^--------$/.test(line)) { inMods = true; continue; }
-    if (!inMods && /^(Armour|Evasion Rating|Energy Shield|Physical Damage|Elemental Damage|Critical Hit Chance|Attacks per Second|Weapon Range):/i.test(line)) {
-      propLines.push(line);
-    } else if (inMods) {
-      modLines.push(line);
+  const itemText = String(scored.item.raw || "").toLowerCase();
+  const helped = [];
+  criticals.forEach(c => {
+    const regex = new RegExp(`\\+?\\d+%\\s*to\\s*(all\\s+elemental|${c.name.toLowerCase()})\\s*resistance`, "i");
+    if (regex.test(itemText)) {
+      helped.push(c.name);
+    }
+  });
+
+  const critStr = criticals.map(c => `${c.name} (${c.val}%)`).join(" and ");
+  if (helped.length === 0) {
+    return `Build warning: ${critStr} are uncapped. This item does not help these resistances — defense is critical right now.`;
+  } else {
+    const remaining = criticals.filter(c => !helped.includes(c.name));
+    if (remaining.length === 0) {
+      return `This item helps reduce your uncapped resistances (${helped.join(", ")}).`;
+    } else {
+      const remStr = remaining.map(c => `${c.name} (${c.val}%)`).join(" and ");
+      return `This item adds ${helped.join(" & ")} resistance, but ${remStr} still needs fixing.`;
     }
   }
-
-  // Separate implicits (first mod section) from explicits
-  const sections2 = raw.split(/\r?\n--------\r?\n/);
-  let implicits = [];
-  let explicits = [];
-  // Find sections that look like mods (not meta headers, not req/prop lines)
-  const modSections = sections2.filter(sec => {
-    const lines = sec.trim().split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-    return lines.some(isModLike) && !lines.every(l => /^(Item Class|Rarity|Requires|Item Level|Quality|Armour|Evasion|Energy Shield|Physical Damage|Critical|Attacks|Weapon Range):/i.test(l));
-  });
-  if (modSections.length === 1) {
-    explicits = modSections[0].trim().split(/\r?\n/).map(l=>l.trim()).filter(Boolean).filter(isModLike);
-  } else if (modSections.length >= 2) {
-    implicits = modSections[0].trim().split(/\r?\n/).map(l=>l.trim()).filter(Boolean).filter(isModLike);
-    explicits = modSections.slice(1).flatMap(s => s.trim().split(/\r?\n/).map(l=>l.trim()).filter(Boolean).filter(isModLike));
-  }
-
-  return {
-    raw, itemClass, rarity, ilvl, quality, names,
-    reqLevel, reqStr, reqDex, reqInt, reqLine,
-    propLines, implicits, explicits,
-    mods: [...implicits, ...explicits],
-  };
-}
-
-function extractMeta(lines, regex) {
-  const l = lines.find(x => regex.test(x));
-  return l ? (l.match(regex)||[])[1]?.trim() || "" : "";
-}
-
-function isModLike(line) {
-  if (!line) return false;
-  if (/^(Item Class|Rarity|Requires|Item Level|Quality|Armour|Evasion Rating|Energy Shield|Physical Damage|Critical Hit Chance|Attacks per Second|Weapon Range|Elemental Damage|Unidentified|Corrupted|Mirrored):/i.test(line)) return false;
-  if (/^(Normal|Magic|Rare|Unique|Currency|Gem|Superior)$/i.test(line)) return false;
-  if (/^--------$/.test(line)) return false;
-  return /[+\-%\d]|adds|increased|reduced|maximum|speed|damage|life|strength|dexterity|intelligence|armour|evasion|energy shield|projectile|bow|crossbow|resistance|reload|chance|bonus|more|less/i.test(line);
-}
-
-function inferSlot(item) {
-  const cls  = String(item.itemClass || "").toLowerCase();
-  const name = String((item.names[1] || item.names[0] || "")).toLowerCase();
-  if (/flasks?/.test(cls))    return "flask";
-  if (/charms?/.test(cls))    return "charm";
-  if (/belts?/.test(cls))     return "belt";
-  if (/rings?/.test(cls))     return "ring";
-  if (/amulets?/.test(cls))   return "amulet";
-  if (/quivers?/.test(cls))   return "quiver";
-  if (/gloves?/.test(cls))    return "gloves";
-  if (/boots?/.test(cls))     return "boots";
-  if (/helmets?/.test(cls))   return "helmet";
-  if (/body\s+armou?rs?/.test(cls)) return "body";
-  if (/bows?|crossbows?|staves|staff|wands?|sceptres?|maces?|swords?|axes|daggers?|quarterstaves/.test(cls)) return "weapon";
-  // fallback: base name
-  if (/quiver/.test(name))    return "quiver";
-  if (/bow|crossbow|staff|wand|sceptre|mace|sword|axe|dagger|quarterstaff/.test(name)) return "weapon";
-  if (/helmet|helm|cap|hood|mask|crown/.test(name)) return "helmet";
-  if (/body armour|body armor|vestments|vest|robe|coat|plate|garb|jacket|mail/.test(name)) return "body";
-  if (/glove|bracer|gauntlet|mitt/.test(name)) return "gloves";
-  if (/boot|greave|shoe|sandal|slipper/.test(name)) return "boots";
-  if (/amulet|talisman/.test(name)) return "amulet";
-  if (/ring/.test(name)) return "ring";
-  if (/belt|sash/.test(name)) return "belt";
-  return "unknown";
 }
 
 function scoreItem(item, profile, slot, stageKey) {
@@ -206,15 +144,25 @@ function scoreItem(item, profile, slot, stageKey) {
   const sw = profile.stages[stageKey] || {};
   const lw = (profile.slotRules||defaultSlotRules())[slot] || {};
   const used = new Set();
+  const rules = profile.statRules || [];
+
   for (const line of item.mods) {
-    for (const rule of profile.statRules) {
+    for (let i = 0; i < rules.length; i++) {
+      const rule = rules[i];
       if (!rule.match.test(line)) continue;
       const key = `${line.toLowerCase()}::${rule.category}`;
       if (used.has(key)) continue;
       used.add(key);
-      const pts = Math.round(rule.points * (lw[rule.category]??1) * (sw[rule.category]??profile.baseWeights[rule.category]??1));
+
+      let basePoints = rule.points;
+      if (/accuracy|accuracy rating/i.test(rule.match.source || String(rule.match))) {
+        const mult = accuracyMultiplier(currentSession.hitChance);
+        basePoints = Math.round(basePoints * mult);
+      }
+
+      const pts = Math.round(basePoints * (lw[rule.category]??1) * (sw[rule.category]??profile.baseWeights[rule.category]??1));
       scores[rule.category] += pts;
-      hits.push({ line, category:rule.category, points:pts, note:rule.note });
+      hits.push({ line, category:rule.category, points:pts, note:rule.note, ruleIndex: i });
       if (pts < 0) warnings.push(rule.note);
     }
   }
@@ -222,15 +170,22 @@ function scoreItem(item, profile, slot, stageKey) {
 }
 
 function getVerdict(scored, playerLevel, compDelta) {
-  const reqs = [];
-  if (scored.item.reqLevel && scored.item.reqLevel > playerLevel) reqs.push(`Requires level ${scored.item.reqLevel} (you are ${playerLevel}).`);
-  if (reqs.length) return { tone:"warn", label:"Blocked — can't equip yet", opinion:reqs.join(" ") };
+  const unmet = [];
+  if (scored.item.reqLevel && scored.item.reqLevel > playerLevel) unmet.push(`Level ${scored.item.reqLevel} (you are ${playerLevel})`);
+  if (scored.item.reqStr && scored.item.reqStr > (currentSession.playerStr || 0)) unmet.push(`Str ${scored.item.reqStr} (you have ${currentSession.playerStr || 0})`);
+  if (scored.item.reqDex && scored.item.reqDex > (currentSession.playerDex || 0)) unmet.push(`Dex ${scored.item.reqDex} (you have ${currentSession.playerDex || 0})`);
+  if (scored.item.reqInt && scored.item.reqInt > (currentSession.playerInt || 0)) unmet.push(`Int ${scored.item.reqInt} (you have ${currentSession.playerInt || 0})`);
+  
+  if (unmet.length) {
+    return { tone: "warn", label: "Future item — save for later", opinion: `Unmet requirements: ${unmet.join(", ")}.` };
+  }
 
   if (compDelta !== null) {
-    if (compDelta >= 20) return { tone:"good", label:"Upgrade vs. equipped",      opinion:`+${compDelta} build-fit score over your equipped piece.` };
-    if (compDelta >= 6)  return { tone:"good", label:"Small upgrade vs. equipped",opinion:`+${compDelta} build-fit score. Worth it if it fixes a gap.` };
-    if (compDelta >= -5) return { tone:"warn", label:"Sidegrade",                 opinion:`${compDelta >= 0?"+":""}${compDelta} vs. equipped. Check the category breakdown.` };
-    return               { tone:"bad",  label:"Worse than equipped",              opinion:`${compDelta} vs. your current ${slotLabel(inferSlot(scored.item))} — keep what you have.` };
+    if (compDelta > 20)  return { tone:"good", label:"Equip now",                 opinion:`+${compDelta} build-fit score over your equipped piece.` };
+    if (compDelta >= 5)  return { tone:"good", label:"Equip — clear upgrade",     opinion:`+${compDelta} build-fit score.` };
+    if (compDelta >= -5) return { tone:"warn", label:"Sidegrade — test in-game",  opinion:`${compDelta >= 0?"+":""}${compDelta} vs. equipped. Check the category breakdown.` };
+    if (compDelta >= -20)return { tone:"bad",  label:"Keep equipped item",        opinion:`${compDelta} vs. equipped — keep what you have.` };
+    return               { tone:"bad",  label:"Vendor / sell",             opinion:`${compDelta} vs. equipped — safe to discard.` };
   }
 
   const t = scored.total;
@@ -239,6 +194,34 @@ function getVerdict(scored, playerLevel, compDelta) {
   if (t >= 6)  return { tone:"warn", label:"Decent",             opinion:"Useful, especially if it solves a specific requirement." };
   if (t >= -5) return { tone:"warn", label:"Neutral",            opinion:"Not clearly useful for this build. Check the details." };
   return             { tone:"bad",  label:"Pass on this one",    opinion:"This item looks weak for your current build focus." };
+}
+
+function getConfidence(scored, savedItem, compDelta) {
+  if (!savedItem) return null;
+  const isNameOnly = !savedItem.item.mods || savedItem.item.mods.length === 0;
+
+  if (isNameOnly) {
+    return { level: "Low", text: "Equipped item was imported as a name only (no affixes)." };
+  }
+
+  const absDelta = Math.abs(compDelta);
+  if (absDelta > 15) {
+    return { level: "High", text: "Both items fully parsed, decisive score gap." };
+  }
+
+  const copiedDamage = scored.scores.damage || 0;
+  const equippedDamage = savedItem.scores.damage || 0;
+  const copiedResist = scored.scores.resistance || 0;
+  const equippedResist = savedItem.scores.resistance || 0;
+
+  const damageTrade = (copiedDamage > equippedDamage && copiedResist < equippedResist) ||
+                     (copiedDamage < equippedDamage && copiedResist > equippedResist);
+
+  if (damageTrade || (absDelta >= 5 && absDelta <= 15)) {
+    return { level: "Medium", text: "Item trades damage for resistance. Try in-game." };
+  }
+
+  return { level: "Medium", text: "Close comparison, check category breakdown." };
 }
 
 // ─── PoE mod colouring ────────────────────────────────────────────────────────
@@ -337,6 +320,40 @@ function renderCoach(scored, compDelta, savedItem) {
   vl.className   = `verdict-label ${verdict.tone}`;
   document.getElementById("verdict-opinion").textContent = verdict.opinion;
 
+  // Urgent Needs Bar
+  const needsDiv = document.getElementById("urgent-needs");
+  if (needsDiv && currentSession.resistances) {
+    const r = currentSession.resistances;
+    const fireVal = Number(r.fire) || 0;
+    const coldVal = Number(r.cold) || 0;
+    const lightVal = Number(r.lightning) || 0;
+
+    const fireGap = 75 - fireVal;
+    const coldGap = 75 - coldVal;
+    const lightGap = 75 - lightVal;
+
+    const makeChip = (val, gap, label, emoji, elId) => {
+      const el = document.getElementById(elId);
+      if (!el) return;
+      if (gap > 0) {
+        el.style.display = "";
+        const color = val < 0 ? "var(--bad)" : "var(--warn)";
+        el.innerHTML = `${emoji} ${label} <span style="color:${color}; font-weight:bold;">+${gap} to cap</span>`;
+      } else {
+        el.style.display = "";
+        el.innerHTML = `${emoji} ${label} <span style="color:var(--good); font-weight:bold;">Capped</span>`;
+      }
+    };
+
+    makeChip(fireVal, fireGap, "Fire", "🔥", "need-fire");
+    makeChip(coldVal, coldGap, "Cold", "❄", "need-cold");
+    makeChip(lightVal, lightGap, "Lightning", "⚡", "need-lightning");
+
+    needsDiv.style.display = "flex";
+  } else if (needsDiv) {
+    needsDiv.style.display = "none";
+  }
+
   // Score total
   const sv = document.getElementById("score-val");
   sv.textContent = (scored.total>0?"+":"")+scored.total;
@@ -359,10 +376,22 @@ function renderCoach(scored, compDelta, savedItem) {
     const cls = val>0?"positive":val<0?"negative":"neutral";
     const sign = val>0?"+":"";
     const tip = SCORE_EXPLAIN[k]||"";
-    return `<div class="cat-bar-row" title="${esc(tip)}">
-      <div class="cat-bar-label">${esc(SCORE_LABELS[k]||k)}</div>
-      <div class="cat-bar-track"><div class="cat-bar-fill ${cls}" style="width:${pct}%"></div></div>
-      <div class="cat-bar-delta ${cls}">${sign}${val}</div>
+
+    const categoryHits = scored.hits.filter(h => h.category === k);
+    const hitsDetails = categoryHits.map(h => {
+      const signPts = h.points > 0 ? "+" : "";
+      return `<div style="font-size: 10px; color: var(--poe-muted); line-height: 1.4; padding: 2px 0;">↳ ${esc(h.line)} (${signPts}${h.points})</div>`;
+    }).join("");
+
+    return `<div class="cat-bar-container" onclick="this.classList.toggle('expanded')" title="${esc(tip)}">
+      <div class="cat-bar-row">
+        <div class="cat-bar-label">${esc(SCORE_LABELS[k]||k)}</div>
+        <div class="cat-bar-track"><div class="cat-bar-fill ${cls}" style="width:${pct}%"></div></div>
+        <div class="cat-bar-delta ${cls}">${sign}${val}</div>
+      </div>
+      <div class="cat-bar-details">
+        ${hitsDetails || `<div style="font-size: 10px; color: var(--poe-muted); font-style: italic;">No matching stats</div>`}
+      </div>
     </div>`;
   }).join("");
 
@@ -380,9 +409,77 @@ function renderCoach(scored, compDelta, savedItem) {
       return `<span class="eq-delta-chip ${cls}" title="${esc(SCORE_EXPLAIN[k]||k)}">${SCORE_LABELS[k]}: ${sign}${delta}</span>`;
     }).filter(Boolean).join("");
     document.getElementById("eq-deltas").innerHTML = chips || `<span class="eq-delta-chip neutral">No change in categories</span>`;
+    
+    // Confidence indicator
+    const conf = getConfidence(scored, savedItem, compDelta);
+    const confEl = document.getElementById("eq-confidence");
+    if (conf && confEl) {
+      confEl.innerHTML = `Confidence: <strong style="color:${conf.level==="High"?"var(--good)":conf.level==="Low"?"var(--bad)":"var(--warn)"};">${conf.level}</strong> — ${conf.text}`;
+      confEl.style.display = "";
+    } else if (confEl) {
+      confEl.style.display = "none";
+    }
+
     document.getElementById("set-equipped-btn").style.display = "";
   } else {
     eqBox.style.display = "none";
+  }
+
+  // Why it won/lost (Gains and Losses delta breakdown)
+  const whyWonLostSection = document.getElementById("why-won-lost-section");
+  const whyWonLostList = document.getElementById("why-won-lost-list");
+  if (savedItem && whyWonLostSection && whyWonLostList) {
+    const ruleDeltas = [];
+    const rules = activeProfile.statRules || [];
+    const savedHits = savedItem.hits || [];
+    for (let i = 0; i < rules.length; i++) {
+      const rule = rules[i];
+      const copiedPts = scored.hits.filter(h => h.ruleIndex === i).reduce((sum, h) => sum + h.points, 0);
+      const equippedPts = savedHits.filter(h => h.ruleIndex === i).reduce((sum, h) => sum + h.points, 0);
+      const delta = copiedPts - equippedPts;
+      if (delta !== 0) {
+        ruleDeltas.push({ rule, delta });
+      }
+    }
+
+    const gains = ruleDeltas.filter(x => x.delta > 0).sort((a,b) => b.delta - a.delta).slice(0, 3);
+    const losses = ruleDeltas.filter(x => x.delta < 0).sort((a,b) => b.delta - a.delta).slice(0, 3);
+
+    const reasons = [];
+    gains.forEach(g => {
+      let text = `Gains ${g.rule.note} (+${g.delta} pts)`;
+      if (/accuracy|accuracy rating/i.test(g.rule.match.source || String(g.rule.match)) && currentSession.hitChance >= 95) {
+        text = `Gains ${g.rule.note} (+${g.delta} pts, but hit chance is already high)`;
+      }
+      reasons.push(`<div class="pca-item good"><span class="pca-bullet">✓</span><span class="pca-text">${esc(text)}</span></div>`);
+    });
+
+    losses.forEach(l => {
+      const text = `Loses ${l.rule.note} (-${Math.abs(l.delta)} pts)`;
+      reasons.push(`<div class="pca-item bad"><span class="pca-bullet">✗</span><span class="pca-text">${esc(text)}</span></div>`);
+    });
+
+    if (reasons.length) {
+      whyWonLostList.innerHTML = reasons.join("");
+      whyWonLostSection.style.display = "";
+    } else {
+      whyWonLostList.innerHTML = `<div class="pca-empty">No difference in key stats.</div>`;
+      whyWonLostSection.style.display = "";
+    }
+  } else if (whyWonLostSection) {
+    whyWonLostSection.style.display = "none";
+  }
+
+  // Resist Warning Banner
+  const banner = document.getElementById("resist-warning-banner");
+  if (banner) {
+    const resistWarning = getResistWarning(scored, currentSession.resistances);
+    if (resistWarning) {
+      banner.textContent = resistWarning;
+      banner.style.display = "";
+    } else {
+      banner.style.display = "none";
+    }
   }
 
   // Pros
@@ -390,7 +487,7 @@ function renderCoach(scored, compDelta, savedItem) {
   const prosList = document.getElementById("pros-list");
   if (pros.length) {
     prosList.innerHTML = pros.map(h =>
-      `<div class="pca-item good"><span class="pca-bullet">✓</span><span class="pca-text">${esc(h.note)}</span></div>`
+      `<div class="pca-item good"><span class="pca-bullet">✔</span><span class="pca-text">${esc(h.note)}</span></div>`
     ).join("");
   } else {
     prosList.innerHTML = `<div class="pca-empty">No strong positives for this build.</div>`;
@@ -401,14 +498,30 @@ function renderCoach(scored, compDelta, savedItem) {
     ...scored.hits.filter(h=>h.points<0).map(h=>h.note),
     ...scored.warnings
   ];
+
+  // 3.5 Context-sensitive warnings for accuracy/crit during leveling stage
+  if (stageKey === "leveling") {
+    const hasAccuracy = scored.hits.some(h => /accuracy|accuracy rating/i.test(h.line));
+    if (hasAccuracy && currentSession.hitChance >= 95) {
+      conItems.push(`Accuracy is lower priority — hit chance is already ${currentSession.hitChance}%.`);
+    }
+
+    const hasCrit = scored.hits.some(h => /critical hit chance|critical damage bonus/i.test(h.line));
+    if (hasCrit) {
+      conItems.push("Crit scaling is low — crit damage alone does not outweigh flat attack damage at this stage.");
+    }
+  }
+
   const reqs = [];
   if (scored.item.reqLevel && scored.item.reqLevel > (currentSession.playerLevel||1)) reqs.push(`Level ${scored.item.reqLevel} required — you are ${currentSession.playerLevel||1}.`);
   const consList = document.getElementById("cons-list");
   const allCons = [...new Set([...reqs, ...conItems])].slice(0,6);
   if (allCons.length) {
-    consList.innerHTML = allCons.map((c,i) =>
-      `<div class="pca-item ${i<reqs.length?"warn":"bad"}"><span class="pca-bullet">✗</span><span class="pca-text">${esc(c)}</span></div>`
-    ).join("");
+    consList.innerHTML = allCons.map((c,i) => {
+      const cls = i < reqs.length ? "warn" : "bad";
+      const icon = i < reqs.length ? "⚠" : "✖";
+      return `<div class="pca-item ${cls}"><span class="pca-bullet">${icon}</span><span class="pca-text">${esc(c)}</span></div>`;
+    }).join("");
   } else {
     consList.innerHTML = `<div class="pca-empty">No obvious problems.</div>`;
   }
@@ -537,7 +650,7 @@ function render(itemText) {
   document.getElementById("ai-loading").style.display = "none";
 
   renderTooltip(item);
-  renderCoach(scored, compDelta, savedScored ? { ...savedEntry, scores:savedScored.scores } : null);
+  renderCoach(scored, compDelta, savedScored ? { ...savedEntry, scores:savedScored.scores, hits:savedScored.hits } : null);
 
   shell.classList.add("visible");
 }
@@ -549,10 +662,13 @@ window.poe2Coach.onItemDetected(({ itemText, session }) => {
 
   if (session) {
     const ps = session.pobbBuild?.stats || {};
+    const pStats = session.pobStats || session.pobbBuild?.stats || {};
     currentSession.playerLevel = Number(session.playerLevel) || Number(ps.level) || 1;
     currentSession.playerStr   = Number(session.playerStr)   || Number(ps.str)   || 0;
     currentSession.playerDex   = Number(session.playerDex)   || Number(ps.dex)   || 0;
     currentSession.playerInt   = Number(session.playerInt)   || Number(ps.int)   || 0;
+    currentSession.hitChance   = pStats.hitChance !== undefined ? Number(pStats.hitChance) : null;
+    currentSession.resistances = pStats.resistances || null;
 
     if (session.importedProfile) {
       activeProfile = deserializeProfile(session.importedProfile);
@@ -606,33 +722,123 @@ document.getElementById("ai-btn").addEventListener("click", async () => {
   let savedScored  = null;
   if (savedEntry?.item) savedScored = scoreItem(savedEntry.item, activeProfile, lastSlot, stageSelect.value);
 
+  const categoryDeltas = {};
+  ["damage", "resistance", "defense", "mobility", "attributes", "synergy"].forEach(k => {
+    const copiedScore = lastScored.scores[k] || 0;
+    const equippedScore = savedScored ? (savedScored.scores[k] || 0) : 0;
+    categoryDeltas[k] = copiedScore - equippedScore;
+  });
+
+  const resistGaps = {};
+  const urgentNeeds = [];
+  if (currentSession.resistances) {
+    ["fire", "cold", "lightning", "chaos"].forEach(key => {
+      const val = Number(currentSession.resistances[key]) || 0;
+      if (val < 75) {
+        resistGaps[key] = val - 75;
+      }
+      if (val < 0) {
+        urgentNeeds.push(`${key} resistance`);
+      }
+    });
+  }
+
   const payload = {
-    kind: "overlay-item",
-    build: activeProfile?.name || "Unknown",
-    stage: stageSelect.options[stageSelect.selectedIndex]?.textContent || stageSelect.value,
-    player: { level:currentSession.playerLevel, str:currentSession.playerStr, dex:currentSession.playerDex, int:currentSession.playerInt },
     copiedItem: {
-      name: lastScored.item.names[0], slot: lastSlot,
-      requiredLevel: lastScored.item.reqLevel,
-      totalScore: lastScored.total, categoryScores: lastScored.scores,
-      positiveHits: lastScored.hits.filter(h=>h.points>0).slice(0,8),
-      negativeHits: lastScored.hits.filter(h=>h.points<0).slice(0,8),
+      name: lastScored.item.names[0] || "Unknown Item",
+      slot: lastSlot,
+      mods: lastScored.item.mods || [],
     },
-    equippedItem: savedScored ? { name:savedEntry.item.names[0], totalScore:savedScored.total } : null,
-    comparisonDelta: savedScored ? (lastScored.total - savedScored.total) : null,
+    equippedItem: savedScored ? {
+      name: savedEntry.item.names[0] || "Unknown Item",
+      slot: lastSlot,
+      mods: savedEntry.item.mods || [],
+    } : null,
+    categoryDeltas,
+    buildContext: {
+      stage: stageSelect.options[stageSelect.selectedIndex]?.textContent || stageSelect.value,
+      hitChance: currentSession.hitChance,
+      resistGaps,
+      playerLevel: currentSession.playerLevel || 1,
+      urgentNeeds,
+    }
   };
 
   try {
     const res = await window.poe2Coach.requestAIAdvice(payload);
     aiLoading.style.display = "none";
-    if (!res?.ok) { aiText.textContent = `AI error: ${res?.error||"Unknown"}`; return; }
+    if (!res?.ok) {
+      aiText.textContent = `AI error: ${res?.error||"Unknown"}`;
+      return;
+    }
     const a = res.advice||{};
-    const lines = [];
-    if (a.summary) lines.push(a.summary);
-    if (Array.isArray(a.nextActions)&&a.nextActions.length) lines.push(`\nNext:\n• ${a.nextActions.join("\n• ")}`);
-    if (Array.isArray(a.lookFor)&&a.lookFor.length)         lines.push(`\nLook for:\n• ${a.lookFor.join("\n• ")}`);
-    if (Array.isArray(a.warnings)&&a.warnings.length)       lines.push(`\nWarnings:\n• ${a.warnings.join("\n• ")}`);
-    aiText.textContent = lines.join("\n") || res.rawText || "No advice returned.";
+    
+    // Clear previous elements
+    aiText.innerHTML = "";
+    
+    // Summary view (always visible)
+    const summaryDiv = document.createElement("div");
+    summaryDiv.className = "ai-summary";
+    summaryDiv.textContent = a.summary || res.rawText || "No advice returned.";
+    aiText.appendChild(summaryDiv);
+    
+    const hasDetails = a.verdict || 
+                       (Array.isArray(a.nextActions) && a.nextActions.length > 0) ||
+                       (Array.isArray(a.lookFor) && a.lookFor.length > 0) ||
+                       (Array.isArray(a.warnings) && a.warnings.length > 0) ||
+                       (Array.isArray(a.doNotWorryAbout) && a.doNotWorryAbout.length > 0);
+                       
+    if (hasDetails) {
+      const toggleBtn = document.createElement("div");
+      toggleBtn.className = "ai-toggle-btn";
+      toggleBtn.textContent = "Show full analysis ▾";
+      
+      const detailsDiv = document.createElement("div");
+      detailsDiv.className = "ai-details hidden";
+      
+      if (a.verdict) {
+        const sect = document.createElement("div");
+        sect.className = "ai-details-section";
+        sect.innerHTML = `<div class="ai-details-title">Verdict</div><div>${esc(a.verdict)}</div>`;
+        detailsDiv.appendChild(sect);
+      }
+      
+      if (Array.isArray(a.nextActions) && a.nextActions.length > 0) {
+        const sect = document.createElement("div");
+        sect.className = "ai-details-section";
+        sect.innerHTML = `<div class="ai-details-title">Next Actions</div><ul class="ai-details-list">${a.nextActions.map(x => `<li>${esc(x)}</li>`).join("")}</ul>`;
+        detailsDiv.appendChild(sect);
+      }
+      
+      if (Array.isArray(a.lookFor) && a.lookFor.length > 0) {
+        const sect = document.createElement("div");
+        sect.className = "ai-details-section";
+        sect.innerHTML = `<div class="ai-details-title">Look For</div><ul class="ai-details-list">${a.lookFor.map(x => `<li>${esc(x)}</li>`).join("")}</ul>`;
+        detailsDiv.appendChild(sect);
+      }
+      
+      if (Array.isArray(a.warnings) && a.warnings.length > 0) {
+        const sect = document.createElement("div");
+        sect.className = "ai-details-section";
+        sect.innerHTML = `<div class="ai-details-title">Warnings</div><ul class="ai-details-list">${a.warnings.map(x => `<li>${esc(x)}</li>`).join("")}</ul>`;
+        detailsDiv.appendChild(sect);
+      }
+      
+      if (Array.isArray(a.doNotWorryAbout) && a.doNotWorryAbout.length > 0) {
+        const sect = document.createElement("div");
+        sect.className = "ai-details-section";
+        sect.innerHTML = `<div class="ai-details-title">Not Urgent</div><ul class="ai-details-list">${a.doNotWorryAbout.map(x => `<li>${esc(x)}</li>`).join("")}</ul>`;
+        detailsDiv.appendChild(sect);
+      }
+      
+      toggleBtn.addEventListener("click", () => {
+        const isHidden = detailsDiv.classList.toggle("hidden");
+        toggleBtn.textContent = isHidden ? "Show full analysis ▾" : "Hide full analysis ▴";
+      });
+      
+      aiText.appendChild(toggleBtn);
+      aiText.appendChild(detailsDiv);
+    }
   } catch(err) {
     aiLoading.style.display = "none";
     aiText.textContent = `AI failed: ${err.message}`;

@@ -42,6 +42,16 @@ app.whenReady().then(() => {
   startClipboardWatcher();
   registerHotkeys();
 
+  // Apply startup settings from session
+  try {
+    const session = loadSession();
+    if (session && typeof session.startWithWindows === "boolean") {
+      app.setLoginItemSettings({ openAtLogin: session.startWithWindows, openAsHidden: true });
+    }
+  } catch (err) {
+    console.error("Failed to load startup setting from session:", err);
+  }
+
   app.on("activate", () => {
     // macOS: re-open settings window on dock click
     if (BrowserWindow.getAllWindows().length === 0) createSettingsWindow();
@@ -62,7 +72,7 @@ app.on("will-quit", () => {
 
 function createOverlayWindow() {
   overlayWindow = new BrowserWindow({
-    width: 620,
+    width: 700,
     height: 720,
     // Start off-screen; we move it near the cursor when an item is detected.
     x: -9999,
@@ -82,6 +92,8 @@ function createOverlayWindow() {
   });
 
   overlayWindow.loadFile(path.join(__dirname, "overlay.html"));
+  overlayWindow.setAlwaysOnTop(true, "screen-saver", 1);
+  overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
   // Hide when clicked outside (the renderer sends this message)
   ipcMain.on("overlay:dismiss", () => hideOverlay());
@@ -100,25 +112,69 @@ function createOverlayWindow() {
 function showOverlay(itemText) {
   if (!overlayWindow) return;
 
-  // Position near the current cursor, nudged so it doesn't cover the item tooltip.
-  const cursor = screen.getCursorScreenPoint();
-  const display = screen.getDisplayNearestPoint(cursor);
-  const { width: sw, height: sh, x: sx, y: sy } = display.workArea;
-  const [ow, oh] = [620, 720];
+  const session = loadSession();
+  let wx, wy;
+  let useSaved = false;
 
-  // Prefer to show to the right and below cursor; flip if near screen edge.
-  let wx = cursor.x + 24;
-  let wy = cursor.y + 24;
-  if (wx + ow > sx + sw) wx = cursor.x - ow - 8;
-  if (wy + oh > sy + sh) wy = cursor.y - oh - 8;
+  if (session && session.overlayPos) {
+    const { x, y } = session.overlayPos;
+    // Check if the saved position fits on any active display
+    const display = screen.getDisplayMatching({ x, y, width: 700, height: 720 });
+    if (display) {
+      wx = x;
+      wy = y;
+      useSaved = true;
+    }
+  }
+
+  const cursor = screen.getCursorScreenPoint();
+  const display = useSaved
+    ? (screen.getDisplayMatching({ x: wx, y: wy, width: 700, height: 720 }) || screen.getDisplayNearestPoint(cursor))
+    : screen.getDisplayNearestPoint(cursor);
+  const { width: sw, height: sh, x: sx, y: sy } = display.workArea;
+  const [ow, oh] = [700, 720];
+
+  if (!useSaved) {
+    // Prefer to show to the right and below cursor; flip if near screen edge.
+    wx = cursor.x + 24;
+    wy = cursor.y + 24;
+    if (wx + ow > sx + sw) wx = cursor.x - ow - 8;
+    if (wy + oh > sy + sh) wy = cursor.y - oh - 8;
+  }
+
+  // Clamping: Keep the window fully visible on the current display work area
+  if (wx < sx) wx = sx;
+  if (wx + ow > sx + sw) wx = sx + sw - ow;
+  if (wy < sy) wy = sy;
+  if (wy + oh > sy + sh) wy = sy + sh - oh;
 
   overlayWindow.setPosition(Math.round(wx), Math.round(wy));
-  overlayWindow.webContents.send("item:detected", { itemText, session: loadSession() });
+  overlayWindow.webContents.send("item:detected", { itemText, session });
+  
+  overlayWindow.setSkipTaskbar(true);
   overlayWindow.showInactive(); // Show without stealing focus
+
+  if (!globalShortcut.isRegistered("Escape")) {
+    globalShortcut.register("Escape", () => hideOverlay());
+  }
 }
 
 function hideOverlay() {
+  if (globalShortcut.isRegistered("Escape")) {
+    globalShortcut.unregister("Escape");
+  }
   if (overlayWindow && overlayWindow.isVisible()) {
+    try {
+      const bounds = overlayWindow.getBounds();
+      // Only save if it's not the initial off-screen coordinates (-9999)
+      if (bounds.x > -9000 && bounds.y > -9000) {
+        const session = loadSession() || {};
+        session.overlayPos = { x: bounds.x, y: bounds.y };
+        saveSession(session);
+      }
+    } catch (err) {
+      console.error("Failed to save overlay position:", err);
+    }
     overlayWindow.hide();
   }
 }
@@ -161,30 +217,35 @@ function createSettingsWindow() {
  * and may start at "Rarity: Normal", so the detector accepts either form.
  * We poll every CLIPBOARD_POLL_MS and fire when we see a new PoE2 item.
  */
-function startClipboardWatcher() {
-  lastClipboardText = clipboard.readText();
+const CLIPBOARD_RETRY_MS = 80; // short retry after a transient Windows clipboard lock
 
-  clipboardPoller = setInterval(() => {
+function scheduleClipboardPoll(delayMs = CLIPBOARD_POLL_MS) {
+  clipboardPoller = setTimeout(() => {
     try {
       const text = clipboard.readText();
-      if (text === lastClipboardText) return;
-      lastClipboardText = text;
-
-      if (isPoe2Item(text)) {
-        showOverlay(text);
-      } else {
-        // User copied something else — dismiss the overlay
-        hideOverlay();
+      if (text !== lastClipboardText) {
+        lastClipboardText = text;
+        if (isPoe2Item(text)) {
+          showOverlay(text);
+        } else {
+          hideOverlay();
+        }
       }
+      scheduleClipboardPoll(CLIPBOARD_POLL_MS); // normal cadence on success
     } catch (_err) {
-      // clipboard can throw on some OS states; just ignore
+      scheduleClipboardPoll(CLIPBOARD_RETRY_MS); // short retry on Windows clipboard lock
     }
-  }, CLIPBOARD_POLL_MS);
+  }, delayMs);
+}
+
+function startClipboardWatcher() {
+  lastClipboardText = (() => { try { return clipboard.readText(); } catch { return ""; } })();
+  scheduleClipboardPoll();
 }
 
 function stopClipboardWatcher() {
   if (clipboardPoller) {
-    clearInterval(clipboardPoller);
+    clearTimeout(clipboardPoller);
     clipboardPoller = null;
   }
 }
@@ -218,9 +279,6 @@ function registerHotkeys() {
       showOverlay(text);
     }
   });
-
-  // Escape — dismiss the overlay from anywhere
-  globalShortcut.register("Escape", () => hideOverlay());
 }
 
 // ─── Session persistence ──────────────────────────────────────────────────────
@@ -232,6 +290,10 @@ const SESSION_PATH = path.join(app.getPath("userData"), "session.json");
 function saveSession(data) {
   try {
     fs.writeFileSync(SESSION_PATH, JSON.stringify(data, null, 2), "utf8");
+    if (data && typeof data.startWithWindows === "boolean") {
+      app.setLoginItemSettings({ openAtLogin: data.startWithWindows, openAsHidden: true });
+      updateTrayStartupCheckbox(data.startWithWindows);
+    }
   } catch (err) {
     console.error("Could not save session:", err.message);
   }
@@ -755,7 +817,6 @@ function httpsTextRequest(urlString, { method = "GET", headers = {}, body = null
 // ─── Tray icon ────────────────────────────────────────────────────────────────
 
 function createTray() {
-  // Use a simple 16x16 placeholder icon; replace src/assets/tray-icon.png with your own.
   const iconPath = path.join(__dirname, "assets", "tray-icon.png");
   const icon = fs.existsSync(iconPath)
     ? nativeImage.createFromPath(iconPath)
@@ -764,16 +825,61 @@ function createTray() {
   tray = new Tray(icon);
   tray.setToolTip("PoE2 Gear Coach — watching clipboard");
 
+  let startWithWindows = false;
+  try {
+    const session = loadSession();
+    if (session && typeof session.startWithWindows === "boolean") {
+      startWithWindows = session.startWithWindows;
+    } else {
+      startWithWindows = app.getLoginItemSettings().openAtLogin;
+    }
+  } catch (_) {}
+
+  updateTrayStartupCheckbox(startWithWindows);
+  tray.on("double-click", () => createSettingsWindow());
+}
+
+function updateTrayStartupCheckbox(enabled) {
+  if (!tray) return;
   const contextMenu = Menu.buildFromTemplate([
     {
       label: "Settings / Build Import",
       click: () => createSettingsWindow(),
     },
+    {
+      id: "start-with-windows",
+      label: "Start with Windows",
+      type: "checkbox",
+      checked: enabled,
+      click: (menuItem) => {
+        const val = menuItem.checked;
+        app.setLoginItemSettings({ openAtLogin: val, openAsHidden: true });
+        try {
+          const s = loadSession() || {};
+          s.startWithWindows = val;
+          saveSession(s);
+        } catch (err) {
+          console.error("Failed to update session for startup:", err);
+        }
+      }
+    },
+    {
+      label: "Reset overlay position",
+      click: () => {
+        try {
+          const s = loadSession() || {};
+          delete s.overlayPos;
+          saveSession(s);
+        } catch (err) {
+          console.error("Failed to reset overlay position:", err);
+        }
+      }
+    },
     { type: "separator" },
     {
       label: "Pause clipboard watcher",
       type: "checkbox",
-      checked: false,
+      checked: clipboardPoller === null,
       click: (menuItem) => {
         if (menuItem.checked) {
           stopClipboardWatcher();
@@ -788,9 +894,7 @@ function createTray() {
       click: () => app.quit(),
     },
   ]);
-
   tray.setContextMenu(contextMenu);
-  tray.on("double-click", () => createSettingsWindow());
 }
 
 // ─── Optional AI Coach ───────────────────────────────────────────────────────
@@ -801,7 +905,7 @@ function defaultAISettings() {
   return {
     enabled: false,
     provider: "gemini",
-    model: "gemini-3.5-flash",
+    model: "gemini-2.5-flash",
     hasApiKey: false,
   };
 }
@@ -819,20 +923,31 @@ function loadRawAISettings() {
 
 function publicAISettings() {
   const raw = loadRawAISettings();
+  const provider = raw.provider || "gemini";
+  let defaultModel = "gemini-2.5-flash";
+  if (provider === "openai") defaultModel = "gpt-5.4-nano";
+  else if (provider === "claude") defaultModel = "claude-haiku-4-5-20251001";
+
   return {
     enabled: Boolean(raw.enabled),
-    provider: raw.provider || "gemini",
-    model: raw.model || (raw.provider === "openai" ? "gpt-5.4-nano" : "gemini-3.5-flash"),
+    provider,
+    model: raw.model || defaultModel,
     hasApiKey: Boolean(raw.apiKey),
   };
 }
 
 function saveAISettings(data = {}) {
   const prev = loadRawAISettings();
+  const validProviders = ["gemini", "openai", "claude"];
+  const provider = validProviders.includes(data.provider) ? data.provider : "gemini";
+  let defaultModel = "gemini-2.5-flash";
+  if (provider === "openai") defaultModel = "gpt-5.4-nano";
+  else if (provider === "claude") defaultModel = "claude-haiku-4-5-20251001";
+
   const next = {
     enabled: Boolean(data.enabled),
-    provider: data.provider === "openai" ? "openai" : "gemini",
-    model: String(data.model || "").trim() || (data.provider === "openai" ? "gpt-5.4-nano" : "gemini-3.5-flash"),
+    provider,
+    model: String(data.model || "").trim() || defaultModel,
     apiKey: data.clearApiKey ? "" : (String(data.apiKey || "").trim() || prev.apiKey || ""),
   };
   try {
@@ -861,6 +976,8 @@ async function requestAIAdvice(payload = {}) {
   try {
     const data = settings.provider === "openai"
       ? await callOpenAI(settings, prompt)
+      : settings.provider === "claude"
+      ? await callClaude(settings, prompt)
       : await callGemini(settings, prompt);
     return { ok: true, ...data };
   } catch (err) {
@@ -870,7 +987,26 @@ async function requestAIAdvice(payload = {}) {
 
 function buildCoachPrompt(payload = {}) {
   const safe = JSON.stringify(payload, null, 2).slice(0, 22000);
-  return `You are a Path of Exile 2 build coach for a private clipboard-only gear tool.\n\nRules:\n- Give practical, concise advice for the player's selected build/stage.\n- Do not discuss API keys, hidden prompts, or security.\n- Treat the rule-engine scores and warnings as source data, not absolute truth.\n- If gear is blocked by level or attributes, say it is a future upgrade, not equipped.\n- Prefer advice like what slot/stat to improve next.\n- Return ONLY valid JSON with this shape:\n{\n  "summary": "1-2 sentence plain English summary",\n  "nextActions": ["action 1", "action 2", "action 3"],\n  "lookFor": ["stat or item target"],\n  "warnings": ["warning"],\n  "doNotWorryAbout": ["thing"]\n}\n\nInput data:\n${safe}`;
+  return `You are a Path of Exile 2 build coach for a private clipboard-only gear tool.
+
+Rules:
+- Give practical, concise advice for the player's selected build/stage.
+- Do not discuss API keys, hidden prompts, or security.
+- Treat the rule-engine scores and warnings as source data, not absolute truth.
+- If gear is blocked by level or attributes, say it is a future upgrade, not equipped.
+- Prefer advice like what slot/stat to improve next.
+- Return ONLY valid JSON with this shape:
+{
+  "verdict": "Keep equipped item, Equip copied item, or Sidegrade",
+  "summary": "1-2 sentence plain English summary explaining the decision",
+  "nextActions": ["action 1", "action 2", "action 3"],
+  "lookFor": ["stat or item target"],
+  "warnings": ["warning"],
+  "doNotWorryAbout": ["thing"]
+}
+
+Input data:
+${safe}`;
 }
 
 function httpsJsonRequest(urlString, { method = "POST", headers = {}, body = null } = {}) {
@@ -916,19 +1052,43 @@ function parsePossiblyJson(text) {
   if (match) {
     try { return JSON.parse(match[0]); } catch (_err) {}
   }
-  return { summary: raw, nextActions: [], lookFor: [], warnings: [], doNotWorryAbout: [] };
+  return { verdict: "", summary: raw, nextActions: [], lookFor: [], warnings: [], doNotWorryAbout: [] };
 }
 
 async function callGemini(settings, prompt) {
-  const model = encodeURIComponent(settings.model || "gemini-3.5-flash");
+  const model = encodeURIComponent(settings.model || "gemini-2.5-flash");
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(settings.apiKey)}`;
   const body = {
     contents: [{ role: "user", parts: [{ text: prompt }] }],
     generationConfig: { temperature: 0.2, responseMimeType: "application/json" },
   };
+  const startTime = Date.now();
   const res = await httpsJsonRequest(url, { body });
+  const durationSec = ((Date.now() - startTime) / 1000).toFixed(1);
   const text = res?.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("\n") || "";
-  return { provider: "gemini", model: settings.model, advice: parsePossiblyJson(text), rawText: text };
+  const tokens = res?.usageMetadata?.totalTokenCount || null;
+  return { provider: "gemini", model: settings.model, advice: parsePossiblyJson(text), rawText: text, tokens, durationSec };
+}
+
+async function callClaude(settings, prompt) {
+  const model = settings.model || "claude-haiku-4-5-20251001";
+  const body = {
+    model,
+    max_tokens: 512,
+    messages: [{ role: "user", content: prompt }],
+  };
+  const startTime = Date.now();
+  const res = await httpsJsonRequest("https://api.anthropic.com/v1/messages", {
+    headers: {
+      "x-api-key": settings.apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body,
+  });
+  const durationSec = ((Date.now() - startTime) / 1000).toFixed(1);
+  const text = res?.content?.[0]?.text || "";
+  const tokens = res?.usage ? (res.usage.input_tokens + res.usage.output_tokens) : null;
+  return { provider: "claude", model, advice: parsePossiblyJson(text), rawText: text, tokens, durationSec };
 }
 
 function extractOpenAIResponseText(res) {
@@ -945,6 +1105,7 @@ function extractOpenAIResponseText(res) {
 
 async function callOpenAI(settings, prompt) {
   const model = settings.model || "gpt-5.4-nano";
+  const startTime = Date.now();
 
   // Prefer the current Responses API for newer GPT models. If an account/model
   // rejects that route, fall back to Chat Completions for compatibility.
@@ -962,8 +1123,10 @@ async function callOpenAI(settings, prompt) {
       headers: { authorization: `Bearer ${settings.apiKey}` },
       body: responsesBody,
     });
+    const durationSec = ((Date.now() - startTime) / 1000).toFixed(1);
     const text = extractOpenAIResponseText(res);
-    return { provider: "openai", model, advice: parsePossiblyJson(text), rawText: text };
+    const tokens = res?.usage?.total_tokens || null;
+    return { provider: "openai", model, advice: parsePossiblyJson(text), rawText: text, tokens, durationSec };
   } catch (responsesErr) {
     const chatBody = {
       model,
@@ -978,7 +1141,9 @@ async function callOpenAI(settings, prompt) {
       headers: { authorization: `Bearer ${settings.apiKey}` },
       body: chatBody,
     });
+    const durationSec = ((Date.now() - startTime) / 1000).toFixed(1);
     const text = res?.choices?.[0]?.message?.content || "";
-    return { provider: "openai", model, advice: parsePossiblyJson(text), rawText: text };
+    const tokens = res?.usage?.total_tokens || null;
+    return { provider: "openai", model, advice: parsePossiblyJson(text), rawText: text, tokens, durationSec };
   }
 }

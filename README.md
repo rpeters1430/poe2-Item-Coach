@@ -21,6 +21,11 @@ Lower-risk approach: no game memory reading, no OCR, no input automation, and no
 
 ## Quick start
 
+> [!WARNING]
+> **Windows SmartScreen warning?**  
+> Click "More info" → "Run anyway". This happens because the installer is not yet code-signed.  
+> The app only reads your clipboard — it does not write files outside its own userData folder.
+
 ### Prerequisites
 
 - **Node.js 18+** — https://nodejs.org
@@ -209,7 +214,7 @@ npm run check
 AI Coach uses provider-specific model presets so you do not have to type model IDs manually.
 
 Default presets:
-- Gemini: `gemini-3.5-flash`
+- Gemini: `gemini-2.5-flash`
 - OpenAI: `gpt-5.4-nano`
 
 The settings screen also keeps a Custom model option for accounts/endpoints that support a different exact model ID. API keys remain stored locally in Electron userData and are not written into project files or exported reports. If a chosen model ID is not available on your API account, the Test AI button will show the provider error so you can switch to Custom or another preset.

@@ -8,18 +8,31 @@
     "build-win": "electron-builder --win --x64",
     "build-mac": "electron-builder --mac",
     "build-linux": "electron-builder --linux",
-    "check": "node --check src/main.js && node --check src/preload.js && node --check src/overlay-renderer.js && node --check src/app.js"
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/overlay-renderer.js && node --check src/app.js",
+    "test:parser": "node scripts/test-parser.js"
   },
   "build": {
     "appId": "com.poe2.gearcoach",
     "productName": "PoE2 Gear Coach",
-    "files": ["src/**/*"],
-    "win": { "target": "nsis", "icon": "src/assets/icon.ico" },
-    "mac": { "target": "dmg" },
-    "linux": { "target": "AppImage" }
+    "files": [
+      "src/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "src/assets/icon.ico"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
   },
   "devDependencies": {
     "electron": "^42.5.0",
     "electron-builder": "^26.15.5"
+  },
+  "allowScripts": {
+    "electron-winstaller@5.4.0": true
   }
 }
