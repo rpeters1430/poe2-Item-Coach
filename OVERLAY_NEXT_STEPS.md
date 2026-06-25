@@ -714,7 +714,7 @@ Requires a GitHub release with build artifacts. Electron-updater handles diff up
 
 ## Implementation Status Summary (as of 2026-06-25)
 
-### ✅ Completed (18 of 26 items)
+### ✅ Completed (20 of 32 items)
 | # | Item |
 |---|------|
 | 1.1 | Clipboard polling race fix (recursive setTimeout) |
@@ -738,7 +738,7 @@ Requires a GitHub release with build artifacts. Electron-updater handles diff up
 | 6.1 | GitHub Actions build workflow (.github/workflows/build.yml) |
 | 6.2 | Parser extracted to src/parser.js; scripts/test-parser.js with 9 cases |
 
-### Not Yet Started (6 items)
+### Not Yet Started (12 items)
 | # | Item | Priority |
 |---|------|----------|
 | 1.5 | Code-sign Windows installer / document SmartScreen bypass | Medium |
