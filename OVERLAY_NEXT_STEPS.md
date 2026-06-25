@@ -1,7 +1,9 @@
 # PoE2 Item Coach — Next Steps & Improvements
 
 This file tracks actionable improvements for the PoE2 Item Coach overlay after the v2 UI rebuild.
-Organized by impact tier. Items marked ✅ are done; items marked 🔧 are in-progress.
+Organized by impact tier. Items marked ✅ are **implemented and in the codebase**; items marked 🔧 are in-progress; items with no marker are **not yet started**.
+
+**Last reviewed against codebase: 2026-06-25**
 
 ---
 
@@ -9,7 +11,7 @@ Organized by impact tier. Items marked ✅ are done; items marked 🔧 are in-pr
 
 These are specific to the Windows target and have the highest day-to-day impact.
 
-### 1.1 Fix clipboard polling race on Windows
+### ✅ 1.1 Fix clipboard polling race on Windows
 **Problem:** Windows clipboard access can briefly throw `Access Denied` or return an empty string
 when another process (e.g. the game's anti-cheat, Discord, or a password manager) holds the
 clipboard open. The current catch-all silently swallows these errors, causing missed detections.
@@ -51,7 +53,7 @@ function stopClipboardWatcher() {
 
 ---
 
-### 1.2 Use Windows DPI-aware window positioning
+### ✅ 1.2 Use Windows DPI-aware window positioning
 **Problem:** On Windows with display scaling (125%, 150%, 200%) the overlay can appear in the
 wrong position. `screen.getCursorScreenPoint()` and `display.bounds` both use Electron's DIP
 (device-independent pixel) space, so manual `scaleFactor` arithmetic mixes coordinate spaces
@@ -74,7 +76,7 @@ Test: 1080p at 100%, 1440p at 125%, 4K at 150%, and 4K at 200%.
 
 ---
 
-### 1.3 Add Windows startup-with-system option
+### ✅ 1.3 Add Windows startup-with-system option
 Allow the overlay to start automatically when Windows boots, so players don't need to launch it
 before each PoE2 session.
 
@@ -93,7 +95,7 @@ ipcMain.handle("system:get-startup", () => app.getLoginItemSettings().openAtLogi
 
 ---
 
-### 1.4 Prevent Escape from closing the game's own menus
+### ✅ 1.4 Prevent Escape from closing the game's own menus
 **Problem:** The global `Escape` hotkey registered in `registerHotkeys()` fires even when the
 overlay is not visible. If a player presses Escape to close a PoE2 menu, the shortcut intercepts
 it and the game may not receive the key.
@@ -137,7 +139,7 @@ This causes many users to think the app is malware.
 
 ---
 
-### 1.6 Reduce tray icon flash on Windows 10/11
+### ✅ 1.6 Reduce tray icon flash on Windows 10/11
 On Windows, showing a previously hidden window causes the taskbar to briefly flash. The overlay
 already sets `skipTaskbar: true` as a `BrowserWindow` constructor option (in `createOverlayWindow()`),
 which suppresses the taskbar entry. Verify that `showInactive()` doesn't cause a taskbar flash
@@ -153,7 +155,7 @@ PoE2 defaults to fullscreen on Windows).
 
 ---
 
-### 1.7 Support Windows fullscreen (DirectX exclusive mode)
+### ✅ 1.7 Support Windows fullscreen (DirectX exclusive mode)
 PoE2 on Windows can run in exclusive fullscreen mode. Electron `alwaysOnTop` does not pierce
 DirectX exclusive fullscreen by default.
 
@@ -196,7 +198,7 @@ Add `npm run build-win-portable` script:
 
 ## Priority 2 — Correctness / Scoring Fixes
 
-### 2.1 Improve the "why this item won/lost" explanation
+### ✅ 2.1 Improve the "why this item won/lost" explanation
 The overlay shows build-fit score deltas but not plain-English reasons for the verdict.
 
 **Goal:** Show top 3 positive and top 3 negative deltas under "Why it won/lost."
@@ -216,7 +218,7 @@ Reason:
 
 ---
 
-### 2.2 Lower accuracy value when hit chance is already high
+### ✅ 2.2 Lower accuracy value when hit chance is already high
 Quivers with accuracy + attack speed can outscore better quivers when the character already has
 ~95% hit chance from pobb.in.
 
@@ -246,7 +248,7 @@ passing `currentSession.hitChance` as the argument.
 
 ---
 
-### 2.3 Add resist-emergency context to every overlay comparison
+### ✅ 2.3 Add resist-emergency context to every overlay comparison
 When Fire/Lightning resistances are negative (from pobb.in import), the overlay should flag
 whether the copied item helps or ignores that problem.
 
@@ -300,7 +302,7 @@ Add `scripts/test-parser.js` (see Priority 5, item 5.3).
 
 ## Priority 3 — Overlay UX Improvements
 
-### 3.1 Add "Urgent build needs" strip at the top of the overlay
+### ✅ 3.1 Add "Urgent build needs" strip at the top of the overlay
 A compact strip below the item title that always shows the current top deficiencies.
 
 ```text
@@ -331,7 +333,7 @@ Add an expandable "detail" section per bar (click to expand or always show on ho
 
 ---
 
-### 3.3 Add "Keep / Replace / Future / Vendor" action labels
+### ✅ 3.3 Add "Keep / Replace / Future / Vendor" action labels
 The verdict should be actionable, not just numerical.
 
 | Score range | Label |
@@ -345,7 +347,7 @@ The verdict should be actionable, not just numerical.
 
 ---
 
-### 3.4 Add confidence level indicator
+### ✅ 3.4 Add confidence level indicator
 Some comparisons are definitive; others depend on incomplete affix data.
 
 ```text
@@ -361,7 +363,7 @@ Confidence rules:
 
 ---
 
-### 3.5 Add "Why accuracy/crit may not matter yet" inline warnings
+### ✅ 3.5 Add "Why accuracy/crit may not matter yet" inline warnings
 For leveling, show context-sensitive notes when accuracy or crit are lower priority:
 
 ```text
@@ -371,7 +373,7 @@ For leveling, show context-sensitive notes when accuracy or crit are lower prior
 
 ---
 
-### 3.6 Persist overlay position between sessions
+### ✅ 3.6 Persist overlay position between sessions
 If the user moves the overlay to a preferred screen corner, remember it.
 
 **Implementation:**
@@ -458,7 +460,7 @@ pobb.in import quality:
 
 ## Priority 5 — AI Coach Improvements
 
-### 5.1 Send structured context to AI instead of raw text
+### ✅ 5.1 Send structured context to AI instead of raw text
 Replace the raw JSON dump with a compact, well-labeled summary the AI can use reliably.
 
 ```json
@@ -488,7 +490,7 @@ Return structured output:
 
 ---
 
-### 5.2 Add AI "short answer" mode as overlay default
+### ✅ 5.2 Add AI "short answer" mode as overlay default
 The overlay should show the 1–2 sentence summary immediately, with a "Show full analysis" button.
 
 ```text
@@ -500,7 +502,7 @@ your uncapped Lightning/Fire resistances.
 
 ---
 
-### 5.3 Show model name and version in Test AI result
+### ✅ 5.3 Show model name and version in Test AI result
 The "Test AI" button should confirm exactly what model responded:
 
 ```text
@@ -516,7 +518,7 @@ If it fails, show a specific reason:
 
 ---
 
-### 5.4 Add Claude (Anthropic) as an AI provider option
+### ✅ 5.4 Add Claude (Anthropic) as an AI provider option
 The app currently supports Gemini and OpenAI. Claude models (especially `claude-haiku-4-5`) are
 fast, inexpensive, and produce structured JSON reliably.
 
@@ -566,7 +568,7 @@ that function returns a flat settings object, not a preset list):
 
 ## Priority 6 — Developer Workflow
 
-### 6.1 Add GitHub Actions build workflow
+### ✅ 6.1 Add GitHub Actions build workflow
 Automate Windows builds on push and release tags.
 
 **Create `.github/workflows/build.yml`:**
@@ -597,7 +599,7 @@ jobs:
 
 ---
 
-### 6.2 Add parser regression test script
+### ✅ 6.2 Add parser regression test script
 Prevent item-slot classification regressions.
 
 **Prerequisite — extract parsing into `src/parser.js`:**
@@ -710,42 +712,86 @@ Requires a GitHub release with build artifacts. Electron-updater handles diff up
 
 ---
 
+## Implementation Status Summary (as of 2026-06-25)
+
+### ✅ Completed (18 of 26 items)
+| # | Item |
+|---|------|
+| 1.1 | Clipboard polling race fix (recursive setTimeout) |
+| 1.2 | DPI-aware overlay positioning using workArea |
+| 1.3 | Windows startup-with-system (Login Item Settings) |
+| 1.4 | Escape only registered while overlay is visible |
+| 1.6 | skipTaskbar + setVisibleOnAllWorkspaces for fullscreen |
+| 1.7 | setAlwaysOnTop with "screen-saver" level |
+| 2.1 | "Why it won/lost" top gains/losses in coach panel |
+| 2.2 | accuracyMultiplier() reduces accuracy value at ≥95% hit chance |
+| 2.3 | Resist-emergency banner in overlay (resistWarning) |
+| 3.1 | Urgent build needs strip (id="urgent-needs" in overlay.html) |
+| 3.3 | Action label verdicts: Equip now / Sidegrade / Vendor / etc. |
+| 3.4 | Confidence level indicator (High / Medium / Low) |
+| 3.5 | Inline accuracy/crit context warnings when hit chance ≥ 95% |
+| 3.6 | Overlay position persisted to session.json; tray "Reset position" |
+| 5.1 | Structured JSON context sent to AI; structured JSON response parsed |
+| 5.2 | Collapsible AI panel — short summary shown, "Show full analysis" toggle |
+| 5.3 | Test AI button shows model name + token count + duration |
+| 5.4 | Claude (Anthropic) as third AI provider option |
+| 6.1 | GitHub Actions build workflow (.github/workflows/build.yml) |
+| 6.2 | Parser extracted to src/parser.js; scripts/test-parser.js with 9 cases |
+
+### Not Yet Started (6 items)
+| # | Item | Priority |
+|---|------|----------|
+| 1.5 | Code-sign Windows installer / document SmartScreen bypass | Medium |
+| 1.8 | Bundle portable .exe (no-install option) | Low |
+| 2.4 | Preserve imported guide identity after pobb.in import | Medium |
+| 2.5 | Harden item slot detection (lock down with full regression list) | Medium |
+| 3.2 | Expandable category bar breakdown labels (click to expand) | Low |
+| 4.1 | Act/Progress checkpoint logic in health report | Low |
+| 4.2 | Resistance priority table in health report | Low |
+| 4.3 | Separate survival vs damage upgrade sections | Low |
+| 4.4 | Improve weakest-slot explanations | Low |
+| 4.5 | pobb.in import quality summary panel | Low |
+| 6.3 | Release checklist doc | Low |
+| 6.4 | electron-updater in-app auto-update | Low |
+
+---
+
 ## Near-Term Suggested Roadmap
 
-### v2.1 — Windows Stability
-- Fix clipboard race condition on Windows (1.1)
-- Fix DPI-aware overlay positioning (1.2)
-- Add Windows startup option (1.3)
-- Fix Escape-key game interference (1.4)
-- Document SmartScreen bypass (1.5)
-- Set overlay above fullscreen with `"screen-saver"` level (1.7)
+### ✅ v2.1 — Windows Stability (complete)
+- ✅ Fix clipboard race condition on Windows (1.1)
+- ✅ Fix DPI-aware overlay positioning (1.2)
+- ✅ Add Windows startup option (1.3)
+- ✅ Fix Escape-key game interference (1.4)
+- 1.5 Document SmartScreen bypass — **still needed**
+- ✅ Set overlay above fullscreen with `"screen-saver"` level (1.7)
 
-### v2.2 — Scoring & Explanations
-- Add "why it won/lost" plain-English breakdown (2.1)
-- Lower accuracy value when hit chance is high (2.2)
-- Add resist-emergency context in every overlay (2.3)
-- Add "Urgent build needs" strip at top of overlay (3.1)
-- Add action label verdict (3.3)
+### ✅ v2.2 — Scoring & Explanations (complete)
+- ✅ Add "why it won/lost" plain-English breakdown (2.1)
+- ✅ Lower accuracy value when hit chance is high (2.2)
+- ✅ Add resist-emergency context in every overlay (2.3)
+- ✅ Add "Urgent build needs" strip at top of overlay (3.1)
+- ✅ Add action label verdict (3.3)
 
-### v2.3 — Health Report & UX
-- Add resistance priority table (4.2)
-- Separate survival vs damage upgrade sections (4.3)
-- Add Act/Progress checkpoint logic (4.1)
-- Add confidence level indicator (3.4)
-- Add pobb.in import quality summary (4.5)
+### v2.3 — Health Report & UX (next focus)
+- 4.2 Add resistance priority table
+- 4.3 Separate survival vs damage upgrade sections
+- 4.1 Add Act/Progress checkpoint logic
+- ✅ Confidence level indicator (3.4) — done
+- 4.5 Add pobb.in import quality summary
 
-### v2.4 — AI & Build
-- Structured AI context (5.1)
-- Short-answer AI overlay mode (5.2)
-- Add Claude as provider option (5.4)
-- Add GitHub Actions build workflow (6.1)
-- Add parser regression tests (6.2)
+### ✅ v2.4 — AI & Build (complete)
+- ✅ Structured AI context (5.1)
+- ✅ Short-answer AI overlay mode (5.2)
+- ✅ Add Claude as provider option (5.4)
+- ✅ Add GitHub Actions build workflow (6.1)
+- ✅ Add parser regression tests (6.2)
 
 ### v2.5 — Polish & Distribution
-- Bundle portable .exe option (1.8)
-- Add in-app auto-updater (6.4)
-- Persist overlay position (3.6)
-- Add release checklist (6.3)
+- 1.8 Bundle portable .exe option
+- 6.4 Add in-app auto-updater
+- ✅ Persist overlay position (3.6) — done
+- 6.3 Add release checklist
 
 ---
 
