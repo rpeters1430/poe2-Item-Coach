@@ -55,6 +55,7 @@
     /* ── Outer shell ───────────────────────────────────────────── */
     #shell {
       display: none;
+      position: relative;
       background: var(--poe-bg);
       border: 1px solid var(--poe-border);
       border-radius: var(--radius);
@@ -116,37 +117,51 @@
     /* ── LEFT: PoE-style item tooltip ──────────────────────────── */
     #item-tooltip {
       border-right: 1px solid var(--poe-border-dim);
-      padding: 12px 14px;
+      padding: 0 14px 12px;
       display: flex; flex-direction: column; gap: 0;
       min-width: 0;
     }
+    /* Rarity gradient fills from the very top of the panel */
+    #item-tooltip.rare   { background: linear-gradient(180deg, rgba(200,160,40,0.18) 0%, transparent 26%); }
+    #item-tooltip.unique { background: linear-gradient(180deg, rgba(175,96,37,0.24) 0%, transparent 26%); }
+    #item-tooltip.magic  { background: linear-gradient(180deg, rgba(100,100,220,0.18) 0%, transparent 26%); }
+    #item-tooltip.normal { background: none; }
 
-    /* Item header */
-    .item-header { text-align: center; margin-bottom: 6px; }
-    .item-rarity-bar {
-      height: 3px; border-radius: 2px; margin-bottom: 8px;
-      background: var(--poe-gold);
+    /* Item header — rarity accent line across the top, name centred */
+    .item-header {
+      text-align: center;
+      padding: 10px 0 8px;
+      position: relative;
+      margin-bottom: 2px;
     }
-    .item-rarity-bar.rare    { background: linear-gradient(90deg, transparent, #c8b400, transparent); }
-    .item-rarity-bar.magic   { background: linear-gradient(90deg, transparent, #8888ff, transparent); }
-    .item-rarity-bar.unique  { background: linear-gradient(90deg, transparent, #af6025, transparent); }
-    .item-rarity-bar.normal  { background: linear-gradient(90deg, transparent, #7f7f7f, transparent); }
+    .item-header::before {
+      content: '';
+      position: absolute;
+      top: 0; left: -14px; right: -14px; height: 2px;
+    }
+    .item-header.rare::before   { background: linear-gradient(90deg, transparent 5%, #c8b400 30%, #c8b400 70%, transparent 95%); }
+    .item-header.magic::before  { background: linear-gradient(90deg, transparent 5%, #8888ff 30%, #8888ff 70%, transparent 95%); }
+    .item-header.unique::before { background: linear-gradient(90deg, transparent 5%, #d07030 30%, #d07030 70%, transparent 95%); }
+    .item-header.normal::before { background: linear-gradient(90deg, transparent 5%, #888 30%, #888 70%, transparent 95%); }
+
+    /* Old thin rarity bar replaced by gradient + accent line above */
+    .item-rarity-bar { display: none; }
 
     .item-name {
-      font-size: 17px; font-weight: 700; letter-spacing: 0.02em;
-      line-height: 1.2; margin-bottom: 1px;
+      font-size: 18px; font-weight: 700; letter-spacing: 0.02em;
+      line-height: 1.25; margin-bottom: 2px;
     }
     .item-name.rare    { color: var(--poe-rare); }
     .item-name.magic   { color: var(--poe-magic); }
     .item-name.unique  { color: var(--poe-unique); }
     .item-name.normal  { color: var(--poe-normal); }
 
-    .item-base { font-size: 13px; color: var(--poe-white); }
+    .item-base { font-size: 14px; color: var(--poe-white); }
 
-    /* Separator */
+    /* Separator — vivid gold matching PoE2 in-game tooltip style */
     .sep {
-      width: 100%; height: 1px; margin: 7px 0;
-      background: linear-gradient(90deg, transparent, var(--poe-separator) 30%, var(--poe-separator) 70%, transparent);
+      width: 100%; height: 1px; margin: 6px 0;
+      background: linear-gradient(90deg, transparent 5%, #7a5c18 20%, #d4a832 50%, #7a5c18 80%, transparent 95%);
     }
 
     /* Property rows */
@@ -276,6 +291,12 @@
     .eq-delta-chip.positive { color: var(--good); border-color: rgba(120,212,154,0.35); background: rgba(120,212,154,0.08); }
     .eq-delta-chip.negative { color: var(--bad);  border-color: rgba(255,139,139,0.35); background: rgba(255,139,139,0.08); }
     .eq-delta-chip.neutral  { color: var(--poe-muted); border-color: rgba(255,255,255,0.1); }
+    /* PoB-style per-stat delta lines replacing the chips */
+    .eq-delta-row { display: flex; flex-direction: column; gap: 0; }
+    .eq-delta-stat { font-size: 12px; line-height: 1.55; padding: 1px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .eq-delta-stat.positive { color: var(--good); }
+    .eq-delta-stat.negative { color: var(--bad); }
+    .eq-delta-stat.neutral  { color: var(--poe-muted); font-style: italic; }
     #set-equipped-btn {
       font-size: 11px; padding: 4px 10px; border-radius: 3px;
       background: rgba(92,74,30,0.35); border: 1px solid var(--poe-border);
@@ -345,6 +366,51 @@
     }
     .foot-btn.primary:hover { background: rgba(120,166,255,0.32); }
 
+    /* ── Trade Research popup ──────────────────────────────────── */
+    #price-popup {
+      position: absolute; inset: 0;
+      background: rgba(0,0,0,.72);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 50;
+    }
+    .price-card {
+      background: var(--poe-bg-card);
+      border: 1px solid var(--poe-border);
+      border-radius: 6px;
+      padding: 12px 14px 10px;
+      width: 280px;
+      display: flex; flex-direction: column; gap: 8px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.9);
+    }
+    .price-card-hdr {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 12px; font-weight: 600; color: var(--poe-gold);
+      border-bottom: 1px solid var(--poe-border-dim); padding-bottom: 6px;
+    }
+    .price-card-foot {
+      border-top: 1px solid var(--poe-border-dim); padding-top: 6px;
+      display: flex; justify-content: flex-end;
+    }
+    #price-popup-body { font-size: 11px; }
+    .tr-loading, .tr-no-data { color: var(--poe-muted); padding: 6px 0; }
+    .tr-error { color: var(--bad); padding: 6px 0; }
+    .tr-item-name { color: var(--poe-unique); font-size: 12px; font-weight: 600; margin-bottom: 2px; }
+    .tr-price-main { font-size: 20px; font-weight: 700; color: var(--poe-gold-bright); margin: 4px 0; }
+    .tr-curr { font-size: 12px; color: var(--poe-muted); }
+    .tr-source { font-size: 10px; color: var(--poe-muted); margin-top: 2px; }
+    .tr-found { color: var(--poe-muted); margin-bottom: 4px; }
+    .tr-listing-list { display: flex; flex-direction: column; gap: 3px; max-height: 150px; overflow-y: auto; }
+    .tr-listing-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 2px 5px; border: 1px solid var(--poe-border-dim); border-radius: 3px;
+    }
+    .tr-listing-price { color: var(--poe-gold-bright); font-weight: 600; }
+    .tr-listing-acct { color: var(--poe-muted); font-size: 10px; }
+    .tr-mods-header { color: var(--poe-muted); margin: 6px 0 2px; }
+    .tr-mods { display: flex; flex-direction: column; gap: 3px; }
+    .tr-mod-row { display: flex; align-items: center; gap: 4px; }
+    .tr-mod-text { color: var(--poe-mod); }
+
     /* No-build warning */
     #no-build-warn {
       margin: 8px 12px 0;
@@ -398,6 +464,7 @@
         <div class="item-rarity-bar" id="rarity-bar"></div>
         <div class="item-name" id="item-name">—</div>
         <div class="item-base" id="item-base"></div>
+        <span class="price-badge" id="unique-price-badge" style="display:none"></span>
       </div>
 
       <div class="sep"></div>
@@ -496,12 +563,28 @@
     <span id="footer-hint">Ctrl+C on item in-game · Esc to dismiss</span>
     <div id="footer-actions">
       <button class="foot-btn" id="ai-btn">✦ AI Coach</button>
+      <button class="foot-btn" id="price-btn">💰 Trade Value</button>
       <button class="foot-btn primary" id="fullcompare-btn">Full Report ↗</button>
+    </div>
+  </div>
+
+  <!-- Trade Research popup — hidden until user clicks 💰 Trade Value -->
+  <div id="price-popup" style="display:none">
+    <div class="price-card">
+      <div class="price-card-hdr">
+        <span>Trade Research</span>
+        <button class="tb-btn" id="price-popup-close" title="Close">✕</button>
+      </div>
+      <div id="price-popup-body"></div>
+      <div class="price-card-foot">
+        <button class="foot-btn" id="trade-open-btn">Open Trade Site →</button>
+      </div>
     </div>
   </div>
 
 </div><!-- /#shell -->
 
+<script src="poe2-mod-data.js"></script>
 <script src="parser.js"></script>
 <script src="overlay-renderer.js"></script>
 </body>

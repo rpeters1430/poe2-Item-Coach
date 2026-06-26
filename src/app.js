@@ -437,11 +437,51 @@ function selectStageForPlayerLevel(level) {
   }
 }
 
+function renderPobbImportQuality(build) {
+  if (!build) return "";
+  const stats = build?.stats || {};
+  const r = stats.resistances || {};
+  const checks = [];
+
+  const ok = (text) => `<li class="pobb-quality-ok">&#10003; ${escapeHtml(text)}</li>`;
+  const warn = (text) => `<li class="pobb-quality-warn">&#9888; ${escapeHtml(text)}</li>`;
+
+  const level = Number(stats.level || 0);
+  checks.push(level > 0 ? ok(`Player level imported (${level})`) : warn("Player level not detected — enter manually in the Character tab"));
+
+  const hasRes = [r.fire, r.cold, r.lightning, r.chaos].some(v => v !== undefined && v !== null);
+  checks.push(hasRes
+    ? ok(`Resistances imported (Fire ${r.fire ?? "—"}% / Cold ${r.cold ?? "—"}% / Lightning ${r.lightning ?? "—"}% / Chaos ${r.chaos ?? "—"}%)`)
+    : warn("Resistances not imported from this build"));
+
+  checks.push((stats.life != null || stats.eHP != null)
+    ? ok(`Life / eHP imported (${stats.life ?? "—"} / ${stats.eHP ?? "—"})`)
+    : warn("Life / eHP not imported"));
+
+  if (build.decodedPobOk) {
+    checks.push(ok(`Full item affixes decoded (${build.decodedItemCount || build.gear?.length || 0} items)`));
+  } else if ((build.gear || []).length) {
+    checks.push(warn("Gear names imported, but full item affixes were not decoded from the PoB export"));
+  } else {
+    checks.push(warn("No gear detected in this build"));
+  }
+
+  const hasStr = Number(stats.str) > 0;
+  const hasDex = Number(stats.dex) > 0;
+  const hasInt = Number(stats.int) > 0;
+  checks.push(hasStr && hasDex && hasInt
+    ? ok(`Str/Dex/Int imported (${Math.floor(Number(stats.str))} / ${Math.floor(Number(stats.dex))} / ${Math.floor(Number(stats.int))})`)
+    : warn("Str/Dex/Int not exposed by pobb.in — enter manually in the Character tab"));
+
+  return `<div class="pobb-quality-box"><h4 style="margin:0 0 8px">Import quality</h4><ul class="pobb-quality-list">${checks.join("")}</ul></div>`;
+}
+
 function renderPobbSummary(build) {
   return `
     <div class="import-card">
       <h3>pobb.in current build imported</h3>
       ${renderPobbMiniCard(build)}
+      ${renderPobbImportQuality(build)}
       <p class="mini-note"><strong>Imported:</strong> ${escapeHtml(build?.gear?.length || 0)} gear item(s), ${escapeHtml(build?.gems?.length || 0)} gem entry(s). ${build?.decodedPobOk ? `${escapeHtml(build?.decodedItemCount || build?.gear?.length || 0)} equipped item(s) were decoded from the PoB export and loaded into your saved gear.` : (build?.exportCode ? "PoB export code was found and saved locally, but equipped affixes were not decoded from it." : "No PoB export code was detected on the visible page.")}</p>
       <p class="mini-note">Player level and closest guide stage were updated automatically when possible. Strength, Dexterity, and Intelligence are auto-filled only when the decoded PoB export exposes them; otherwise enter them manually.</p>
     </div>
@@ -1337,14 +1377,19 @@ function aggregateGearTotals(items) {
   return totals;
 }
 
+function getActContext() {
+  return document.getElementById("actSelect")?.value || "auto";
+}
+
 function buildNeededStats({ rows, equippedRows = [], futureRows = [], gearTotals, requirementProblems, profile, stageKey, playerLevel, playerAttrs }) {
   const needs = [];
   const stage = profile.stages?.[stageKey];
   const minLevel = stage?.data?.minLevel || 1;
   const maxLevel = stage?.data?.maxLevel || 100;
-  const isEarly = maxLevel <= 23;
-  const isMid = minLevel >= 24 && maxLevel <= 59;
-  const isLate = minLevel >= 60;
+  const actCtx = getActContext();
+  const isEarly = maxLevel <= 23 && actCtx === "auto";
+  const isMid = (minLevel >= 24 && maxLevel <= 59) || actCtx === "act2plus";
+  const isLate = minLevel >= 60 || actCtx === "maps";
 
   const allPastedAreFuture = rows.some(row => row.entry) && futureRows.length > 0 && equippedRows.length === 0;
   if (allPastedAreFuture && playerLevel <= 1 && playerAttrs.str === 0 && playerAttrs.dex === 0 && playerAttrs.int === 0) {
@@ -1542,6 +1587,7 @@ function buildSessionData() {
     version: 30,
     buildKey: buildSelect.value,
     startWithWindows: document.getElementById("startupCheckbox")?.checked || false,
+    actContext: document.getElementById("actSelect")?.value || "auto",
     slot: slotSelect.value,
     stage: stageSelect.value,
     playerLevel: playerLevelInput.value,
@@ -1602,6 +1648,8 @@ function loadSession() {
   updateSlotsAndStages();
   if (data.slot) slotSelect.value = data.slot;
   if (data.stage) stageSelect.value = data.stage;
+  const actSel = document.getElementById("actSelect");
+  if (actSel && data.actContext) actSel.value = data.actContext;
   playerLevelInput.value = data.playerLevel || 1;
   playerStrInput.value = data.playerStr || 0;
   playerDexInput.value = data.playerDex || 0;
@@ -1843,22 +1891,44 @@ function analyzeBuildHealth() {
 }
 
 function healthAdviceForSlot(slot, scored) {
-  const low = [];
-  if ((scored.scores.defense || 0) <= 0 && ["helmet", "body", "gloves", "boots", "belt"].includes(slot)) low.push("look for life/defense");
-  if ((scored.scores.resistance || 0) <= 0 && !["weapon", "quiver"].includes(slot)) low.push("add resistance");
-  if (slot === "boots" && (scored.scores.mobility || 0) <= 0) low.push("movement speed is a priority");
-  if (["weapon", "quiver", "gloves"].includes(slot) && (scored.scores.synergy + scored.scores.damage) < 15) low.push("needs better damage/build synergy");
-  return low.length ? `Improve: ${low.join(", ")}.` : "Looks usable for now.";
+  const defScore = scored.scores.defense || 0;
+  const resScore = scored.scores.resistance || 0;
+  const dmgScore = (scored.scores.damage || 0) + (scored.scores.synergy || 0);
+  const mobScore = scored.scores.mobility || 0;
+
+  if (slot === "ring") return "Rings can carry 2 resistance mods + flat damage + attributes — the best slot for fixing multiple gaps at once.";
+  if (slot === "belt") return "Belts carry life + resistance + strength simultaneously. A strong belt addresses 3 stat gaps in one upgrade.";
+  if (slot === "boots") {
+    if (mobScore <= 0) return "No movement speed detected — this is a priority. Boots can hold movement speed + life + resistance all at once.";
+    if (resScore <= 0) return "Good mobility. Look for resistance on boots too — they can carry 2 resistances + movement speed.";
+    return "Solid boots. Upgrade when you find one with higher movement speed or more life.";
+  }
+  if (slot === "amulet") return resScore <= 0 ? "Amulets can fix attributes and add resistance — look for attributes + 1–2 resists." : "Good amulet. Upgrade path: higher attributes or capped resistance.";
+  if (slot === "body" && defScore <= 0 && resScore <= 0) return "Body armour is a primary defensive slot — should carry life + 2 elemental resistances.";
+  if (slot === "helmet" && defScore <= 0 && resScore <= 0) return "Helmet should provide life + at least one resistance. It is also a good attribute-fix slot.";
+  if (["weapon", "quiver"].includes(slot) && dmgScore < 15) return "Upgrade for flat cold/physical damage, attack speed, or projectile/bow scaling. Weapon and quiver set your damage ceiling.";
+  if (slot === "gloves" && dmgScore < 15) return "Gloves can carry flat attack damage + attack speed — offense and resistance fixes in one slot.";
+
+  const issues = [];
+  if (defScore <= 0 && ["helmet", "body", "gloves", "boots", "belt"].includes(slot)) issues.push("look for life/defense");
+  if (resScore <= 0 && !["weapon", "quiver"].includes(slot)) issues.push("add resistance to free weapon/quiver for pure damage");
+  return issues.length ? `Improve: ${issues.join("; ")}.` : "Looks usable for now — replace only when a clear upgrade appears.";
 }
 
 function buildNextSteps(rows, equippedRows = [], futureRows = [], requirementProblems, missing, profile, stageKey, playerLevel = 1, playerAttrs = { str: 0, dex: 0, int: 0 }) {
   const steps = [];
   const stageData = profile.stages?.[stageKey]?.data;
   const prioritySlots = stageData?.prioritySlots || {};
+  const actCtx = getActContext();
+  const isResistPriority = actCtx === "act2plus" || actCtx === "maps";
   if (futureRows.length && equippedRows.length === 0 && playerLevel <= 1 && playerAttrs.str === 0 && playerAttrs.dex === 0 && playerAttrs.int === 0) {
     steps.push("Enter your real player level and Str/Dex/Int, then refresh. The current report is treating every pasted item as future gear.");
   }
   if (requirementProblems.length) steps.push("Fix level or attribute requirements before treating those items as real upgrades.");
+  if (isResistPriority) {
+    const actLabel = actCtx === "maps" ? "maps" : "Acts 3+/Cruel";
+    steps.push(`${actLabel}: elemental resistance caps (75%) are the top survival priority now. Fix resists on rings, belt, and armor before chasing damage.`);
+  }
   const activeRows = equippedRows.length ? equippedRows : rows.filter(row => row.entry && !row.reqProblem);
   const boot = activeRows.find(row => row.slot === "boots" && row.entry && (row.entry.scored.scores.mobility || 0) <= 0);
   if (boot) steps.push(prioritySlots.boots?.[0] || "Find boots with movement speed first; it is one of the biggest leveling quality-of-life upgrades.");
@@ -1906,13 +1976,23 @@ function buildResistanceGapReport(build) {
 }
 
 function renderResistanceGaps(gaps) {
-  if (!gaps || !gaps.length) return `<p class="subtitle small">No final resistance data imported yet.</p>`;
-  return `<div class="res-gap-grid">${gaps.map(gap => `
-    <div class="res-gap ${gap.value < 0 ? "urgent" : gap.value < 25 ? "warn" : ""}">
-      <strong>${escapeHtml(gap.name)} ${gap.value}%</strong>
-      <span>${escapeHtml(gap.priority)}</span>
-      <small>+${gap.toZero} to 0% · +${gap.toFifty} to 50% · +${gap.toCap} to 75%</small>
-    </div>`).join("")}</div>`;
+  if (!gaps || !gaps.length) return `<p class="subtitle small">No final resistance data imported yet. Import a pobb.in build to see resistance gaps.</p>`;
+  const rows = gaps.map(gap => {
+    const cls = gap.value < 0 ? "urgent" : gap.value < 25 ? "warn" : gap.value >= 75 ? "capped" : "";
+    const badge = gap.value < 0 ? "Critical" : gap.value < 25 ? "Low" : gap.value < 50 ? "Improve soon" : gap.value < 75 ? "Getting close" : "Capped ✓";
+    return `<tr class="res-row-${cls}">
+      <td class="res-name">${escapeHtml(gap.name)}</td>
+      <td class="res-val ${cls}">${gap.value}%</td>
+      <td>${gap.toZero > 0 ? `+${gap.toZero}` : "—"}</td>
+      <td>${gap.toFifty > 0 ? `+${gap.toFifty}` : "—"}</td>
+      <td>${gap.toCap > 0 ? `+${gap.toCap}` : '<span class="res-capped">✓</span>'}</td>
+      <td><span class="res-priority ${cls}">${escapeHtml(badge)}</span></td>
+    </tr>`;
+  }).join("");
+  return `<table class="resist-table">
+    <thead><tr><th>Resistance</th><th>Current</th><th>To 0%</th><th>To 50%</th><th>To 75%</th><th>Priority</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
 }
 
 function buildFixSlotsReport(build, rows) {
@@ -1933,6 +2013,21 @@ function buildFixSlotsReport(build, rows) {
   ];
   if (secondary.length) suggestions.splice(1, 0, `${secondary.join("/")} resistance also needs improvement, but it is less urgent than ${resText}.`);
   return suggestions;
+}
+
+function splitUpgradesToBuckets(steps) {
+  const survivalPattern = /resist|life|eHP|defense|armor|cap|shield|attribute|str|dex|int|movement speed|boot|fix|require|problem/i;
+  const damagePattern = /damage|attack speed|cold|physical|projectile|bow|synergy|dps|crit|weapon|quiver|flat/i;
+  const survival = [];
+  const damage = [];
+  for (const step of steps) {
+    const s = survivalPattern.test(step);
+    const d = damagePattern.test(step);
+    if (s && !d) survival.push(step);
+    else if (d && !s) damage.push(step);
+    else survival.push(step); // default to survival when ambiguous
+  }
+  return { survival, damage };
 }
 
 function renderHealthReport({ profile, stage, playerLevel, playerAttrs, rows, missing, levelProblems, attributeProblems, requirementProblems, pobbWarnings = [], weak, nextSteps, neededStats = [], gearTotals = {}, resistanceGaps = [], fixSlots = [], shoppingList = [], count, equippedCount = 0, futureCount = 0 }) {
@@ -1962,10 +2057,6 @@ function renderHealthReport({ profile, stage, playerLevel, playerAttrs, rows, mi
         ${renderList(neededStats, "warn", "No urgent stat gaps detected.")}
       </article>
       <article class="panel health-card">
-        <h3>Next upgrades</h3>
-        ${renderList(nextSteps, "warn", "No major problems detected from the pasted gear.")}
-      </article>
-      <article class="panel health-card">
         <h3>Weakest slots</h3>
         ${renderList(weak, "bad", "Paste more gear to rank weak slots.")}
       </article>
@@ -1974,6 +2065,19 @@ function renderHealthReport({ profile, stage, playerLevel, playerAttrs, rows, mi
         ${renderList([...pobbWarnings, ...levelProblems, ...attributeProblems, ...missing], "warn", "No level, attribute, resistance, or missing-slot warnings from this pass.")}
       </article>
     </div>
+    ${(() => {
+      const { survival, damage } = splitUpgradesToBuckets(nextSteps);
+      return `<div class="upgrade-split-grid" style="margin-top:16px">
+        <article class="panel health-card survival-card">
+          <h3>Survival upgrades <span class="upgrade-label-badge survive">do first</span></h3>
+          ${renderList(survival.length ? survival : ["No urgent survival upgrades detected."], "warn", "")}
+        </article>
+        <article class="panel health-card damage-card">
+          <h3>Damage upgrades <span class="upgrade-label-badge damage">after resists improve</span></h3>
+          ${renderList(damage.length ? damage : ["Focus on survival first, then return here for damage advice."], "warn", "")}
+        </article>
+      </div>`;
+    })()}
     <article class="panel health-card" style="margin-top: 16px;">
       <h3>Shopping list for this stage</h3>
       ${renderShoppingList(shoppingList)}

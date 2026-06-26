@@ -797,3 +797,160 @@ code {
 .delta-pill.negative { color: #ff9a9a; border-color: rgba(255, 154, 154, 0.35); }
 .delta-pill small { opacity: 0.78; font-size: 0.82em; }
 .muted-small { opacity: 0.72; font-size: 0.92rem; margin-top: 8px; }
+
+/* 4.2 — Resistance priority table */
+.resist-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+.resist-table th,
+.resist-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+.resist-table th {
+  color: var(--muted);
+  font-weight: 600;
+  background: rgba(255,255,255,0.03);
+}
+.res-row-urgent td { background: rgba(255, 80, 80, 0.06); }
+.res-row-warn td   { background: rgba(255, 209, 102, 0.05); }
+.res-row-capped td { background: rgba(120, 212, 154, 0.05); }
+.res-val.urgent { color: var(--bad); font-weight: 700; }
+.res-val.warn   { color: var(--warn); }
+.res-val.capped { color: var(--good); }
+.res-priority {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.04);
+  color: var(--muted);
+}
+.res-priority.urgent { color: var(--bad);  background: rgba(255, 80, 80, 0.12);     border-color: rgba(255, 80, 80, 0.35); }
+.res-priority.warn   { color: var(--warn); background: rgba(255, 209, 102, 0.1);    border-color: rgba(255, 209, 102, 0.35); }
+.res-priority.capped { color: var(--good); background: rgba(120, 212, 154, 0.1);    border-color: rgba(120, 212, 154, 0.35); }
+.res-capped { color: var(--good); font-weight: 700; }
+
+/* 4.3 — Survival / damage upgrade split */
+.upgrade-split-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 900px) {
+  .upgrade-split-grid { grid-template-columns: 1fr; }
+}
+.upgrade-label-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+.upgrade-label-badge.survive {
+  background: rgba(255, 80, 80, 0.12);
+  color: var(--bad);
+  border: 1px solid rgba(255, 80, 80, 0.3);
+}
+.upgrade-label-badge.damage {
+  background: rgba(120, 166, 255, 0.1);
+  color: var(--accent);
+  border: 1px solid rgba(120, 166, 255, 0.3);
+}
+
+/* 4.5 — pobb.in import quality checklist */
+.pobb-quality-box {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(255,255,255,0.03);
+}
+.pobb-quality-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 5px;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+.pobb-quality-ok   { color: var(--good); }
+.pobb-quality-warn { color: var(--warn); }
+
+/* ── Mod tier badges (T1–T4+) ──────────────────────────────────────────────── */
+.tier-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  margin-right: 5px;
+  vertical-align: middle;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+  cursor: default;
+}
+.tier-badge.t1 {
+  background: rgba(255, 210, 60, 0.15);
+  color: #ffd23c;
+  border: 1px solid rgba(255, 210, 60, 0.45);
+}
+.tier-badge.t2 {
+  background: rgba(180, 190, 200, 0.12);
+  color: #b4bec8;
+  border: 1px solid rgba(180, 190, 200, 0.35);
+}
+.tier-badge.t3 {
+  background: rgba(178, 120, 60, 0.12);
+  color: #b4824a;
+  border: 1px solid rgba(178, 120, 60, 0.32);
+}
+.tier-badge.tN {
+  background: rgba(100, 100, 110, 0.10);
+  color: #7a7a8a;
+  border: 1px solid rgba(100, 100, 110, 0.25);
+}
+.tier-roll {
+  font-weight: 400;
+  opacity: 0.85;
+  font-size: 0.64rem;
+}
+/* Compact tier tag used in category hit breakdowns */
+.hit-tier-tag {
+  display: inline-block;
+  font-size: 0.62rem;
+  font-weight: 600;
+  padding: 0 4px;
+  border-radius: 3px;
+  margin-left: 3px;
+}
+.hit-tier-tag.t1 { color: #ffd23c; background: rgba(255, 210, 60, 0.12); }
+.hit-tier-tag.t2 { color: #b4bec8; background: rgba(180, 190, 200, 0.10); }
+.hit-tier-tag.t3 { color: #b4824a; background: rgba(178, 120, 60, 0.10); }
+.hit-tier-tag.t4 { color: #7a7a8a; background: rgba(100, 100, 110, 0.08); }
+
+/* Unique item price badge */
+.price-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 6px;
+  margin-top: 4px;
+  background: rgba(200, 160, 60, 0.10);
+  color: #c8a03c;
+  border: 1px solid rgba(200, 160, 60, 0.30);
+}
+.price-badge .price-unit { font-weight: 400; opacity: 0.75; font-size: 0.66rem; }

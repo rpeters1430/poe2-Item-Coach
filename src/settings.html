@@ -350,6 +350,14 @@
           <label>Build profile <select id="buildSelect"></select></label>
           <label>Build stage   <select id="stageSelect"></select></label>
           <label>Gear slot     <select id="slotSelect"></select></label>
+          <label>Campaign progress
+            <select id="actSelect">
+              <option value="auto">Auto (follow stage weights)</option>
+              <option value="act1">Acts 1–2 (early campaign)</option>
+              <option value="act2plus">Acts 3+ / Cruel (prioritize resists)</option>
+              <option value="maps">Maps (cap resists + scale damage)</option>
+            </select>
+          </label>
         </div>
 
         <div class="player-grid">
@@ -497,6 +505,7 @@
 </div><!-- /.settings-root -->
 
 <!-- Scoring engine from browser app (unchanged) -->
+<script src="poe2-mod-data.js"></script>
 <script src="app.js"></script>
 
 <!-- Settings controller -->
@@ -531,6 +540,7 @@ function collectSession() {
     startWithWindows: document.getElementById("startupCheckbox")?.checked || false,
     slot:        document.getElementById("slotSelect")?.value,
     stage:       document.getElementById("stageSelect")?.value,
+    actContext:  document.getElementById("actSelect")?.value  || "auto",
     playerLevel: document.getElementById("playerLevel")?.value,
     playerStr:   document.getElementById("playerStr")?.value,
     playerDex:   document.getElementById("playerDex")?.value,

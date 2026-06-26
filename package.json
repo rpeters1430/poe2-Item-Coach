@@ -6,10 +6,12 @@
   "scripts": {
     "start": "electron .",
     "build-win": "electron-builder --win --x64",
+    "build-win-portable": "electron-builder --win portable --x64",
     "build-mac": "electron-builder --mac",
     "build-linux": "electron-builder --linux",
-    "check": "node --check src/main.js && node --check src/preload.js && node --check src/overlay-renderer.js && node --check src/app.js",
-    "test:parser": "node scripts/test-parser.js"
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/overlay-renderer.js && node --check src/app.js && node --check src/poe2-mod-data.js",
+    "test:parser": "node scripts/test-parser.js",
+    "fetch-mods": "node scripts/fetch-poe2db.js"
   },
   "build": {
     "appId": "com.poe2.gearcoach",
@@ -18,7 +20,10 @@
       "src/**/*"
     ],
     "win": {
-      "target": "nsis",
+      "target": [
+        { "target": "nsis",     "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ],
       "icon": "src/assets/icon.ico"
     },
     "mac": {

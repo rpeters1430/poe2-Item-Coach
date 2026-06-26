@@ -160,9 +160,13 @@ function scoreItem(item, profile, slot, stageKey) {
         basePoints = Math.round(basePoints * mult);
       }
 
-      const pts = Math.round(basePoints * (lw[rule.category]??1) * (sw[rule.category]??profile.baseWeights[rule.category]??1));
+      // Tier quality multiplier — rewards high-roll mods, penalises low-roll ones
+      const tierInfo = item.modTierMap?.get(line) || null;
+      const tierMult = (typeof tierScoreMultiplier === "function") ? tierScoreMultiplier(tierInfo) : 1.0;
+
+      const pts = Math.round(basePoints * (lw[rule.category]??1) * (sw[rule.category]??profile.baseWeights[rule.category]??1) * tierMult);
       scores[rule.category] += pts;
-      hits.push({ line, category:rule.category, points:pts, note:rule.note, ruleIndex: i });
+      hits.push({ line, category:rule.category, points:pts, note:rule.note, ruleIndex: i, tierInfo });
       if (pts < 0) warnings.push(rule.note);
     }
   }
@@ -245,6 +249,24 @@ function esc(v) {
   return String(v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
 
+function tierRelClass(ti) {
+  if (!ti || ti.tierCount <= 1) return "t1";
+  const pct = (ti.tier - 1) / (ti.tierCount - 1); // 0=best, 1=worst
+  if (pct < 0.20) return "t1";
+  if (pct < 0.45) return "t2";
+  if (pct < 0.70) return "t3";
+  return "tN";
+}
+
+function tierBadgeHtml(ti) {
+  if (!ti) return "";
+  const cls   = tierRelClass(ti);
+  const label = ti.tierCount > 1 ? `T${ti.tier}/${ti.tierCount}` : `T${ti.tier}`;
+  const name  = ti.tierName ? ` "${ti.tierName}"` : "";
+  const title = `${esc(ti.label)}${name}: T${ti.tier} of ${ti.tierCount} — roll ${esc(ti.min)}–${esc(ti.max)}, you got ${esc(ti.value)} (${esc(ti.rollPct)}% of tier)`;
+  return `<span class="tier-badge ${cls}" title="${title}">${label} <span class="tier-roll">${ti.rollPct}%</span></span>`;
+}
+
 function slotLabel(k) {
   const m = { body:"Body Armor", quiver:"Quiver", offhand:"Offhand", flask:"Flask", charm:"Charm" };
   return m[k] || String(k).charAt(0).toUpperCase()+String(k).slice(1);
@@ -255,8 +277,9 @@ function slotLabel(k) {
 function renderTooltip(item) {
   const rarity = String(item.rarity||"Normal").toLowerCase().replace(/\s+/g,"-");
 
-  // Rarity bar
-  document.getElementById("rarity-bar").className = `item-rarity-bar ${rarity}`;
+  // Rarity gradient on the left panel + accent line on header
+  document.getElementById("item-tooltip").className = rarity;
+  document.querySelector(".item-header").className = `item-header ${rarity}`;
 
   // Name / base
   const nameEl = document.getElementById("item-name");
@@ -293,14 +316,77 @@ function renderTooltip(item) {
   document.getElementById("item-props").innerHTML = propsHtml;
   document.getElementById("sep-props").style.display = propsHtml ? "" : "none";
 
-  // Implicits
-  const implHtml = item.implicits.map(l => `<div class="affix-line ${modClass(l)}">${esc(l)}</div>`).join("");
+  // Implicits (with tier badges when available)
+  const implHtml = item.implicits.map((l, i) => {
+    const ti = item.implicitTiers?.[i];
+    return `<div class="affix-line ${modClass(l)}">${tierBadgeHtml(ti)}${esc(l)}</div>`;
+  }).join("");
   document.getElementById("item-implicits").innerHTML = implHtml;
   document.getElementById("sep-implicits").style.display = (implHtml && item.explicits.length) ? "" : "none";
 
-  // Explicits
-  const explHtml = item.explicits.map(l => `<div class="affix-line ${modClass(l)}">${esc(l)}</div>`).join("");
+  // Explicits (with tier badges when available)
+  const explHtml = item.explicits.map((l, i) => {
+    const ti = item.explicitTiers?.[i];
+    return `<div class="affix-line ${modClass(l)}">${tierBadgeHtml(ti)}${esc(l)}</div>`;
+  }).join("");
   document.getElementById("item-affixes").innerHTML = explHtml || (item.mods.length === 0 ? '<div class="affix-line plain" style="color:var(--poe-muted);font-style:italic">Unidentified</div>' : "");
+}
+
+// ─── PoB-style per-stat delta comparison ─────────────────────────────────────
+
+function formatModDelta(line, delta) {
+  // Extract the suffix text after the first run of digits to keep the stat name
+  const m = line.match(/^[^0-9]*[0-9]+\.?[0-9]*/);
+  const suffix = m ? line.slice(m[0].length).replace(/^\s*[–-]\s*/, "").trimStart() : line;
+  const sign = delta > 0 ? "+" : "";
+  return `${sign}${Math.round(delta)} ${suffix}`.trim();
+}
+
+function buildStatDelta(newItem, equippedItem) {
+  const newMap = new Map();   // label → { value, line }
+  const eqMap  = new Map();
+
+  (newItem.explicits || []).forEach((line, i) => {
+    const ti = newItem.explicitTiers?.[i];
+    if (ti?.label && ti.value != null && !newMap.has(ti.label)) newMap.set(ti.label, { value: ti.value, line });
+  });
+  (newItem.implicits || []).forEach((line, i) => {
+    const ti = newItem.implicitTiers?.[i];
+    if (ti?.label && ti.value != null && !newMap.has(ti.label)) newMap.set(ti.label, { value: ti.value, line });
+  });
+  (equippedItem.explicits || []).forEach((line, i) => {
+    const ti = equippedItem.explicitTiers?.[i];
+    if (ti?.label && ti.value != null && !eqMap.has(ti.label)) eqMap.set(ti.label, { value: ti.value, line });
+  });
+  (equippedItem.implicits || []).forEach((line, i) => {
+    const ti = equippedItem.implicitTiers?.[i];
+    if (ti?.label && ti.value != null && !eqMap.has(ti.label)) eqMap.set(ti.label, { value: ti.value, line });
+  });
+
+  const rows = [];
+  const seen = new Set();
+
+  for (const [label, ns] of newMap) {
+    seen.add(label);
+    const es = eqMap.get(label);
+    const delta = ns.value - (es?.value || 0);
+    if (delta === 0) continue;
+    rows.push({ delta, line: ns.line, cls: delta > 0 ? "positive" : "negative", sort: Math.abs(delta) });
+  }
+  for (const [label, es] of eqMap) {
+    if (seen.has(label)) continue;
+    rows.push({ delta: -es.value, line: es.line, cls: "negative", sort: Math.abs(es.value) });
+  }
+
+  // Undetected mods: text-level diff (present/absent)
+  const newUndet = (newItem.explicits || []).filter((l, i) => !newItem.explicitTiers?.[i]);
+  const eqUndet  = (equippedItem.explicits || []).filter((l, i) => !equippedItem.explicitTiers?.[i]);
+  const eqSet    = new Set(eqUndet.map(l => l.trim().toLowerCase()));
+  const newSet   = new Set(newUndet.map(l => l.trim().toLowerCase()));
+  for (const l of newUndet) if (!eqSet.has(l.trim().toLowerCase())) rows.push({ text: `+ ${l}`, cls: "positive", sort: 0 });
+  for (const l of eqUndet)  if (!newSet.has(l.trim().toLowerCase())) rows.push({ text: `− ${l}`, cls: "negative", sort: 0 });
+
+  return rows.sort((a, b) => b.sort - a.sort).slice(0, 10);
 }
 
 // ─── Coach panel renderer ─────────────────────────────────────────────────────
@@ -380,7 +466,11 @@ function renderCoach(scored, compDelta, savedItem) {
     const categoryHits = scored.hits.filter(h => h.category === k);
     const hitsDetails = categoryHits.map(h => {
       const signPts = h.points > 0 ? "+" : "";
-      return `<div style="font-size: 10px; color: var(--poe-muted); line-height: 1.4; padding: 2px 0;">↳ ${esc(h.line)} (${signPts}${h.points})</div>`;
+      const ti = h.tierInfo;
+      const tierTag = ti
+        ? ` <span class="hit-tier-tag ${tierRelClass(ti)}" title="${esc(ti.label)}: T${ti.tier}/${ti.tierCount}, roll ${esc(ti.min)}–${esc(ti.max)}">T${ti.tier}/${ti.tierCount} ${ti.rollPct}%</span>`
+        : "";
+      return `<div style="font-size: 10px; color: var(--poe-muted); line-height: 1.4; padding: 2px 0;">↳ ${esc(h.line)} (${signPts}${h.points})${tierTag}</div>`;
     }).join("");
 
     return `<div class="cat-bar-container" onclick="this.classList.toggle('expanded')" title="${esc(tip)}">
@@ -400,15 +490,13 @@ function renderCoach(scored, compDelta, savedItem) {
   if (savedItem) {
     eqBox.style.display = "";
     document.getElementById("eq-name").textContent = savedItem.item.names[0] || "Equipped item";
-    // Per-category deltas
-    const chips = SCORE_KEYS.map(k => {
-      const delta = (scored.scores[k]||0) - (savedItem.scores[k]||0);
-      if (delta === 0) return "";
-      const cls = delta>0?"positive":delta<0?"negative":"neutral";
-      const sign = delta>0?"+":"";
-      return `<span class="eq-delta-chip ${cls}" title="${esc(SCORE_EXPLAIN[k]||k)}">${SCORE_LABELS[k]}: ${sign}${delta}</span>`;
-    }).filter(Boolean).join("");
-    document.getElementById("eq-deltas").innerHTML = chips || `<span class="eq-delta-chip neutral">No change in categories</span>`;
+    // PoB-style per-stat delta lines
+    const statRows = buildStatDelta(scored.item, savedItem.item);
+    const deltaHtml = statRows.map(d => {
+      const text = d.text !== undefined ? d.text : formatModDelta(d.line, d.delta);
+      return `<div class="eq-delta-stat ${d.cls}">${esc(text)}</div>`;
+    }).join("");
+    document.getElementById("eq-deltas").innerHTML = deltaHtml || `<div class="eq-delta-stat neutral">No detected stat changes</div>`;
     
     // Confidence indicator
     const conf = getConfidence(scored, savedItem, compDelta);
@@ -543,6 +631,7 @@ function buildGearMap(gearText) {
   const map = {};
   for (const chunk of splitItems(gearText||"")) {
     const item = parseItem(chunk);
+    annotateItemTiers(item);
     const slot = inferSlot(item);
     if (slot !== "unknown" && !["flask","charm"].includes(slot) && !map[slot]) {
       map[slot] = { item, raw:chunk };
@@ -618,9 +707,19 @@ function populateStages(profile) {
 
 // ─── Main render ──────────────────────────────────────────────────────────────
 
+function annotateItemTiers(item) {
+  if (typeof detectModTier !== "function") return;
+  item.explicitTiers = item.explicits.map(l => detectModTier(l, item.ilvl));
+  item.implicitTiers = item.implicits.map(l => detectModTier(l, item.ilvl));
+  item.modTierMap    = new Map();
+  item.explicits.forEach((l, i) => { if (item.explicitTiers[i]) item.modTierMap.set(l, item.explicitTiers[i]); });
+  item.implicits.forEach((l, i) => { if (item.implicitTiers[i]) item.modTierMap.set(l, item.implicitTiers[i]); });
+}
+
 function render(itemText) {
   lastItemText = itemText;
   const item = parseItem(itemText);
+  annotateItemTiers(item);
   lastItem    = item;
 
   // Auto-set slot
@@ -652,7 +751,135 @@ function render(itemText) {
   renderTooltip(item);
   renderCoach(scored, compDelta, savedScored ? { ...savedEntry, scores:savedScored.scores, hits:savedScored.hits } : null);
 
+  // Unique item price lookup (non-blocking — updates badge once fetched)
+  if (String(item.rarity||"").toLowerCase() === "unique") {
+    fetchUniquePrice(item);
+  } else {
+    const pb = document.getElementById("unique-price-badge");
+    if (pb) pb.style.display = "none";
+  }
+
   shell.classList.add("visible");
+}
+
+async function fetchUniquePrice(item) {
+  const pb = document.getElementById("unique-price-badge");
+  if (!pb || !window.poe2Coach?.getPrices) return;
+  pb.style.display = "none";
+
+  const itemName = (item.names[0] || "").toLowerCase();
+  if (!itemName) return;
+
+  const typeMap = {
+    weapon: "UniqueWeapon", body: "UniqueArmour", helmet: "UniqueArmour",
+    gloves: "UniqueArmour", boots: "UniqueArmour", amulet: "UniqueAccessory",
+    ring: "UniqueAccessory", belt: "UniqueAccessory", quiver: "UniqueAccessory",
+    flask: "UniqueFlask",
+  };
+  const type = typeMap[item.slot] || "UniqueAccessory";
+  const league = currentSession.league || "Standard";
+
+  try {
+    const result = await window.poe2Coach.getPrices({ type, league });
+    if (!result?.prices) return;
+    const entry = result.prices[itemName];
+    if (!entry) return;
+    const label = entry.divine && entry.divine >= 1
+      ? `${entry.divine} div`
+      : `${entry.chaos}c`;
+    pb.textContent = `poe.ninja: ${label}`;
+    pb.title = `${entry.name} · ${entry.chaos} chaos · ${entry.divine ?? "—"} div · League: ${league}`;
+    pb.style.display = "inline-flex";
+  } catch { /* price fetch failed silently */ }
+}
+
+// ─── Trade Research popup ─────────────────────────────────────────────────────
+
+function formatAge(indexed) {
+  if (!indexed) return "";
+  const m = Math.floor((Date.now() - new Date(indexed).getTime()) / 60000);
+  if (m < 2)  return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
+function renderPriceResult(result) {
+  if (!result) return '<div class="tr-error">No response received.</div>';
+
+  if (result.rarity === "unique") {
+    if (result.ok && result.price != null) {
+      const divLine = result.divine != null
+        ? ` <span class="tr-curr">/ ~${result.divine.toFixed(1)} divine</span>` : "";
+      return `
+        <div class="tr-item-name">${esc(result.name)}</div>
+        <div class="tr-price-main">${Math.round(result.price)}<span class="tr-curr"> chaos</span>${divLine}</div>
+        <div class="tr-source">poe.ninja · 30-day median · may lag 24–48h</div>`;
+    }
+    return `<div class="tr-no-data">No poe.ninja listing for "${esc(result.name || "this item")}".</div>`;
+  }
+
+  if (result.ok && result.listings?.length) {
+    const rows = result.listings.map(l =>
+      `<div class="tr-listing-row">
+        <span class="tr-listing-price">${esc(l.price)}</span>
+        <span class="tr-listing-acct">${esc(l.account)} · ${formatAge(l.indexed)}</span>
+      </div>`
+    ).join("");
+    return `<div class="tr-found">${result.total} online listing${result.total !== 1 ? "s" : ""} · cheapest shown:</div>
+            <div class="tr-listing-list">${rows}</div>`;
+  }
+
+  if (result.ok && result.total === 0) {
+    return `<div class="tr-no-data">No online listings found for this mod combination.</div>`;
+  }
+
+  return `<div class="tr-no-data">${esc(result.error || "Trade search unavailable.")}</div>`;
+}
+
+async function openPricePopup() {
+  if (!lastItem) return;
+  const popup   = document.getElementById("price-popup");
+  const body    = document.getElementById("price-popup-body");
+  const openBtn = document.getElementById("trade-open-btn");
+  if (!popup || !body) return;
+
+  popup.style.display = "flex";
+  body.innerHTML = '<div class="tr-loading">Fetching trade data…</div>';
+
+  let tradeUrl = "https://www.pathofexile.com/trade2/search/Standard";
+  if (openBtn) openBtn.onclick = () => window.poe2Coach.openTrade(tradeUrl);
+
+  try {
+    const result = await window.poe2Coach.priceCheck({
+      rarity: lastItem.rarity,
+      name:   lastItem.names?.[0] || "",
+      slot:   lastSlot,
+      mods:   lastItem.explicits || [],
+    });
+
+    if (result?.tradeUrl) {
+      tradeUrl = result.tradeUrl;
+      if (openBtn) openBtn.onclick = () => window.poe2Coach.openTrade(tradeUrl);
+    }
+
+    body.innerHTML = renderPriceResult(result);
+
+    // Fallback mod list for rares when no listings found
+    const rarityL = (lastItem.rarity || "").toLowerCase();
+    const mods = lastItem.explicits || [];
+    if (rarityL !== "unique" && !result?.listings?.length && mods.length) {
+      const modRows = mods.slice(0, 5).map((l, i) => {
+        const ti    = lastItem.explicitTiers?.[i];
+        const badge = ti ? tierBadgeHtml(ti) : "";
+        return `<div class="tr-mod-row">${badge}<span class="tr-mod-text">${esc(l)}</span></div>`;
+      }).join("");
+      body.innerHTML += `<div class="tr-mods-header">Mods to search manually on trade:</div><div class="tr-mods">${modRows}</div>`;
+    }
+  } catch (err) {
+    body.innerHTML = `<div class="tr-error">Error: ${esc(err.message)}</div>`;
+  }
 }
 
 // ─── IPC ─────────────────────────────────────────────────────────────────────
@@ -850,6 +1077,12 @@ document.getElementById("close-btn").addEventListener("click",      () => window
 document.getElementById("settings-btn").addEventListener("click",   () => window.poe2Coach.openSettings());
 document.getElementById("fullcompare-btn").addEventListener("click",() => window.poe2Coach.openSettings());
 document.addEventListener("keydown", e => { if (e.key==="Escape") window.poe2Coach.dismiss(); });
+
+// Trade Research popup
+document.getElementById("price-btn").addEventListener("click", () => { if (lastItem) openPricePopup(); });
+document.getElementById("price-popup-close").addEventListener("click", () => {
+  document.getElementById("price-popup").style.display = "none";
+});
 
 // Initial populate
 populateSlots(activeProfile);

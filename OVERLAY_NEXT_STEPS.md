@@ -3,7 +3,7 @@
 This file tracks actionable improvements for the PoE2 Item Coach overlay after the v2 UI rebuild.
 Organized by impact tier. Items marked ✅ are **implemented and in the codebase**; items marked 🔧 are in-progress; items with no marker are **not yet started**.
 
-**Last reviewed against codebase: 2026-06-25**
+**Last reviewed against codebase: 2026-06-25 (updated 2026-06-25)**
 
 ---
 
@@ -117,7 +117,7 @@ function hideOverlay() {
 
 ---
 
-### 1.5 Sign the Windows installer (or document the unsigned bypass)
+### ✅ 1.5 Sign the Windows installer (or document the unsigned bypass)
 Unsigned `.exe` files trigger Windows Defender SmartScreen ("Windows protected your PC").
 This causes many users to think the app is malware.
 
@@ -175,7 +175,7 @@ The `"screen-saver"` level is the highest available on Windows without requiring
 
 ---
 
-### 1.8 Bundle as a portable .exe (no-install option)
+### ✅ 1.8 Bundle as a portable .exe (no-install option)
 Many Windows users prefer a single portable `.exe` they can run without an installer.
 
 **Add to `package.json` build section:**
@@ -281,7 +281,7 @@ The build label sometimes becomes `"Levelin (1 stages)"` instead of keeping the 
 
 ---
 
-### 2.5 Harden item slot detection (regression test list)
+### ✅ 2.5 Harden item slot detection (regression test list)
 The parser has improved through v28, but slot detection should be locked down with explicit tests.
 
 **Items that must classify correctly:**
@@ -318,7 +318,7 @@ This makes every item comparison easier to interpret without opening the health 
 
 ---
 
-### 3.2 Improve category bar breakdown labels
+### 3.2 Improve category bar breakdown labels (not yet started)
 The six score bars should show what stat contributed to the score.
 
 ```text
@@ -386,7 +386,7 @@ If the user moves the overlay to a preferred screen corner, remember it.
 
 ## Priority 4 — Health Report Improvements
 
-### 4.1 Add Act/Progress checkpoint logic
+### ✅ 4.1 Add Act/Progress checkpoint logic
 Build advice should shift based on campaign progress, not just build stage.
 
 | Stage | Top priorities |
@@ -402,7 +402,7 @@ selected, boost resistance weights in the active profile automatically.
 
 ---
 
-### 4.2 Add resistance priority table to health report
+### ✅ 4.2 Add resistance priority table to health report
 Make the resistance gap section visual and sortable.
 
 ```text
@@ -417,7 +417,7 @@ Highlight cells: red = negative, orange = 0–74%, green = capped.
 
 ---
 
-### 4.3 Separate "survival upgrades" from "damage upgrades"
+### ✅ 4.3 Separate "survival upgrades" from "damage upgrades"
 The health report currently mixes priorities. Split into two lists:
 
 ```text
@@ -434,7 +434,7 @@ Damage upgrades (after resists improve):
 
 ---
 
-### 4.4 Improve weakest-slot explanations
+### ✅ 4.4 Improve weakest-slot explanations
 Instead of only "add resistance here," explain the opportunity:
 
 ```text
@@ -444,7 +444,7 @@ lever for fixing Lightning/Fire without losing damage.
 
 ---
 
-### 4.5 Show pobb.in import completeness after import
+### ✅ 4.5 Show pobb.in import completeness after import
 After a pobb.in import, show a quality summary in the settings panel:
 
 ```text
@@ -662,7 +662,7 @@ Add to `package.json`:
 
 ---
 
-### 6.3 Add release checklist
+### ✅ 6.3 Add release checklist
 Create `RELEASE_CHECKLIST.md`:
 
 ```text
@@ -714,44 +714,44 @@ Requires a GitHub release with build artifacts. Electron-updater handles diff up
 
 ## Implementation Status Summary (as of 2026-06-25)
 
-### ✅ Completed (20 of 32 items)
+### ✅ Completed (30 of 32 items)
 | # | Item |
 |---|------|
 | 1.1 | Clipboard polling race fix (recursive setTimeout) |
 | 1.2 | DPI-aware overlay positioning using workArea |
 | 1.3 | Windows startup-with-system (Login Item Settings) |
 | 1.4 | Escape only registered while overlay is visible |
+| 1.5 | SmartScreen bypass documented in README.md |
 | 1.6 | skipTaskbar + setVisibleOnAllWorkspaces for fullscreen |
 | 1.7 | setAlwaysOnTop with "screen-saver" level |
+| 1.8 | Portable .exe build target added to package.json |
 | 2.1 | "Why it won/lost" top gains/losses in coach panel |
 | 2.2 | accuracyMultiplier() reduces accuracy value at ≥95% hit chance |
 | 2.3 | Resist-emergency banner in overlay (resistWarning) |
+| 2.5 | Parser regression test suite expanded to 18 cases |
 | 3.1 | Urgent build needs strip (id="urgent-needs" in overlay.html) |
 | 3.3 | Action label verdicts: Equip now / Sidegrade / Vendor / etc. |
 | 3.4 | Confidence level indicator (High / Medium / Low) |
 | 3.5 | Inline accuracy/crit context warnings when hit chance ≥ 95% |
 | 3.6 | Overlay position persisted to session.json; tray "Reset position" |
+| 4.1 | Act/Campaign progress dropdown with resistance urgency boost |
+| 4.2 | Resistance priority table (color-coded, full % breakdown) |
+| 4.3 | Survival upgrades / Damage upgrades split in health report |
+| 4.4 | Improved weakest-slot explanations with per-slot opportunity text |
+| 4.5 | pobb.in import quality checklist (level / resists / life / gear / attrs) |
 | 5.1 | Structured JSON context sent to AI; structured JSON response parsed |
 | 5.2 | Collapsible AI panel — short summary shown, "Show full analysis" toggle |
 | 5.3 | Test AI button shows model name + token count + duration |
 | 5.4 | Claude (Anthropic) as third AI provider option |
 | 6.1 | GitHub Actions build workflow (.github/workflows/build.yml) |
-| 6.2 | Parser extracted to src/parser.js; scripts/test-parser.js with 9 cases |
+| 6.2 | Parser extracted to src/parser.js; scripts/test-parser.js with 18 cases |
+| 6.3 | RELEASE_CHECKLIST.md created |
 
-### Not Yet Started (12 items)
+### Not Yet Started (2 items)
 | # | Item | Priority |
 |---|------|----------|
-| 1.5 | Code-sign Windows installer / document SmartScreen bypass | Medium |
-| 1.8 | Bundle portable .exe (no-install option) | Low |
 | 2.4 | Preserve imported guide identity after pobb.in import | Medium |
-| 2.5 | Harden item slot detection (lock down with full regression list) | Medium |
 | 3.2 | Expandable category bar breakdown labels (click to expand) | Low |
-| 4.1 | Act/Progress checkpoint logic in health report | Low |
-| 4.2 | Resistance priority table in health report | Low |
-| 4.3 | Separate survival vs damage upgrade sections | Low |
-| 4.4 | Improve weakest-slot explanations | Low |
-| 4.5 | pobb.in import quality summary panel | Low |
-| 6.3 | Release checklist doc | Low |
 | 6.4 | electron-updater in-app auto-update | Low |
 
 ---

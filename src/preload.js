@@ -47,4 +47,24 @@ contextBridge.exposeInMainWorld("poe2Coach", {
 
   /** Import a pobb.in link/export summary through the main process so CSP/CORS do not block the settings UI. */
   importPobb: (input) => ipcRenderer.invoke("pobb:import", input),
+
+  /**
+   * Fetch unique item prices from poe.ninja (cached 2 h in userData/prices.json).
+   * @param {{ type?: string, league?: string }} options
+   *   type: poe.ninja item type (UniqueWeapon, UniqueArmour, UniqueAccessory, UniqueJewel, UniqueFlask)
+   *   league: PoE2 league name, e.g. "Standard"
+   * @returns {Promise<{ ok: boolean, prices: Record<string,{name,chaos,divine,variant}>, cached?: boolean, error?: string }>}
+   */
+  getPrices: (options) => ipcRenderer.invoke("prices:get", options || {}),
+
+  /**
+   * Look up trade value for the current item.
+   * Uniques use poe.ninja median price; rares use a live PoE2 trade API search.
+   * @param {{ rarity: string, name: string, slot: string, mods: string[] }} options
+   * @returns {Promise<{ ok: boolean, rarity: string, listings?: Array, total?: number, price?: number, divine?: number, tradeUrl: string, error?: string }>}
+   */
+  priceCheck: (options) => ipcRenderer.invoke("trade:price-check", options || {}),
+
+  /** Open a pathofexile.com/trade2 URL in the system default browser. */
+  openTrade: (url) => ipcRenderer.invoke("trade:open", url),
 });

@@ -20,6 +20,9 @@ const {
   Menu,
   screen,
   nativeImage,
+  shell,
+  net,
+  session,
 } = require("electron");
 const path = require("path");
 
@@ -310,6 +313,320 @@ function loadSession() {
   return null;
 }
 
+
+// ─── poe.ninja price cache ────────────────────────────────────────────────────
+// Prices are fetched once and cached in userData for 2 hours to avoid hammering the API.
+
+const PRICES_CACHE_PATH = path.join(app.getPath("userData"), "prices.json");
+let _pricesMemCache = null;
+let _pricesMemFetched = 0;
+
+ipcMain.handle("prices:get", async (_event, { type, league } = {}) => {
+  return fetchNinjaPrices(type || "UniqueWeapon", league || "Standard");
+});
+
+async function fetchNinjaPrices(type, league) {
+  const cacheKey = `${type}:${league}`;
+  const now = Date.now();
+  const TWO_HOURS = 2 * 60 * 60 * 1000;
+
+  // In-memory cache
+  if (_pricesMemCache?.[cacheKey] && now - _pricesMemFetched < TWO_HOURS) {
+    return { ok: true, prices: _pricesMemCache[cacheKey], cached: true };
+  }
+
+  // Disk cache
+  if (!_pricesMemCache) {
+    try {
+      if (fs.existsSync(PRICES_CACHE_PATH)) {
+        const disk = JSON.parse(fs.readFileSync(PRICES_CACHE_PATH, "utf8"));
+        if (disk?.fetched && now - disk.fetched < TWO_HOURS) {
+          _pricesMemCache  = disk.data || {};
+          _pricesMemFetched = disk.fetched;
+          if (_pricesMemCache[cacheKey]) {
+            return { ok: true, prices: _pricesMemCache[cacheKey], cached: true };
+          }
+        }
+      }
+    } catch { /* stale or missing cache */ }
+    _pricesMemCache = {};
+  }
+
+  try {
+    const url = `https://poe.ninja/api/data/itemoverview?league=${encodeURIComponent(league)}&type=${encodeURIComponent(type)}&language=en`;
+    const json = JSON.parse(await httpsTextRequest(url, {
+      method: "GET",
+      headers: { "user-agent": "PoE2GearCoach/2.0 overlay personal use", "accept": "application/json" },
+    }));
+
+    const priceMap = {};
+    for (const entry of (json.lines || [])) {
+      if (entry.name) {
+        priceMap[entry.name.toLowerCase()] = {
+          name: entry.name,
+          chaos: Math.round(entry.chaosValue || 0),
+          divine: entry.divineValue ? Number(entry.divineValue.toFixed(2)) : null,
+          variant: entry.variant || null,
+        };
+      }
+    }
+
+    _pricesMemCache[cacheKey] = priceMap;
+    _pricesMemFetched = now;
+    try {
+      fs.writeFileSync(PRICES_CACHE_PATH, JSON.stringify({ fetched: now, data: _pricesMemCache }, null, 2), "utf8");
+    } catch { /* non-fatal */ }
+
+    return { ok: true, prices: priceMap };
+  } catch (err) {
+    return { ok: false, error: String(err?.message || err), prices: _pricesMemCache[cacheKey] || {} };
+  }
+}
+
+// ─── PoE2 Trade API ──────────────────────────────────────────────────────────
+// Fetches live listings from the official trade site and returns price data.
+// Unique items fall back to poe.ninja (already cached). Rare items hit the
+// trade API: we fetch the stat-ID registry once (24 h disk cache), match mod
+// lines against it, then POST a search and fetch the first 5 listings.
+//
+// Cloudflare protection: pathofexile.com uses Cloudflare. Node's https module
+// gets blocked due to TLS fingerprinting. We use two mitigations:
+//   1. Electron's net module — uses Chromium's networking stack (correct TLS)
+//   2. Session warm-up — load the trade site in a hidden BrowserWindow once per
+//      session so Cloudflare issues a cf_clearance cookie; net.request with
+//      useSessionCookies:true then carries it on every API call.
+
+let _tradeSessionWarmed = false;
+
+async function warmTradeSession() {
+  if (_tradeSessionWarmed) return;
+  await new Promise((resolve) => {
+    const win = new BrowserWindow({
+      show: false, width: 1, height: 1,
+      webPreferences: { contextIsolation: true, nodeIntegration: false },
+    });
+    const done = () => { _tradeSessionWarmed = true; if (!win.isDestroyed()) win.destroy(); resolve(); };
+    win.webContents.once("did-finish-load", done);
+    win.webContents.once("did-fail-load", done);
+    setTimeout(done, 18000); // give up after 18 s
+    win.loadURL("https://www.pathofexile.com/trade2/search/Standard").catch(done);
+  });
+}
+
+// net.request() uses Chromium networking (proper TLS + session cookies),
+// unlike Node's https which Cloudflare rejects on TLS fingerprint alone.
+function netRequest(urlString, { method = "GET", headers = {}, body = null } = {}) {
+  return new Promise((resolve, reject) => {
+    const req = net.request({ method, url: urlString, redirect: "follow", useSessionCookies: true });
+    req.setHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36");
+    req.setHeader("Accept", "application/json, */*");
+    req.setHeader("Accept-Language", "en-US,en;q=0.9");
+    req.setHeader("Sec-Fetch-Dest", "empty");
+    req.setHeader("Sec-Fetch-Mode", "cors");
+    req.setHeader("Sec-Fetch-Site", "same-origin");
+    for (const [k, v] of Object.entries(headers)) req.setHeader(k, v);
+    if (body) {
+      const payload = typeof body === "string" ? body : JSON.stringify(body);
+      req.setHeader("Content-Type", "application/json");
+      req.setHeader("Content-Length", String(Buffer.byteLength(payload)));
+      req.write(payload);
+    }
+    const chunks = [];
+    req.on("response", res => {
+      res.on("data", c => chunks.push(c));
+      res.on("end", () => {
+        const raw = Buffer.concat(chunks).toString("utf8");
+        if (res.statusCode < 200 || res.statusCode >= 300) {
+          reject(new Error(`HTTP ${res.statusCode}: ${raw.slice(0, 200)}`));
+        } else if (raw.trimStart().startsWith("<")) {
+          // Cloudflare returned an HTML challenge page instead of JSON
+          reject(new Error("Cloudflare challenge — session not yet warm"));
+        } else {
+          resolve(raw);
+        }
+      });
+      res.on("error", reject);
+    });
+    req.on("error", reject);
+    req.end();
+  });
+}
+
+const TRADE_STATS_PATH = path.join(app.getPath("userData"), "trade-stats.json");
+let _tradeStatsCache = null;
+
+function normalizeStatText(text) {
+  return text
+    .replace(/[\d]+\.?[\d]*/g, "#")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+// Cache version — bump to force-expire old stats caches that may have wrong IDs
+const TRADE_STATS_VER = 2;
+
+async function getTradeStats(forceRefresh = false) {
+  const now = Date.now();
+  const DAY = 24 * 60 * 60 * 1000;
+  if (!forceRefresh && _tradeStatsCache && now - _tradeStatsCache.fetched < DAY) {
+    return _tradeStatsCache.map;
+  }
+  if (!forceRefresh) {
+    try {
+      if (fs.existsSync(TRADE_STATS_PATH)) {
+        const disk = JSON.parse(fs.readFileSync(TRADE_STATS_PATH, "utf8"));
+        if (disk?.v === TRADE_STATS_VER && disk?.fetched && now - disk.fetched < DAY) {
+          _tradeStatsCache = { map: new Map(Object.entries(disk.map)), fetched: disk.fetched };
+          return _tradeStatsCache.map;
+        }
+      }
+    } catch { /* stale or missing — fall through to fetch */ }
+  }
+
+  const raw = await netRequest("https://www.pathofexile.com/api/trade2/data/stats", {
+    headers: { "Referer": "https://www.pathofexile.com/trade2/search/Standard" },
+  });
+  const data = JSON.parse(raw);
+  const map = new Map();
+  // Only index Explicit stat IDs — implicit/pseudo/monster IDs cause "Invalid id" in search
+  for (const cat of (data.result || [])) {
+    if (cat.label !== "Explicit") continue;
+    for (const entry of (cat.entries || [])) {
+      if (entry.text && entry.id) map.set(normalizeStatText(entry.text), entry.id);
+    }
+  }
+  _tradeStatsCache = { map, fetched: now };
+  try { fs.writeFileSync(TRADE_STATS_PATH, JSON.stringify({ v: TRADE_STATS_VER, fetched: now, map: Object.fromEntries(map) }), "utf8"); } catch {}
+  return map;
+}
+
+function buildTradeFilters(modLines, statsMap) {
+  const filters = [];
+  for (const line of modLines) {
+    const statId = statsMap.get(normalizeStatText(line));
+    if (!statId) continue;
+    const firstNum = parseFloat(line.match(/[\d]+\.?[\d]*/)?.[0]);
+    // Omit value entirely if no number found; don't send empty {} which some API versions reject
+    const filter = { id: statId, disabled: false };
+    if (Number.isFinite(firstNum)) filter.value = { min: Math.floor(firstNum * 0.9) };
+    filters.push(filter);
+  }
+  return filters;
+}
+
+const SLOT_TO_NINJA_TYPE = {
+  weapon: "UniqueWeapon", offhand: "UniqueArmour", quiver: "UniqueWeapon",
+  helmet: "UniqueArmour", body: "UniqueArmour", gloves: "UniqueArmour", boots: "UniqueArmour",
+  ring: "UniqueAccessory", amulet: "UniqueAccessory", belt: "UniqueAccessory",
+  flask: "UniqueFlask", jewel: "UniqueJewel",
+};
+
+const SLOT_TO_TRADE_CATEGORY = {
+  offhand: "armour.shield", quiver: "weapon.quiver",
+  helmet: "armour.helmet", body: "armour.chest", gloves: "armour.gloves", boots: "armour.boots",
+  ring: "accessory.ring", amulet: "accessory.amulet", belt: "accessory.belt",
+};
+
+ipcMain.handle("trade:price-check", async (_event, { rarity, name, slot, mods } = {}) => {
+  const rarityL = (rarity || "").toLowerCase();
+  const league  = "Standard";
+  const baseUrl = `https://www.pathofexile.com/trade2/search/${league}`;
+
+  // Warm up Cloudflare session on first use (idempotent — no-op after first call)
+  try { await warmTradeSession(); } catch { /* non-fatal */ }
+
+  try {
+    // Unique items: reuse poe.ninja cache
+    if (rarityL === "unique") {
+      const ninjaType = SLOT_TO_NINJA_TYPE[slot?.toLowerCase()] || "UniqueArmour";
+      const pr = await fetchNinjaPrices(ninjaType, league);
+      if (pr.ok && pr.prices) {
+        const key   = (name || "").toLowerCase();
+        const entry = pr.prices[key]
+          || Object.values(pr.prices).find(v => v.name?.toLowerCase() === key);
+        if (entry) {
+          return { ok: true, rarity: "unique", name: entry.name, price: entry.chaos, divine: entry.divine, tradeUrl: baseUrl };
+        }
+      }
+      return { ok: false, rarity: "unique", name, error: "Not found in poe.ninja", tradeUrl: baseUrl };
+    }
+
+    // Rare / Magic: live trade search
+    let statsMap;
+    try { statsMap = await getTradeStats(); }
+    catch (err) { return { ok: false, rarity: rarityL, error: `Could not load trade stats: ${err.message}`, tradeUrl: baseUrl }; }
+
+    const filters = buildTradeFilters(mods || [], statsMap);
+    if (!filters.length) {
+      return { ok: false, rarity: rarityL, error: "No mods matched trade stat IDs — open trade site to search manually.", tradeUrl: baseUrl };
+    }
+
+    const category   = SLOT_TO_TRADE_CATEGORY[slot?.toLowerCase()] || null;
+    const searchBody = {
+      query: {
+        status: { option: "online" },
+        stats: [{ type: "and", filters: filters.slice(0, 3) }],
+        ...(category ? { filters: { type_filters: { filters: { category: { option: category } } } } } : {}),
+      },
+      sort: { price: "asc" },
+    };
+
+    let searchData;
+    try {
+      const raw = await netRequest(`https://www.pathofexile.com/api/trade2/search/${league}`, {
+        method: "POST",
+        headers: { "Origin": "https://www.pathofexile.com", "Referer": baseUrl },
+        body: searchBody,
+      });
+      searchData = JSON.parse(raw);
+      // Surface any API-level error embedded in a 200 response
+      if (searchData?.error) throw new Error(searchData.error.message || JSON.stringify(searchData.error));
+    } catch (err) {
+      const msg = String(err.message || "");
+      // "Invalid id" means our stat IDs are stale — wipe cache so next click re-fetches
+      if (/invalid.id/i.test(msg) || /invalid.stat/i.test(msg)) {
+        _tradeStatsCache = null;
+        try { fs.unlinkSync(TRADE_STATS_PATH); } catch {}
+        return { ok: false, rarity: rarityL, error: "Stat IDs were stale — cache cleared. Click Trade Value again to retry.", tradeUrl: baseUrl };
+      }
+      return { ok: false, rarity: rarityL, error: `Trade search failed: ${msg}`, tradeUrl: baseUrl };
+    }
+
+    const { id: queryId, result: ids, total } = searchData;
+    const queryUrl = queryId ? `${baseUrl}/${queryId}` : baseUrl;
+
+    if (!ids?.length) {
+      return { ok: true, rarity: rarityL, listings: [], total: total || 0, tradeUrl: queryUrl };
+    }
+
+    // Fetch first 5 listing prices
+    let listings = [];
+    try {
+      const fetchRaw = await netRequest(
+        `https://www.pathofexile.com/api/trade2/fetch/${ids.slice(0, 5).join(",")}?query=${queryId}&realm=pc`,
+        { headers: { "Referer": queryUrl } }
+      );
+      listings = (JSON.parse(fetchRaw).result || []).map(r => {
+        const p = r.listing?.price;
+        if (!p) return null;
+        return { price: `${p.amount} ${p.currency}`, account: r.listing?.account?.name || "?", indexed: r.listing?.indexed };
+      }).filter(Boolean);
+    } catch { /* non-fatal: return whatever we have */ }
+
+    return { ok: true, rarity: rarityL, listings, total: total || 0, tradeUrl: queryUrl };
+
+  } catch (err) {
+    return { ok: false, error: err.message, tradeUrl: baseUrl };
+  }
+});
+
+ipcMain.handle("trade:open", async (_event, url) => {
+  const safe = String(url || "");
+  if (/^https:\/\/www\.pathofexile\.com\/trade2\//.test(safe)) {
+    shell.openExternal(safe);
+  }
+});
 
 // ─── pobb.in import ─────────────────────────────────────────────────────────
 // Fetching happens in the main process so the settings renderer is not blocked
