@@ -27,6 +27,13 @@ contextBridge.exposeInMainWorld("poe2Coach", {
     ipcRenderer.on("item:detected", (_event, payload) => callback(payload));
   },
 
+  /** Resize the overlay window dynamically */
+  resizeWindow: (width, height) => ipcRenderer.send("overlay:resize", { width, height }),
+
+  /** Toggle overlay window click-through state */
+  setIgnoreMouseEvents: (ignore) => ipcRenderer.send("overlay:set-click-through", ignore),
+
+
   // ── Settings renderer calls these ─────────────────────────────────────────
 
   /** Save the current session/build config to disk via main process */

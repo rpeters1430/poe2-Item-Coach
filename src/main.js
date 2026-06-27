@@ -107,6 +107,26 @@ function createOverlayWindow() {
   // Renderer requests the current saved session/profile data
   ipcMain.handle("session:load", () => loadSession());
 
+  // Dynamic window resizing
+  ipcMain.on("overlay:resize", (event, { width, height }) => {
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+      const bounds = overlayWindow.getBounds();
+      overlayWindow.setBounds({
+        x: bounds.x,
+        y: bounds.y,
+        width: Math.round(width),
+        height: Math.round(height)
+      });
+    }
+  });
+
+  // Toggle click-through (HUD mode)
+  ipcMain.on("overlay:set-click-through", (event, enabled) => {
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+      overlayWindow.setIgnoreMouseEvents(enabled, { forward: true });
+    }
+  });
+
   overlayWindow.on("blur", () => {
     // Only auto-hide if the overlay is focusable (it normally isn't)
   });
@@ -713,6 +733,7 @@ function parsePobbRaw(raw, url) {
     stats: stats || {},
     gear,
     gems: decodedPob?.xml ? extractGemsFromPobXml(decodedPob.xml) : [],
+    keystones: [],
     exportCode,
     equippedGearText: decodedData?.equippedGearText || "",
     decodedItemCount: decodedData?.gear?.length || 0,
@@ -730,6 +751,7 @@ function mergePobbResults(rawResult, htmlResult) {
     stats: { ...(rawResult.stats || {}), ...(htmlResult.stats || {}) },
     gear: rawResult.gear?.length ? rawResult.gear : htmlResult.gear,
     gems: htmlResult.gems?.length ? htmlResult.gems : (rawResult.gems || []),
+    keystones: htmlResult.keystones || rawResult.keystones || [],
     exportCode: rawResult.exportCode || htmlResult.exportCode || "",
     equippedGearText: rawResult.equippedGearText || htmlResult.equippedGearText || "",
     decodedItemCount: rawResult.decodedItemCount || htmlResult.decodedItemCount || 0,
@@ -818,6 +840,26 @@ function extractMetaText(html) {
   return htmlToPlainText(meta.join("\n"));
 }
 
+function extractKeystones(plainText) {
+  const keystones = [
+    "Blood Magic", "Precise Technique", "Ancestral Bond", "Acrobatics", "Iron Reflexes", 
+    "Ghost Dance", "Pain Attunement", "Minion Instability", "Magebane", "Wind Dancer", 
+    "Divine Shield", "Hex Master", "Perfect Agility", "Gravebind", "Solipsism", 
+    "Glancing Blows", "Imbalanced Guard", "Iron Grip", "Point Blank"
+  ];
+  const allocated = [];
+  for (const k of keystones) {
+    const regex = new RegExp(`\\b${k}\\b`, "i");
+    if (regex.test(plainText)) {
+      // Avoid false matches like "no keystones" or "no blood magic"
+      const negRegex = new RegExp(`no\\s+${k}`, "i");
+      if (negRegex.test(plainText)) continue;
+      allocated.push(k);
+    }
+  }
+  return allocated;
+}
+
 function parsePobbHtml(html, url) {
   const plain = htmlToPlainText(html);
   const metaText = extractMetaText(html);
@@ -886,11 +928,14 @@ function parsePobbHtml(html, url) {
     .filter(line => line.length > 2 && !/^no keystones/i.test(line))
     .slice(0, 80);
 
+  const keystones = extractKeystones(plain);
+
   return {
     name,
     stats,
     gear,
     gems,
+    keystones,
     exportCode,
     equippedGearText,
     decodedItemCount,

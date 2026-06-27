@@ -157,33 +157,35 @@ const exportStatus = document.querySelector("#exportStatus");
 
 function defaultFrostRules() {
   return [
-    { match: /cold damage to attacks|adds .* cold damage/i, category: "synergy", points: 16, note: "Adds cold damage, which fits the frost attack plan." },
-    { match: /lightning damage to attacks|adds .* lightning damage/i, category: "damage", points: 5, note: "Adds elemental attack damage. Useful while leveling, but less specific than cold." },
-    { match: /physical damage to attacks|adds .* physical damage|increased physical damage/i, category: "damage", points: 10, note: "Adds or scales physical attack damage." },
-    { match: /\+\d+ to level of all projectile skills|projectile skills/i, category: "synergy", points: 14, note: "Projectile skill levels are highly relevant to bow/projectile setups." },
-    { match: /increased damage with bow skills|increased projectile damage|increased damage with crossbow skills/i, category: "synergy", points: 11, note: "Scales the type of attack damage this build wants." },
-    { match: /attack speed|reload speed/i, category: "damage", points: 13, note: "Attack speed/reload speed is a strong quality-of-life and damage stat." },
-    { match: /critical hit chance|critical damage bonus|critical damage/i, category: "damage", points: 5, note: "Crit can help, but only if the build is scaling it." },
-    { match: /maximum life/i, category: "defense", points: 10, note: "Life is a strong general defensive stat." },
-    { match: /evasion rating|armour|energy shield/i, category: "defense", points: 4, note: "Adds base defense." },
-    { match: /fire resistance|cold resistance|lightning resistance|chaos resistance/i, category: "resistance", points: 8, note: "Resistance helps stabilize the character, especially in campaign and maps." },
-    { match: /all elemental resistances|all resistances/i, category: "resistance", points: 16, note: "All-resistance is very valuable." },
-    { match: /strength|dexterity|intelligence/i, category: "attributes", points: 7, note: "Attributes can fix gem or gear requirements." },
-    { match: /movement speed/i, category: "mobility", points: 18, note: "Movement speed on boots is usually a major upgrade while leveling." },
-    { match: /spell damage|minion damage/i, category: "synergy", points: -10, note: "This looks off-plan for a cold attack build." },
-    { match: /damage over time|ignite|poison/i, category: "synergy", points: -4, note: "Damage-over-time stats are probably low value unless the build specifically uses them." },
+    { match: /cold damage to attacks|adds .* cold damage/i,         category: "synergy",    points: 16, label: "cold damage",                    note: "Scales your primary Ice Shot damage type." },
+    { match: /lightning damage to attacks|adds .* lightning damage/i,category: "damage",    points: 5,  label: "lightning damage",               note: "Off-element — minor bonus while leveling." },
+    { match: /physical damage to attacks|adds .* physical damage|increased physical damage/i, category: "damage", points: 8, label: "physical damage", note: "Physical base — low conversion value for Ice Shot." },
+    { match: /\+\d+ to level of all projectile skills/i,            category: "synergy",   points: 22, label: "+levels to projectile skills",    note: "Massively scales Ice Shot — the best mod type for this build." },
+    { match: /increased damage with bow skills|increased projectile damage|increased damage with crossbow skills/i, category: "synergy", points: 13, label: "projectile/bow damage", note: "Scales Ice Shot and all projectile damage." },
+    { match: /attack speed|reload speed/i,                           category: "damage",    points: 13, label: "attack speed",                    note: "More shots per second — direct DPS increase." },
+    { match: /critical hit chance|critical damage bonus|critical damage/i, category: "damage", points: 14, label: "critical stats",              note: "Highly valued — this build is deeply invested in critical hits." },
+    { match: /cold penetration/i,                                    category: "synergy",   points: 14, label: "cold penetration",               note: "Bypasses enemy cold resistance — high value." },
+    { match: /maximum life/i,                                        category: "defense",   points: 10, label: "maximum life",                    note: "Survivability — always a priority." },
+    { match: /evasion rating/i,                                      category: "defense",   points: 12, label: "evasion rating",                  note: "Core defensive stat for Deadeye — evasion scales this ascendancy." },
+    { match: /armour|energy shield/i,                                category: "defense",   points: 4,  label: "armour/energy shield",            note: "Secondary defense — Deadeye scales from evasion, not armour/ES." },
+    { match: /fire resistance|cold resistance|lightning resistance|chaos resistance/i, category: "resistance", points: 8, label: "elemental resistance", note: "Helps cap your elemental resistances." },
+    { match: /all elemental resistances|all resistances/i,           category: "resistance",points: 16, label: "all elemental resistances",       note: "Efficiently caps all three resistances at once." },
+    { match: /strength|dexterity|intelligence/i,                     category: "attributes",points: 7,  label: "attributes",                     note: "Required for gem and gear stat requirements." },
+    { match: /movement speed/i,                                      category: "mobility",  points: 18, label: "movement speed",                 note: "Critical for survival — major leveling priority." },
+    { match: /spell damage|minion damage/i,                          category: "synergy",   points: -10,label: "spell/minion damage",            note: "Off-plan — this build deals attack damage, not spell damage." },
+    { match: /damage over time|ignite|poison/i,                      category: "synergy",   points: -4, label: "damage over time",               note: "DoT mods do nothing for Ice Shot." },
   ];
 }
 
 function defaultGenericRules() {
   return [
-    { match: /adds .* damage to attacks|physical damage to attacks|increased physical damage/i, category: "damage", points: 10, note: "Adds or scales attack damage." },
-    { match: /attack speed|reload speed/i, category: "damage", points: 12, note: "Attack speed/reload speed is a strong offensive stat." },
-    { match: /maximum life/i, category: "defense", points: 10, note: "Life is useful on most builds." },
-    { match: /fire resistance|cold resistance|lightning resistance|chaos resistance|all resistances/i, category: "resistance", points: 9, note: "Resistance improves survivability." },
-    { match: /strength|dexterity|intelligence/i, category: "attributes", points: 7, note: "Attributes can fix requirements." },
-    { match: /movement speed/i, category: "mobility", points: 18, note: "Movement speed is very valuable on boots." },
-    { match: /spell damage|minion damage/i, category: "synergy", points: -7, note: "This may not help an attack build." },
+    { match: /adds .* damage to attacks|physical damage to attacks|increased physical damage/i, category: "damage", points: 10, label: "attack damage",    note: "Flat attack damage — core DPS stat." },
+    { match: /attack speed|reload speed/i,    category: "damage",    points: 12, label: "attack speed",       note: "More attacks per second — direct DPS increase." },
+    { match: /maximum life/i,                 category: "defense",   points: 10, label: "maximum life",       note: "Survivability — always a priority." },
+    { match: /fire resistance|cold resistance|lightning resistance|chaos resistance|all resistances/i, category: "resistance", points: 9, label: "elemental resistance", note: "Helps cap your resistances." },
+    { match: /strength|dexterity|intelligence/i, category: "attributes", points: 7, label: "attributes",     note: "Required for gem and gear stat requirements." },
+    { match: /movement speed/i,               category: "mobility",  points: 18, label: "movement speed",    note: "Critical for survival and map clearing." },
+    { match: /spell damage|minion damage/i,   category: "synergy",   points: -7, label: "spell/minion damage",note: "Likely not useful for an attack build." },
   ];
 }
 
@@ -295,17 +297,23 @@ async function handleBuildImport(event) {
     return;
   }
 
-  parsed.sort((a, b) => a.minLevel - b.minLevel || a.maxLevel - b.maxLevel || a.name.localeCompare(b.name));
+  parsed.sort((a, b) => 
+    a.minLevel - b.minLevel || 
+    a.maxLevel - b.maxLevel || 
+    (a.passiveCount || 0) - (b.passiveCount || 0) || 
+    a.name.localeCompare(b.name)
+  );
   const importedProfile = createImportedProfile(parsed);
   BUILD_PROFILES.importedBuild = importedProfile;
   renderBuildOptions();
   buildSelect.value = "importedBuild";
   updateSlotsAndStages();
+  saveSession();
 
   importSummary.innerHTML = renderImportSummary(importedProfile, failures);
 }
 
-function handleMobalyticsImport() {
+function handleMobalyticsImport(opts = {}) {
   const text = (mobalyticsGuideText?.value || "").trim();
   if (!text) {
     mobalyticsSummary.innerHTML = `<strong>Paste guide text first.</strong><br><span>Paste copied Mobalytics page text, or at least the build URL and key gear notes.</span>`;
@@ -323,6 +331,9 @@ function handleMobalyticsImport() {
   renderBuildOptions();
   buildSelect.value = "mobalyticsBuild";
   updateSlotsAndStages();
+  if (opts?.skipSave !== true) {
+    saveSession();
+  }
   mobalyticsSummary.innerHTML = renderMobalyticsSummary(importedProfile, parsed);
 }
 
@@ -361,6 +372,7 @@ async function handlePobbImport() {
       stats: result.stats || {},
       gear: result.gear || [],
       gems: result.gems || [],
+      keystones: result.keystones || [],
       exportCode: result.exportCode || "",
       equippedGearText: result.equippedGearText || "",
       decodedItemCount: result.decodedItemCount || 0,
@@ -702,11 +714,28 @@ function escapeRegExp(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function cleanStageLabel(name) {
+  let text = String(name || "").trim();
+  if (text.includes(" - ")) {
+    text = text.split(" - ")[0].trim();
+  }
+  text = text.replace(/\b([Ll]eveli)n\b/g, "$1ng").replace(/\b([Ll]eveli)N\b/g, "$1NG");
+  return text;
+}
+
 function normalizeBuildFile(data, fileName) {
-  let name = data.name || fileName.replace(/\.build$/i, "");
+  const fileBaseName = fileName.replace(/\.build$/i, "");
+  const fileHasLevel = /(?:lvl|level|leveling|stage)\s*\d+|\b\d+\s*[-–—]\s*\d+|\b\d+\s*\+/i.test(fileBaseName);
+  const jsonHasLevel = /(?:lvl|level|leveling|stage)\s*\d+|\b\d+\s*[-–—]\s*\d+|\b\d+\s*\+/i.test(data.name || "");
+  
+  let name = data.name || fileBaseName;
+  if (fileHasLevel && !jsonHasLevel) {
+    name = fileBaseName;
+  }
+
   // Fix the typo-trimmer: change Levelin back to Leveling
   name = name.replace(/\b([Ll]eveli)n\b/g, "$1ng").replace(/\b([Ll]eveli)N\b/g, "$1NG");
-  const range = extractLevelRange(name, data);
+  const range = extractLevelRange(name, data, fileName);
   const inventory = Array.isArray(data.inventory_slots) ? data.inventory_slots.map(normalizeInventorySlot) : [];
   const skills = Array.isArray(data.skills) ? data.skills.map(normalizeSkill) : [];
   const skillNames = skills.map(skill => skill.name);
@@ -719,7 +748,7 @@ function normalizeBuildFile(data, fileName) {
     ascendancy: data.ascendancy || "Unknown",
     minLevel: range.min,
     maxLevel: range.max,
-    label: range.label || name,
+    label: range.label || cleanStageLabel(name),
     inventory,
     skills,
     passiveCount: Array.isArray(data.passives) ? data.passives.length : 0,
@@ -728,16 +757,46 @@ function normalizeBuildFile(data, fileName) {
   };
 }
 
-function extractLevelRange(name, data) {
+function extractLevelRange(name, data, fileName = "") {
   const text = String(name || "");
-  const rangeMatch = text.match(/lvl\s*(\d+)\s*-\s*(\d+)/i) || text.match(/level\s*(\d+)\s*-\s*(\d+)/i);
-  if (rangeMatch) {
-    return { min: Number(rangeMatch[1]), max: Number(rangeMatch[2]), label: `Level ${rangeMatch[1]}-${rangeMatch[2]}` };
+  const rangeRegex = /(?:lvl|level|leveling|stage)\.?\s*(\d+)\s*[-–—]\s*(\d+)/i;
+  const rawRangeRegex = /\b(\d+)\s*[-–—]\s*(\d+)\b/;
+  const plusRegex = /(?:lvl|level|leveling|stage)\.?\s*(\d+)\s*\+/i;
+  const rawPlusRegex = /\b(\d+)\s*\+/;
+  const singleRegex = /(?:lvl|level|leveling|stage)\.?\s*(\d+)\b/i;
+
+  let m = text.match(rangeRegex) || text.match(rawRangeRegex);
+  if (m) {
+    return { min: Number(m[1]), max: Number(m[2]), label: `Level ${m[1]}-${m[2]}` };
   }
-  const plusMatch = text.match(/lvl\s*(\d+)\s*\+/i) || text.match(/level\s*(\d+)\s*\+/i);
-  if (plusMatch) {
-    return { min: Number(plusMatch[1]), max: 100, label: `Level ${plusMatch[1]}+` };
+  m = text.match(plusRegex) || text.match(rawPlusRegex);
+  if (m) {
+    return { min: Number(m[1]), max: 100, label: `Level ${m[1]}+` };
   }
+  m = text.match(singleRegex);
+  if (m) {
+    const lvl = Number(m[1]);
+    return { min: lvl, max: lvl >= 60 ? 100 : lvl + 9, label: lvl >= 60 ? `Level ${lvl}+` : `Level ${lvl}` };
+  }
+
+  // Fallback to checking filename
+  if (fileName) {
+    const fText = String(fileName).replace(/\.build$/i, "");
+    m = fText.match(rangeRegex) || fText.match(rawRangeRegex);
+    if (m) {
+      return { min: Number(m[1]), max: Number(m[2]), label: `Level ${m[1]}-${m[2]}` };
+    }
+    m = fText.match(plusRegex) || fText.match(rawPlusRegex);
+    if (m) {
+      return { min: Number(m[1]), max: 100, label: `Level ${m[1]}+` };
+    }
+    m = fText.match(singleRegex);
+    if (m) {
+      const lvl = Number(m[1]);
+      return { min: lvl, max: lvl >= 60 ? 100 : lvl + 9, label: lvl >= 60 ? `Level ${lvl}+` : `Level ${lvl}` };
+    }
+  }
+
   const intervals = [];
   for (const slot of data.inventory_slots || []) {
     if (Array.isArray(slot.level_interval)) intervals.push(slot.level_interval);
@@ -746,10 +805,12 @@ function extractLevelRange(name, data) {
     if (Array.isArray(skill.level_interval)) intervals.push(skill.level_interval);
   }
   if (intervals.length) {
-    const min = Math.min(...intervals.map(i => Number(i[0] || 1)));
-    return { min, max: 100, label: `Level ${min}+` };
+    const starts = intervals.map(i => Number(i[0] || 1));
+    const nonOneStarts = starts.filter(s => s > 1);
+    const min = nonOneStarts.length ? Math.min(...nonOneStarts) : Math.min(...starts);
+    return { min, max: 100, label: "" };
   }
-  return { min: 1, max: 100, label: text || "Imported stage" };
+  return { min: 1, max: 100, label: "" };
 }
 
 function normalizeInventorySlot(slot) {
@@ -840,7 +901,7 @@ function createImportedProfile(stages) {
     slots: allSlots.length ? allSlots : BUILD_PROFILES.frostCrossbow.slots,
     baseWeights: BUILD_PROFILES.frostCrossbow.baseWeights,
     stages: stageEntries,
-    statRules: buildImportedRules(stages),
+    statRules: buildImportedRules(stages, window.currentPobbBuild),
     slotRules: defaultSlotRules(),
     importedStages: stages,
   };
@@ -864,10 +925,58 @@ function weightsForStage(stage) {
   return { damage: 1.0, defense: 0.9, attributes: 1.35, resistance: 0.9, mobility: 1.25, synergy: 1.15 };
 }
 
-function buildImportedRules(stages) {
+function buildImportedRules(stages, pobBuild = null) {
   const text = stages.map(stage => `${stage.name} ${stage.skills.map(s => s.name).join(" ")} ${stage.inventory.map(i => i.text).join(" ")}`).join(" ");
   const focus = inferBuildFocus(text);
+  
+  // Dynamic weight modifiers based on Keystones
+  const keystones = pobBuild?.keystones || [];
+  const hasBloodMagic = keystones.some(k => /blood magic/i.test(k));
+  const hasPreciseTechnique = keystones.some(k => /precise technique/i.test(k));
+
   const rules = [...defaultGenericRules()];
+
+  if (hasBloodMagic) {
+    rules.push({
+      match: /maximum mana|mana regeneration|mana reservation/i,
+      category: "synergy",
+      points: -10,
+      note: "⚠️ Blood Magic removes Mana. Mana stats are useless."
+    });
+  } else {
+    rules.push({
+      match: /maximum mana/i,
+      category: "defense",
+      points: 3
+    });
+  }
+
+  if (hasPreciseTechnique) {
+    rules.push({
+      match: /critical hit chance|critical damage/i,
+      category: "damage",
+      points: -10,
+      note: "⚠️ Precise Technique prevents Critical Strikes. Crit is useless."
+    });
+    rules.push({
+      match: /accuracy rating/i,
+      category: "damage",
+      points: 15,
+      note: "Accuracy rating (highly valued for Precise Technique)."
+    });
+  } else {
+    rules.push({
+      match: /critical hit chance|critical damage/i,
+      category: "damage",
+      points: 5
+    });
+    rules.push({
+      match: /accuracy rating/i,
+      category: "damage",
+      points: 4
+    });
+  }
+
   if (focus.cold) {
     rules.unshift({ match: /cold damage to attacks|adds .* cold damage|cold damage/i, category: "synergy", points: 17, note: "The imported build appears to use Ice/cold scaling, so cold damage is highly relevant." });
   }
@@ -1078,12 +1187,18 @@ function scoreItem(item, profile, slot, stageKey) {
         if (usedLineCategories.has(hitKey)) continue;
         usedLineCategories.add(hitKey);
 
-        const base = rule.points;
+        let base = rule.points;
+        let note = rule.note;
+        // Bonded mods are conditional — only active with a matching bonded piece
+        if (/^bonded:/i.test(line)) {
+          base = Math.round(base * 0.3);
+          note = `(Bonded — only active with the matching item) ${note}`;
+        }
         const slotMultiplier = slotWeights[rule.category] ?? 1;
         const stageMultiplier = stageWeights[rule.category] ?? profile.baseWeights[rule.category] ?? 1;
         const points = Math.round(base * slotMultiplier * stageMultiplier);
         scores[rule.category] += points;
-        hits.push({ line, category: rule.category, points, note: rule.note });
+        hits.push({ line, category: rule.category, points, note });
         if (points < 0) warnings.push(rule.note);
       }
     }
@@ -1421,7 +1536,12 @@ function buildNeededStats({ rows, equippedRows = [], futureRows = [], gearTotals
     if (lowRes.length) needs.push(`Add more ${lowRes.join("/")} resistance on armor or jewelry. Do not use weapon/quiver slots to solve every defensive problem.`);
   }
   if (equippedRows.length && (gearTotals.life || 0) < (isEarly ? 20 : isLate ? 120 : 60)) needs.push("Look for more +maximum Life on armor, belt, rings, and amulet.");
-  if (equippedRows.length && gearTotals.addedColdAvg + gearTotals.addedPhysicalAvg < (isEarly ? 4 : isLate ? 18 : 9)) needs.push("Add more flat physical/cold damage to attacks on weapon, rings, gloves, or quiver.");
+  const isBowBuild = /frost|bow|ice shot|crossbow|projectile/i.test(profile.name);
+  if (equippedRows.length && gearTotals.addedColdAvg + gearTotals.addedPhysicalAvg < (isEarly ? 4 : isLate ? 18 : 9)) {
+    needs.push(isBowBuild
+      ? "Add more flat cold damage to attacks on weapon, quiver, rings, or gloves. Cold is the primary damage type for Ice Shot."
+      : "Add more flat physical/cold damage to attacks on weapon, rings, gloves, or quiver.");
+  }
   if (equippedRows.length && (isMid || isLate)) {
     if (gearTotals.attackSpeed <= 0) needs.push("Start looking for attack speed, especially on gloves/weapon/quiver if available.");
     if (gearTotals.bowSkillDamage + gearTotals.projectileDamage <= 0) needs.push("Bow skill damage or projectile damage would improve build synergy.");
@@ -1433,12 +1553,23 @@ function buildNeededStats({ rows, equippedRows = [], futureRows = [], gearTotals
 function buildShoppingList(profile, stageKey, rows) {
   const stageData = profile.stages?.[stageKey]?.data;
   const guide = stageData?.prioritySlots || {};
-  const defaults = {
-    weapon: ["Flat physical/cold damage to attacks", "Bow/projectile damage", "Attack speed if available"],
-    quiver: ["Cold/physical damage to attacks", "Bow skill or projectile damage", "Attributes or resistance if needed"],
+  const isBowBuild = /frost|bow|ice shot|crossbow|projectile/i.test(profile.name);
+  const defaults = isBowBuild ? {
+    weapon: ["+Level to Projectile Skills", "Cold damage to attacks", "Critical damage bonus", "Attack speed"],
+    quiver: ["+Level to Projectile Skills", "Cold damage to attacks", "Attack speed", "Life or resistance"],
     helmet: ["Life", "Resistance", "Attributes if gems/items are blocked"],
     body: ["Life", "Strong defensive base", "Resistance"],
-    gloves: ["Attack speed", "Flat cold/physical damage to attacks", "Life or resistance"],
+    gloves: ["Flat cold damage to attacks", "Attack speed", "Life or resistance"],
+    boots: ["Movement speed", "Life", "Resistance"],
+    ring: ["Flat cold or lightning damage to attacks", "Resistance", "Attributes"],
+    amulet: ["+Level to Projectile Skills", "Attributes", "Resistance"],
+    belt: ["Life", "Resistance", "Strength if needed"],
+  } : {
+    weapon: ["Flat physical damage to attacks", "Attack speed", "Increased damage"],
+    quiver: ["Flat physical/elemental damage to attacks", "Attack speed", "Life or resistance"],
+    helmet: ["Life", "Resistance", "Attributes if gems/items are blocked"],
+    body: ["Life", "Strong defensive base", "Resistance"],
+    gloves: ["Attack speed", "Flat damage to attacks", "Life or resistance"],
     boots: ["Movement speed", "Life", "Resistance"],
     ring: ["Flat damage to attacks", "Resistance", "Attributes"],
     amulet: ["Attributes", "Life/resistance", "Damage stats if requirements are solved"],
@@ -1628,6 +1759,22 @@ function saveSession() {
   setExportStatus("Session saved for settings and overlay.", "good");
 }
 
+function deserializeProfile(raw) {
+  if (!raw) return null;
+  try {
+    const p = JSON.parse(JSON.stringify(raw));
+    if (Array.isArray(p.statRules)) {
+      p.statRules = p.statRules.map(r => ({
+        ...r,
+        match: typeof r.match === "string"
+          ? new RegExp(r.match.replace(/^\/|\/[gimsuy]*$/g,""), r.match.replace(/.*\/([gimsuy]*)$/,"$1")||"i")
+          : r.match,
+      }));
+    }
+    return p;
+  } catch { return null; }
+}
+
 function loadSession() {
   const raw = localStorage.getItem("poe2GearCoachSession");
   if (!raw) {
@@ -1640,10 +1787,22 @@ function loadSession() {
   }
   if (data.mobalyticsGuideText) {
     mobalyticsGuideText.value = data.mobalyticsGuideText;
-    handleMobalyticsImport();
+    handleMobalyticsImport({ skipSave: true });
   }
   if (data.pobbInput && pobbInput) pobbInput.value = data.pobbInput;
   if (data.pobbBuild) { window.currentPobbBuild = data.pobbBuild; if (pobbSummary) pobbSummary.innerHTML = renderPobbSummary(data.pobbBuild); }
+  
+  if (data.importedProfile) {
+    const profile = deserializeProfile(data.importedProfile);
+    if (profile) {
+      if (data.buildKey === "importedBuild" || (!data.buildKey && profile.imported)) {
+        BUILD_PROFILES.importedBuild = profile;
+      } else if (data.buildKey === "mobalyticsBuild") {
+        BUILD_PROFILES.mobalyticsBuild = profile;
+      }
+    }
+  }
+
   if (data.buildKey && BUILD_PROFILES[data.buildKey]) buildSelect.value = data.buildKey;
   updateSlotsAndStages();
   if (data.slot) slotSelect.value = data.slot;
@@ -1941,7 +2100,11 @@ function buildNextSteps(rows, equippedRows = [], futureRows = [], requirementPro
   const damageWeak = activeRows.find(row => row.entry && ["weapon", "quiver", "gloves"].includes(row.slot) && (row.entry.scored.scores.damage + row.entry.scored.scores.synergy) < 18);
   if (damageWeak) {
     const guideNote = prioritySlots[damageWeak.slot]?.[0];
-    steps.push(guideNote ? `${label(damageWeak.slot)}: ${guideNote}` : `Upgrade ${label(damageWeak.slot)} for better cold/projectile/attack damage once requirements are solved.`);
+    const isBowBuild2 = /frost|bow|ice shot|crossbow|projectile/i.test(profile.name);
+    const damageUpgradeHint = isBowBuild2
+      ? `Upgrade ${label(damageWeak.slot)} for +Level to Projectile Skills, cold damage to attacks, or critical stats.`
+      : `Upgrade ${label(damageWeak.slot)} for better flat damage, attack speed, or damage scaling.`;
+    steps.push(guideNote ? `${label(damageWeak.slot)}: ${guideNote}` : damageUpgradeHint);
   }
   const guidePriority = Object.entries(prioritySlots).find(([slot, notes]) => notes.length && activeRows.some(row => row.slot === slot && row.entry && row.score !== null && row.score < 18));
   if (guidePriority) steps.push(`${label(guidePriority[0])}: ${guidePriority[1][0]}`);

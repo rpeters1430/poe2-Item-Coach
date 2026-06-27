@@ -13,7 +13,7 @@
 /* eslint-disable no-unused-vars */
 const POE2_MOD_DATA = {
   version: "1.2.0",
-  fetched: "2026-06-25T19:36:08.747Z",
+  fetched: "2026-06-26T16:22:07.347Z",
   source: "poe2db.tw (life verified; other mods calibrated estimates)",
   note: "Run `npm run fetch-mods` to update from poe2db.tw stat pages",
 

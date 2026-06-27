@@ -21,33 +21,35 @@ const SCORE_EXPLAIN = {
 
 function defaultFrostRules() {
   return [
-    { match: /cold damage to attacks|adds .* cold damage/i,         category:"synergy",    points:16, note:"Cold damage fits the frost attack plan." },
-    { match: /lightning damage to attacks|adds .* lightning damage/i,category:"damage",    points:5,  note:"Elemental damage — useful while leveling." },
-    { match: /physical damage to attacks|adds .* physical damage|increased physical damage/i, category:"damage", points:10, note:"Physical attack damage." },
-    { match: /\+\d+ to level of all projectile skills|projectile skills/i, category:"synergy", points:14, note:"+Level to projectile skills is very strong." },
-    { match: /increased damage with bow skills|increased projectile damage|increased damage with crossbow skills/i, category:"synergy", points:11, note:"Scales bow/crossbow/projectile damage." },
-    { match: /attack speed|reload speed/i,                           category:"damage",    points:13, note:"Attack or reload speed." },
-    { match: /critical hit chance|critical damage bonus|critical damage/i, category:"damage", points:5, note:"Crit — only if the build scales it." },
-    { match: /maximum life/i,                                        category:"defense",   points:10, note:"+Max life." },
-    { match: /evasion rating|armour|energy shield/i,                 category:"defense",   points:4,  note:"Base defence value." },
-    { match: /fire resistance|cold resistance|lightning resistance|chaos resistance/i, category:"resistance", points:8, note:"Elemental resistance." },
-    { match: /all elemental resistances|all resistances/i,           category:"resistance",points:16, note:"All-res is excellent." },
-    { match: /strength|dexterity|intelligence/i,                     category:"attributes",points:7,  note:"Attributes for gem/gear requirements." },
-    { match: /movement speed/i,                                      category:"mobility",  points:18, note:"Movement speed — big leveling upgrade." },
-    { match: /spell damage|minion damage/i,                          category:"synergy",   points:-10,note:"Off-plan for a cold attack build." },
-    { match: /damage over time|ignite|poison/i,                      category:"synergy",   points:-4, note:"DoT stats are low value here." },
+    { match: /cold damage to attacks|adds .* cold damage/i,         category:"synergy",    points:16, label:"cold damage",                      note:"Scales your primary Ice Shot damage type." },
+    { match: /lightning damage to attacks|adds .* lightning damage/i,category:"damage",    points:5,  label:"lightning damage",                 note:"Off-element — minor bonus while leveling." },
+    { match: /physical damage to attacks|adds .* physical damage|increased physical damage/i, category:"damage", points:8, label:"physical damage", note:"Physical base — low conversion value for Ice Shot." },
+    { match: /\+\d+ to level of all projectile skills/i,            category:"synergy",   points:22, label:"+levels to projectile skills",      note:"Massively scales Ice Shot — the best mod type for this build." },
+    { match: /increased damage with bow skills|increased projectile damage|increased damage with crossbow skills/i, category:"synergy", points:13, label:"projectile/bow damage", note:"Scales Ice Shot and all projectile damage." },
+    { match: /attack speed|reload speed/i,                           category:"damage",    points:13, label:"attack speed",                      note:"More shots per second — direct DPS increase." },
+    { match: /critical hit chance|critical damage bonus|critical damage/i, category:"damage", points:14, label:"critical stats",                note:"Highly valued — this build is deeply invested in critical hits." },
+    { match: /cold penetration/i,                                    category:"synergy",   points:14, label:"cold penetration",                 note:"Bypasses enemy cold resistance — high value." },
+    { match: /maximum life/i,                                        category:"defense",   points:10, label:"maximum life",                      note:"Survivability — always a priority." },
+    { match: /evasion rating/i,                                      category:"defense",   points:12, label:"evasion rating",                    note:"Core defensive stat for Deadeye — evasion scales this ascendancy." },
+    { match: /armour|energy shield/i,                                category:"defense",   points:4,  label:"armour/energy shield",             note:"Secondary defense — Deadeye scales from evasion, not armour/ES." },
+    { match: /fire resistance|cold resistance|lightning resistance|chaos resistance/i, category:"resistance", points:8, label:"elemental resistance", note:"Helps cap your elemental resistances." },
+    { match: /all elemental resistances|all resistances/i,           category:"resistance",points:16, label:"all elemental resistances",         note:"Efficiently caps all three resistances at once." },
+    { match: /strength|dexterity|intelligence/i,                     category:"attributes",points:7,  label:"attributes",                       note:"Required for gem and gear stat requirements." },
+    { match: /movement speed/i,                                      category:"mobility",  points:18, label:"movement speed",                   note:"Critical for survival — major leveling priority." },
+    { match: /spell damage|minion damage/i,                          category:"synergy",   points:-10,label:"spell/minion damage",              note:"Off-plan — this build deals attack damage, not spell damage." },
+    { match: /damage over time|ignite|poison/i,                      category:"synergy",   points:-4, label:"damage over time",                 note:"DoT mods do nothing for Ice Shot." },
   ];
 }
 
 function defaultGenericRules() {
   return [
-    { match: /adds .* damage to attacks|physical damage to attacks|increased physical damage/i, category:"damage", points:10, note:"Attack damage." },
-    { match: /attack speed|reload speed/i,    category:"damage",    points:12, note:"Attack/reload speed." },
-    { match: /maximum life/i,                 category:"defense",   points:10, note:"+Max life." },
-    { match: /fire resistance|cold resistance|lightning resistance|chaos resistance|all resistances/i, category:"resistance", points:9, note:"Resistance." },
-    { match: /strength|dexterity|intelligence/i, category:"attributes", points:7, note:"Attributes." },
-    { match: /movement speed/i,               category:"mobility",  points:18, note:"Movement speed." },
-    { match: /spell damage|minion damage/i,   category:"synergy",   points:-7, note:"May not help an attack build." },
+    { match: /adds .* damage to attacks|physical damage to attacks|increased physical damage/i, category:"damage", points:10, label:"attack damage",   note:"Flat attack damage — core DPS stat." },
+    { match: /attack speed|reload speed/i,    category:"damage",    points:12, label:"attack speed",       note:"More attacks per second — direct DPS increase." },
+    { match: /maximum life/i,                 category:"defense",   points:10, label:"maximum life",       note:"Survivability — always a priority." },
+    { match: /fire resistance|cold resistance|lightning resistance|chaos resistance|all resistances/i, category:"resistance", points:9, label:"elemental resistance", note:"Helps cap your resistances." },
+    { match: /strength|dexterity|intelligence/i, category:"attributes", points:7, label:"attributes",     note:"Required for gem and gear stat requirements." },
+    { match: /movement speed/i,               category:"mobility",  points:18, label:"movement speed",    note:"Critical for survival and map clearing." },
+    { match: /spell damage|minion damage/i,   category:"synergy",   points:-7, label:"spell/minion damage",note:"Likely not useful for an attack build." },
   ];
 }
 
@@ -146,6 +148,10 @@ function scoreItem(item, profile, slot, stageKey) {
   const used = new Set();
   const rules = profile.statRules || [];
 
+  const keystones = currentSession.keystones || [];
+  const hasBloodMagic = keystones.some(k => /blood magic/i.test(k));
+  const hasPreciseTechnique = keystones.some(k => /precise technique/i.test(k));
+
   for (const line of item.mods) {
     for (let i = 0; i < rules.length; i++) {
       const rule = rules[i];
@@ -155,7 +161,29 @@ function scoreItem(item, profile, slot, stageKey) {
       used.add(key);
 
       let basePoints = rule.points;
-      if (/accuracy|accuracy rating/i.test(rule.match.source || String(rule.match))) {
+      let overrideNote = rule.note;
+
+      // Bonded mods are conditional — only active when matching bonded piece is equipped
+      if (/^bonded:/i.test(line)) {
+        basePoints = Math.round(basePoints * 0.3);
+        overrideNote = `(Bonded — only active with the matching item) ${overrideNote}`;
+      }
+
+      // Dynamic keystone overrides
+      if (hasBloodMagic && /maximum mana|mana regeneration|mana reservation/i.test(line)) {
+        basePoints = -10;
+        overrideNote = "⚠️ Blood Magic removes Mana. Mana stats are useless.";
+      }
+      if (hasPreciseTechnique && /critical hit chance|critical damage/i.test(line)) {
+        basePoints = -10;
+        overrideNote = "⚠️ Precise Technique prevents Critical Strikes. Crit is useless.";
+      }
+      if (hasPreciseTechnique && /accuracy rating/i.test(line)) {
+        basePoints = Math.max(basePoints, 15);
+        overrideNote = "Accuracy rating (highly valued for Precise Technique).";
+      }
+
+      if (/accuracy|accuracy rating/i.test(rule.match.source || String(rule.match)) && !hasPreciseTechnique) {
         const mult = accuracyMultiplier(currentSession.hitChance);
         basePoints = Math.round(basePoints * mult);
       }
@@ -166,8 +194,8 @@ function scoreItem(item, profile, slot, stageKey) {
 
       const pts = Math.round(basePoints * (lw[rule.category]??1) * (sw[rule.category]??profile.baseWeights[rule.category]??1) * tierMult);
       scores[rule.category] += pts;
-      hits.push({ line, category:rule.category, points:pts, note:rule.note, ruleIndex: i, tierInfo });
-      if (pts < 0) warnings.push(rule.note);
+      hits.push({ line, category:rule.category, points:pts, note:overrideNote, ruleIndex: i, tierInfo });
+      if (pts < 0) warnings.push(overrideNote);
     }
   }
   return { item, scores, total:Object.values(scores).reduce((a,b)=>a+b,0), hits, warnings };
@@ -185,19 +213,19 @@ function getVerdict(scored, playerLevel, compDelta) {
   }
 
   if (compDelta !== null) {
-    if (compDelta > 20)  return { tone:"good", label:"Equip now",                 opinion:`+${compDelta} build-fit score over your equipped piece.` };
-    if (compDelta >= 5)  return { tone:"good", label:"Equip — clear upgrade",     opinion:`+${compDelta} build-fit score.` };
-    if (compDelta >= -5) return { tone:"warn", label:"Sidegrade — test in-game",  opinion:`${compDelta >= 0?"+":""}${compDelta} vs. equipped. Check the category breakdown.` };
-    if (compDelta >= -20)return { tone:"bad",  label:"Keep equipped item",        opinion:`${compDelta} vs. equipped — keep what you have.` };
-    return               { tone:"bad",  label:"Vendor / sell",             opinion:`${compDelta} vs. equipped — safe to discard.` };
+    if (compDelta > 20)  return { tone:"good", label:"Equip now",          opinion:"Significantly better than your equipped piece for this build." };
+    if (compDelta >= 5)  return { tone:"good", label:"Clear upgrade",      opinion:"Solid improvement over your equipped piece. Check the stat breakdown below." };
+    if (compDelta >= -5) return { tone:"warn", label:"Sidegrade",          opinion:"Very similar to your equipped piece. Check which stats you'd be trading." };
+    if (compDelta >= -20)return { tone:"bad",  label:"Keep equipped item", opinion:"Your equipped piece is better for this build. Hold onto it." };
+    return               { tone:"bad",  label:"Vendor / sell",             opinion:"Clearly weaker than your equipped piece. Safe to vendor." };
   }
 
   const t = scored.total;
-  if (t >= 35) return { tone:"good", label:"Strong item",        opinion:"This item scores very well for your selected build and stage." };
-  if (t >= 18) return { tone:"good", label:"Good item",          opinion:"Likely worth equipping. Check if it fills a gap." };
-  if (t >= 6)  return { tone:"warn", label:"Decent",             opinion:"Useful, especially if it solves a specific requirement." };
-  if (t >= -5) return { tone:"warn", label:"Neutral",            opinion:"Not clearly useful for this build. Check the details." };
-  return             { tone:"bad",  label:"Pass on this one",    opinion:"This item looks weak for your current build focus." };
+  if (t >= 35) return { tone:"good", label:"Strong item",   opinion:"Multiple high-value stats for your build. Strong pickup." };
+  if (t >= 18) return { tone:"good", label:"Good item",     opinion:"Solid stats for your build. Check the Pros below for what makes it good." };
+  if (t >= 6)  return { tone:"warn", label:"Decent",        opinion:"Some useful stats, but nothing standout. Worth equipping if it solves a gap." };
+  if (t >= -5) return { tone:"warn", label:"Neutral",       opinion:"Limited value for this build. Check if any specific stat helps you right now." };
+  return             { tone:"bad",  label:"Skip",           opinion:"Few or no relevant stats for your build. Not worth equipping." };
 }
 
 function getConfidence(scored, savedItem, compDelta) {
@@ -274,25 +302,34 @@ function slotLabel(k) {
 
 // ─── Item tooltip renderer ────────────────────────────────────────────────────
 
-function renderTooltip(item) {
+function renderTooltip(item, isEquipped = false) {
   const rarity = String(item.rarity||"Normal").toLowerCase().replace(/\s+/g,"-");
+  const prefix = isEquipped ? "eq-tooltip" : "item";
 
-  // Rarity gradient on the left panel + accent line on header
-  document.getElementById("item-tooltip").className = rarity;
-  document.querySelector(".item-header").className = `item-header ${rarity}`;
+  // Rarity gradient panel
+  const panelId = isEquipped ? "equipped-tooltip" : "item-tooltip";
+  const panel = document.getElementById(panelId);
+  if (panel) panel.className = rarity;
+
+  // Header accent
+  const header = panel ? panel.querySelector(".item-header") : null;
+  if (header) header.className = `item-header ${rarity}`;
 
   // Name / base
-  const nameEl = document.getElementById("item-name");
-  nameEl.textContent = item.names[0] || "Unknown Item";
-  nameEl.className = `item-name ${rarity}`;
-  const baseEl = document.getElementById("item-base");
-  baseEl.textContent = item.names.length > 1 ? item.names[1] : "";
+  const nameEl = document.getElementById(`${prefix}-name`);
+  if (nameEl) {
+    nameEl.textContent = item.names[0] || "Unknown Item";
+    nameEl.className = `item-name ${rarity}`;
+  }
+  const baseEl = document.getElementById(`${prefix}-base`);
+  if (baseEl) baseEl.textContent = item.names.length > 1 ? item.names[1] : "";
 
   // Meta (ilvl, quality)
   const meta = [];
   if (item.ilvl) meta.push(`<div class="ilvl-line">Item Level: <span style="color:#fff">${esc(item.ilvl)}</span></div>`);
   if (item.quality) meta.push(`<div class="prop-row"><span class="prop-label">Quality:</span><span class="prop-val aug">${esc(item.quality.trim())}%</span></div>`);
-  document.getElementById("item-meta").innerHTML = meta.join("");
+  const metaEl = document.getElementById(`${prefix}-meta`);
+  if (metaEl) metaEl.innerHTML = meta.join("");
 
   // Requirements
   let reqHtml = "";
@@ -304,8 +341,10 @@ function renderTooltip(item) {
     if (item.reqInt)   parts.push(`<span class="req-val">${item.reqInt}</span> Int`);
     reqHtml = `<div class="req-line">Requires: ${parts.join(", ")}</div>`;
   }
-  document.getElementById("item-reqs").innerHTML = reqHtml;
-  document.getElementById("sep-reqs").style.display = reqHtml ? "" : "none";
+  const reqsEl = document.getElementById(`${prefix}-reqs`);
+  if (reqsEl) reqsEl.innerHTML = reqHtml;
+  const sepReqs = document.getElementById(isEquipped ? "eq-sep-reqs" : "sep-reqs");
+  if (sepReqs) sepReqs.style.display = reqHtml ? "" : "none";
 
   // Properties (armour / evasion / damage etc)
   const propsHtml = item.propLines.map(l => {
@@ -313,23 +352,28 @@ function renderTooltip(item) {
     if (!m) return "";
     return `<div class="prop-row"><span class="prop-label">${esc(m[1])}:</span><span class="prop-val aug">${esc(m[2])}</span></div>`;
   }).join("");
-  document.getElementById("item-props").innerHTML = propsHtml;
-  document.getElementById("sep-props").style.display = propsHtml ? "" : "none";
+  const propsEl = document.getElementById(`${prefix}-props`);
+  if (propsEl) propsEl.innerHTML = propsHtml;
+  const sepProps = document.getElementById(isEquipped ? "eq-sep-props" : "sep-props");
+  if (sepProps) sepProps.style.display = propsHtml ? "" : "none";
 
   // Implicits (with tier badges when available)
   const implHtml = item.implicits.map((l, i) => {
     const ti = item.implicitTiers?.[i];
     return `<div class="affix-line ${modClass(l)}">${tierBadgeHtml(ti)}${esc(l)}</div>`;
   }).join("");
-  document.getElementById("item-implicits").innerHTML = implHtml;
-  document.getElementById("sep-implicits").style.display = (implHtml && item.explicits.length) ? "" : "none";
+  const implicitsEl = document.getElementById(`${prefix}-implicits`);
+  if (implicitsEl) implicitsEl.innerHTML = implHtml;
+  const sepImplicits = document.getElementById(isEquipped ? "eq-sep-implicits" : "eq-sep-implicits");
+  if (sepImplicits) sepImplicits.style.display = (implHtml && item.explicits.length) ? "" : "none";
 
   // Explicits (with tier badges when available)
   const explHtml = item.explicits.map((l, i) => {
     const ti = item.explicitTiers?.[i];
     return `<div class="affix-line ${modClass(l)}">${tierBadgeHtml(ti)}${esc(l)}</div>`;
   }).join("");
-  document.getElementById("item-affixes").innerHTML = explHtml || (item.mods.length === 0 ? '<div class="affix-line plain" style="color:var(--poe-muted);font-style:italic">Unidentified</div>' : "");
+  const affixesEl = document.getElementById(`${prefix}-affixes`);
+  if (affixesEl) affixesEl.innerHTML = explHtml || (item.mods.length === 0 ? '<div class="affix-line plain" style="color:var(--poe-muted);font-style:italic">Unidentified</div>' : "");
 }
 
 // ─── PoB-style per-stat delta comparison ─────────────────────────────────────
@@ -535,15 +579,17 @@ function renderCoach(scored, compDelta, savedItem) {
 
     const reasons = [];
     gains.forEach(g => {
-      let text = `Gains ${g.rule.note} (+${g.delta} pts)`;
+      const label = g.rule.label || g.rule.note;
+      let text = `Better ${label} (+${g.delta} pts)`;
       if (/accuracy|accuracy rating/i.test(g.rule.match.source || String(g.rule.match)) && currentSession.hitChance >= 95) {
-        text = `Gains ${g.rule.note} (+${g.delta} pts, but hit chance is already high)`;
+        text = `Better ${label} (+${g.delta} pts, but hit chance already high — low impact)`;
       }
       reasons.push(`<div class="pca-item good"><span class="pca-bullet">✓</span><span class="pca-text">${esc(text)}</span></div>`);
     });
 
     losses.forEach(l => {
-      const text = `Loses ${l.rule.note} (-${Math.abs(l.delta)} pts)`;
+      const label = l.rule.label || l.rule.note;
+      const text = `Less ${label} (${l.delta} pts)`;
       reasons.push(`<div class="pca-item bad"><span class="pca-bullet">✗</span><span class="pca-text">${esc(text)}</span></div>`);
     });
 
@@ -575,43 +621,102 @@ function renderCoach(scored, compDelta, savedItem) {
   const prosList = document.getElementById("pros-list");
   if (pros.length) {
     prosList.innerHTML = pros.map(h =>
-      `<div class="pca-item good"><span class="pca-bullet">✔</span><span class="pca-text">${esc(h.note)}</span></div>`
+      `<div class="pca-item good"><span class="pca-bullet">✔</span><div class="pca-text"><div class="pca-mod-line">${esc(h.line)}</div><div class="pca-note">${esc(h.note)}</div></div></div>`
     ).join("");
   } else {
     prosList.innerHTML = `<div class="pca-empty">No strong positives for this build.</div>`;
   }
 
-  // Cons
-  const conItems = [
-    ...scored.hits.filter(h=>h.points<0).map(h=>h.note),
-    ...scored.warnings
-  ];
+  // Cons — build requirement warnings first, then negative rule hits, then contextual
+  const consList = document.getElementById("cons-list");
+  const conEntries = []; // { line, text, cls, icon }
 
-  // 3.5 Context-sensitive warnings for accuracy/crit during leveling stage
-  if (stageKey === "leveling") {
-    const hasAccuracy = scored.hits.some(h => /accuracy|accuracy rating/i.test(h.line));
-    if (hasAccuracy && currentSession.hitChance >= 95) {
-      conItems.push(`Accuracy is lower priority — hit chance is already ${currentSession.hitChance}%.`);
-    }
+  // Unmet requirements
+  if (scored.item.reqLevel && scored.item.reqLevel > (currentSession.playerLevel||1)) {
+    conEntries.push({ line:null, text:`Level ${scored.item.reqLevel} required — you are ${currentSession.playerLevel||1}.`, cls:"warn", icon:"⚠" });
+  }
 
-    const hasCrit = scored.hits.some(h => /critical hit chance|critical damage bonus/i.test(h.line));
-    if (hasCrit) {
-      conItems.push("Crit scaling is low — crit damage alone does not outweigh flat attack damage at this stage.");
+  // Rule-based negative hits (show mod line + reason)
+  const seenConNotes = new Set();
+  for (const h of scored.hits.filter(h=>h.points<0).sort((a,b)=>a.points-b.points)) {
+    if (!seenConNotes.has(h.note)) {
+      seenConNotes.add(h.note);
+      conEntries.push({ line:h.line, text:h.note, cls:"bad", icon:"✖" });
     }
   }
 
-  const reqs = [];
-  if (scored.item.reqLevel && scored.item.reqLevel > (currentSession.playerLevel||1)) reqs.push(`Level ${scored.item.reqLevel} required — you are ${currentSession.playerLevel||1}.`);
-  const consList = document.getElementById("cons-list");
-  const allCons = [...new Set([...reqs, ...conItems])].slice(0,6);
-  if (allCons.length) {
-    consList.innerHTML = allCons.map((c,i) => {
-      const cls = i < reqs.length ? "warn" : "bad";
-      const icon = i < reqs.length ? "⚠" : "✖";
-      return `<div class="pca-item ${cls}"><span class="pca-bullet">${icon}</span><span class="pca-text">${esc(c)}</span></div>`;
+  // Context-sensitive warnings (no mod line — these are build-level observations)
+  if (stageKey === "leveling") {
+    const hasAccuracy = scored.hits.some(h => /accuracy|accuracy rating/i.test(h.line));
+    if (hasAccuracy && currentSession.hitChance >= 95) {
+      conEntries.push({ line:null, text:`Accuracy is lower priority — hit chance is already ${currentSession.hitChance}%.`, cls:"warn", icon:"⚠" });
+    }
+    const hasCrit = scored.hits.some(h => /critical hit chance|critical damage bonus/i.test(h.line));
+    if (hasCrit && activeProfile.name.includes("Generic")) {
+      conEntries.push({ line:null, text:"Crit scaling is low at this stage — flat damage outperforms crit investment early.", cls:"warn", icon:"⚠" });
+    }
+  }
+
+  if (conEntries.length) {
+    consList.innerHTML = conEntries.slice(0,6).map(({line, text, cls, icon}) => {
+      const inner = line
+        ? `<div class="pca-mod-line">${esc(line)}</div><div class="pca-note">${esc(text)}</div>`
+        : esc(text);
+      return `<div class="pca-item ${cls}"><span class="pca-bullet">${icon}</span><div class="pca-text">${inner}</div></div>`;
     }).join("");
   } else {
     consList.innerHTML = `<div class="pca-empty">No obvious problems.</div>`;
+  }
+
+  // Crafting Potential
+  const craftSection = document.getElementById("crafting-potential-section");
+  const craftDetails = document.getElementById("crafting-potential-details");
+  if (craftSection && craftDetails && scored.item) {
+    const cp = typeof analyzeCraftingPotential === "function" ? analyzeCraftingPotential(scored.item) : null;
+    if (cp && (cp.openPrefixes > 0 || cp.openSuffixes > 0)) {
+      let html = `<div>Mods: <strong>${cp.prefixes} Prefixes</strong>, <strong>${cp.suffixes} Suffixes</strong></div>`;
+      html += `<div style="margin-top: 4px;">Open slots: `;
+      const openChips = [];
+      if (cp.openPrefixes > 0) openChips.push(`<span style="color:var(--good); font-weight:bold;">${cp.openPrefixes} Prefix</span>`);
+      if (cp.openSuffixes > 0) openChips.push(`<span style="color:var(--good); font-weight:bold;">${cp.openSuffixes} Suffix</span>`);
+      html += openChips.join(" and ") + `</div>`;
+      
+      const recs = [];
+      if (cp.openPrefixes > 0) {
+        const hasLife = scored.item.mods.some(m => /maximum life/i.test(m));
+        if (!hasLife && ["ring", "amulet", "belt", "body", "helmet", "gloves", "boots"].includes(slot)) {
+          recs.push(`💡 Benchcraft <strong>+Max Life</strong> (Prefix) for defensive upgrade.`);
+        } else {
+          recs.push(`💡 Benchcraft a Prefix (e.g. Added Flat Damage or Defenses).`);
+        }
+      }
+      if (cp.openSuffixes > 0) {
+        const resistances = ["fire", "cold", "lightning"].filter(res => {
+          const val = currentSession.resistances ? Number(currentSession.resistances[res]) || 0 : 75;
+          return val < 75;
+        });
+        if (resistances.length > 0) {
+          const resNames = resistances.map(r => r.charAt(0).toUpperCase() + r.slice(1)).join("/");
+          recs.push(`💡 Benchcraft <strong>${resNames} Resistance</strong> (Suffix) to cap resists.`);
+        } else {
+          recs.push(`💡 Benchcraft a Suffix (e.g. Attribute, Resistance, or Attack Speed).`);
+        }
+      }
+
+      if (scored.item.ilvl >= 70 && scored.item.rarity !== "Unique") {
+        recs.push(`🔥 High-level base (iLvl ${scored.item.ilvl}) suitable for endgame crafting.`);
+      }
+
+      if (recs.length > 0) {
+        html += `<ul style="margin-top: 6px; padding-left: 14px; list-style-type: disc;">${recs.map(r => `<li style="margin-top: 2px;">${r}</li>`).join("")}</ul>`;
+      }
+      craftDetails.innerHTML = html;
+      craftSection.style.display = "";
+    } else {
+      craftSection.style.display = "none";
+    }
+  } else if (craftSection) {
+    craftSection.style.display = "none";
   }
 }
 
@@ -742,11 +847,34 @@ function render(itemText) {
     compDelta   = scored.total - savedScored.total;
   }
 
-  // Hide AI box on new item
+  // Hide AI & Trade box on new item
   const aiArea = document.getElementById("ai-area");
   aiArea.classList.remove("visible");
   document.getElementById("ai-text").textContent  = "";
   document.getElementById("ai-loading").style.display = "none";
+
+  const tradeSection = document.getElementById("trade-value-section");
+  if (tradeSection) tradeSection.style.display = "none";
+
+  // Dynamic side-by-side view resizing
+  const shellEl = document.getElementById("shell");
+  const bodyEl  = document.getElementById("body");
+  const eqTooltipEl = document.getElementById("equipped-tooltip");
+
+  if (savedEntry?.item && window.poe2Coach?.resizeWindow) {
+    eqTooltipEl.style.display = "";
+    if (shellEl) shellEl.classList.add("three-col");
+    if (bodyEl) bodyEl.classList.add("three-col");
+    window.poe2Coach.resizeWindow(1050, 720);
+    renderTooltip(savedEntry.item, true); // Render equipped item
+  } else {
+    eqTooltipEl.style.display = "none";
+    if (shellEl) shellEl.classList.remove("three-col");
+    if (bodyEl) bodyEl.classList.remove("three-col");
+    if (window.poe2Coach?.resizeWindow) {
+      window.poe2Coach.resizeWindow(700, 720);
+    }
+  }
 
   renderTooltip(item);
   renderCoach(scored, compDelta, savedScored ? { ...savedEntry, scores:savedScored.scores, hits:savedScored.hits } : null);
@@ -806,47 +934,49 @@ function formatAge(indexed) {
 }
 
 function renderPriceResult(result) {
-  if (!result) return '<div class="tr-error">No response received.</div>';
+  if (!result) return '<div class="tr-error" style="color:var(--bad);">No response received.</div>';
 
   if (result.rarity === "unique") {
     if (result.ok && result.price != null) {
       const divLine = result.divine != null
-        ? ` <span class="tr-curr">/ ~${result.divine.toFixed(1)} divine</span>` : "";
+        ? ` <span class="tr-curr" style="color:var(--poe-muted);">/ ~${result.divine.toFixed(1)} divine</span>` : "";
       return `
-        <div class="tr-item-name">${esc(result.name)}</div>
-        <div class="tr-price-main">${Math.round(result.price)}<span class="tr-curr"> chaos</span>${divLine}</div>
-        <div class="tr-source">poe.ninja · 30-day median · may lag 24–48h</div>`;
+        <div class="tr-item-name" style="color:var(--poe-unique); font-weight:bold;">${esc(result.name)}</div>
+        <div class="tr-price-main" style="font-size:18px; font-weight:bold; color:var(--poe-gold-bright); margin:4px 0;">${Math.round(result.price)}<span class="tr-curr" style="color:var(--poe-muted); font-size:11px;"> chaos</span>${divLine}</div>
+        <div class="tr-source" style="font-size:10px; color:var(--poe-muted);">poe.ninja · 30-day median</div>`;
     }
-    return `<div class="tr-no-data">No poe.ninja listing for "${esc(result.name || "this item")}".</div>`;
+    return `<div class="tr-no-data" style="color:var(--poe-muted);">No poe.ninja listing for "${esc(result.name || "this item")}".</div>`;
   }
 
   if (result.ok && result.listings?.length) {
     const rows = result.listings.map(l =>
-      `<div class="tr-listing-row">
-        <span class="tr-listing-price">${esc(l.price)}</span>
-        <span class="tr-listing-acct">${esc(l.account)} · ${formatAge(l.indexed)}</span>
+      `<div class="tr-listing-row" style="display:flex; justify-content:space-between; align-items:center; padding:3px 6px; border:1px solid var(--poe-border-dim); border-radius:3px; margin-top:3px; background:rgba(0,0,0,0.25);">
+        <span class="tr-listing-price" style="color:var(--poe-gold-bright); font-weight:600; font-size:11.5px;">${esc(l.price)}</span>
+        <span class="tr-listing-acct" style="color:var(--poe-muted); font-size:10px;">${esc(l.account)} · ${formatAge(l.indexed)}</span>
       </div>`
     ).join("");
-    return `<div class="tr-found">${result.total} online listing${result.total !== 1 ? "s" : ""} · cheapest shown:</div>
-            <div class="tr-listing-list">${rows}</div>`;
+    return `<div class="tr-found" style="color:var(--poe-muted); font-size:11px; margin-bottom:4px;">${result.total} online listing${result.total !== 1 ? "s" : ""} · cheapest:</div>
+            <div class="tr-listing-list" style="display:flex; flex-direction:column; gap:2px; max-height:120px; overflow-y:auto;">${rows}</div>`;
   }
 
   if (result.ok && result.total === 0) {
-    return `<div class="tr-no-data">No online listings found for this mod combination.</div>`;
+    return `<div class="tr-no-data" style="color:var(--poe-muted);">No online listings found matching key mods.</div>`;
   }
 
-  return `<div class="tr-no-data">${esc(result.error || "Trade search unavailable.")}</div>`;
+  return `<div class="tr-no-data" style="color:var(--poe-muted);">${esc(result.error || "Trade search unavailable.")}</div>`;
 }
 
-async function openPricePopup() {
+async function fetchAndShowTradeValue() {
   if (!lastItem) return;
-  const popup   = document.getElementById("price-popup");
-  const body    = document.getElementById("price-popup-body");
-  const openBtn = document.getElementById("trade-open-btn");
-  if (!popup || !body) return;
+  const section = document.getElementById("trade-value-section");
+  const summary = document.getElementById("trade-value-summary");
+  const listings = document.getElementById("trade-value-listings");
+  const openBtn = document.getElementById("trade-value-open-btn");
+  if (!section || !summary || !listings) return;
 
-  popup.style.display = "flex";
-  body.innerHTML = '<div class="tr-loading">Fetching trade data…</div>';
+  section.style.display = "";
+  summary.innerHTML = '<div class="tr-loading" style="color:var(--poe-muted);">Fetching trade data…</div>';
+  listings.innerHTML = "";
 
   let tradeUrl = "https://www.pathofexile.com/trade2/search/Standard";
   if (openBtn) openBtn.onclick = () => window.poe2Coach.openTrade(tradeUrl);
@@ -864,21 +994,18 @@ async function openPricePopup() {
       if (openBtn) openBtn.onclick = () => window.poe2Coach.openTrade(tradeUrl);
     }
 
-    body.innerHTML = renderPriceResult(result);
+    summary.innerHTML = renderPriceResult(result);
 
-    // Fallback mod list for rares when no listings found
     const rarityL = (lastItem.rarity || "").toLowerCase();
     const mods = lastItem.explicits || [];
     if (rarityL !== "unique" && !result?.listings?.length && mods.length) {
       const modRows = mods.slice(0, 5).map((l, i) => {
-        const ti    = lastItem.explicitTiers?.[i];
-        const badge = ti ? tierBadgeHtml(ti) : "";
-        return `<div class="tr-mod-row">${badge}<span class="tr-mod-text">${esc(l)}</span></div>`;
+        return `<div class="tr-mod-row" style="display:flex; align-items:center; gap:4px; font-size:11px; margin-top:2px;"><span style="color:var(--poe-mod);">${esc(l)}</span></div>`;
       }).join("");
-      body.innerHTML += `<div class="tr-mods-header">Mods to search manually on trade:</div><div class="tr-mods">${modRows}</div>`;
+      listings.innerHTML = `<div class="tr-mods-header" style="color:var(--poe-muted); margin-top:6px; font-size:11px;">Search manually on trade for:</div><div class="tr-mods">${modRows}</div>`;
     }
   } catch (err) {
-    body.innerHTML = `<div class="tr-error">Error: ${esc(err.message)}</div>`;
+    summary.innerHTML = `<div class="tr-error" style="color:var(--bad);">Error: ${esc(err.message)}</div>`;
   }
 }
 
@@ -896,6 +1023,12 @@ window.poe2Coach.onItemDetected(({ itemText, session }) => {
     currentSession.playerInt   = Number(session.playerInt)   || Number(ps.int)   || 0;
     currentSession.hitChance   = pStats.hitChance !== undefined ? Number(pStats.hitChance) : null;
     currentSession.resistances = pStats.resistances || null;
+    currentSession.keystones   = session.pobbBuild?.keystones || [];
+
+    // Trigger ignore mouse state to match active HUD Mode when item is updated
+    if (window.poe2Coach?.setIgnoreMouseEvents) {
+      window.poe2Coach.setIgnoreMouseEvents(hudMode);
+    }
 
     if (session.importedProfile) {
       activeProfile = deserializeProfile(session.importedProfile);
@@ -1078,11 +1211,36 @@ document.getElementById("settings-btn").addEventListener("click",   () => window
 document.getElementById("fullcompare-btn").addEventListener("click",() => window.poe2Coach.openSettings());
 document.addEventListener("keydown", e => { if (e.key==="Escape") window.poe2Coach.dismiss(); });
 
-// Trade Research popup
-document.getElementById("price-btn").addEventListener("click", () => { if (lastItem) openPricePopup(); });
-document.getElementById("price-popup-close").addEventListener("click", () => {
-  document.getElementById("price-popup").style.display = "none";
-});
+// HUD click-through toggle
+let hudMode = false;
+const hudToggleBtn = document.getElementById("hud-toggle-btn");
+if (hudToggleBtn) {
+  hudToggleBtn.addEventListener("click", () => {
+    hudMode = !hudMode;
+    if (hudMode) {
+      hudToggleBtn.textContent = "🔒 HUD Mode";
+      hudToggleBtn.title = "HUD Mode Active (clicks pass through to game)";
+      hudToggleBtn.classList.add("primary");
+      const hint = document.getElementById("footer-hint");
+      if (hint) hint.textContent = "HUD Mode Active · Press Escape to close overlay";
+      if (window.poe2Coach?.setIgnoreMouseEvents) {
+        window.poe2Coach.setIgnoreMouseEvents(true);
+      }
+    } else {
+      hudToggleBtn.textContent = "🔓 HUD Mode";
+      hudToggleBtn.title = "Toggle Click-Through HUD Mode";
+      hudToggleBtn.classList.remove("primary");
+      const hint = document.getElementById("footer-hint");
+      if (hint) hint.textContent = "Ctrl+C on item in-game · Esc to dismiss";
+      if (window.poe2Coach?.setIgnoreMouseEvents) {
+        window.poe2Coach.setIgnoreMouseEvents(false);
+      }
+    }
+  });
+}
+
+// Trade Research
+document.getElementById("price-btn").addEventListener("click", () => { if (lastItem) fetchAndShowTradeValue(); });
 
 // Initial populate
 populateSlots(activeProfile);

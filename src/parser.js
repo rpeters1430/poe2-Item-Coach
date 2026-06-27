@@ -122,6 +122,82 @@ function inferSlot(item) {
   return "unknown";
 }
 
-if (typeof module !== "undefined" && module.exports) {
-  module.exports = { parseItem, extractMeta, isModLike, inferSlot };
+function getModType(line) {
+  const clean = String(line || "").toLowerCase().trim();
+  if (
+    /maximum life/i.test(clean) ||
+    /maximum mana/i.test(clean) ||
+    /adds \d+ to \d+ (physical|cold|lightning|fire|chaos) damage/i.test(clean) ||
+    /to armour/i.test(clean) ||
+    /to evasion rating/i.test(clean) ||
+    /maximum energy shield/i.test(clean) ||
+    /maximum ward/i.test(clean) ||
+    /increased (armour|evasion|energy shield|ward|physical damage|spell damage)/i.test(clean) ||
+    /\+?\d+ to level of/i.test(clean)
+  ) {
+    return "prefix";
+  }
+  if (
+    /resistance/i.test(clean) ||
+    /(strength|dexterity|intelligence|attributes)/i.test(clean) ||
+    /speed/i.test(clean) ||
+    /critical/i.test(clean) ||
+    /accuracy/i.test(clean) ||
+    /rarity of items/i.test(clean) ||
+    /reduced enemy/i.test(clean) ||
+    /penetrates/i.test(clean)
+  ) {
+    return "suffix";
+  }
+  return "unknown";
 }
+
+function analyzeCraftingPotential(item) {
+  if (!item || !item.mods) return null;
+  const rarity = String(item.rarity || "").toLowerCase();
+  if (rarity !== "rare" && rarity !== "magic") return null;
+
+  let prefixes = 0;
+  let suffixes = 0;
+  const details = [];
+
+  for (const mod of item.explicits || []) {
+    const type = getModType(mod);
+    if (type === "prefix") {
+      prefixes++;
+      details.push({ mod, type: "Prefix" });
+    } else if (type === "suffix") {
+      suffixes++;
+      details.push({ mod, type: "Suffix" });
+    } else {
+      if (/life|mana|damage/i.test(mod)) {
+        prefixes++;
+        details.push({ mod, type: "Prefix (inferred)" });
+      } else {
+        suffixes++;
+        details.push({ mod, type: "Suffix (inferred)" });
+      }
+    }
+  }
+
+  const maxPrefix = rarity === "rare" ? 3 : 1;
+  const maxSuffix = rarity === "rare" ? 3 : 1;
+
+  const openPrefixes = Math.max(0, maxPrefix - prefixes);
+  const openSuffixes = Math.max(0, maxSuffix - suffixes);
+
+  return {
+    prefixes,
+    suffixes,
+    maxPrefix,
+    maxSuffix,
+    openPrefixes,
+    openSuffixes,
+    details
+  };
+}
+
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = { parseItem, extractMeta, isModLike, inferSlot, getModType, analyzeCraftingPotential };
+}
+

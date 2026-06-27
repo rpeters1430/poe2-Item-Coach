@@ -2,8 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com;" />
   <title>PoE2 Gear Coach</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;800&family=Marcellus&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     /* ── PoE2 colour palette (mirrors in-game tooltip colours) ── */
     :root {
@@ -34,7 +37,8 @@
       --bad:    #ff8b8b;
       --accent: #78a6ff;
 
-      --font-body: "Fontin SmallCaps", "Segoe UI", system-ui, sans-serif;
+      --font-title: "Cinzel", "Fontin SmallCaps", serif;
+      --font-body: "Outfit", "Segoe UI", system-ui, sans-serif;
       --font-mono: "JetBrains Mono", "Consolas", monospace;
       --radius: 4px;
       --shadow: 0 8px 40px rgba(0,0,0,0.85), 0 0 0 1px rgba(92,74,30,0.5);
@@ -46,10 +50,10 @@
       background: transparent;
       font-family: var(--font-body);
       color: var(--poe-white);
-      width: 700px;
       overflow: hidden;
       user-select: none;
       -webkit-app-region: no-drag;
+      width: 100%;
     }
 
     /* ── Outer shell ───────────────────────────────────────────── */
@@ -61,6 +65,11 @@
       border-radius: var(--radius);
       box-shadow: var(--shadow);
       overflow: hidden;
+      width: 700px;
+      transition: width 0.18s ease-in-out;
+    }
+    #shell.three-col {
+      width: 1050px;
     }
     #shell.visible { display: flex; flex-direction: column; }
 
@@ -107,25 +116,35 @@
     }
     #selectors select:focus { outline: none; border-color: var(--poe-border); }
 
-    /* ── Body: two-column layout ───────────────────────────────── */
+    /* ── Body: layout ─────────────────────────────────────────── */
     #body {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 350px 350px;
       gap: 0;
+      width: 100%;
+    }
+    #body.three-col {
+      grid-template-columns: 350px 350px 350px;
     }
 
-    /* ── LEFT: PoE-style item tooltip ──────────────────────────── */
-    #item-tooltip {
-      border-right: 1px solid var(--poe-border-dim);
+    /* ── Tooltips ──────────────────────────────────────────────── */
+    #item-tooltip, #equipped-tooltip {
       padding: 0 14px 12px;
       display: flex; flex-direction: column; gap: 0;
-      min-width: 0;
+      width: 350px;
+      min-width: 350px;
     }
-    /* Rarity gradient fills from the very top of the panel */
-    #item-tooltip.rare   { background: linear-gradient(180deg, rgba(200,160,40,0.18) 0%, transparent 26%); }
-    #item-tooltip.unique { background: linear-gradient(180deg, rgba(175,96,37,0.24) 0%, transparent 26%); }
-    #item-tooltip.magic  { background: linear-gradient(180deg, rgba(100,100,220,0.18) 0%, transparent 26%); }
-    #item-tooltip.normal { background: none; }
+    #item-tooltip {
+      border-right: 1px solid var(--poe-border-dim);
+    }
+    #equipped-tooltip {
+      border-right: 1px solid var(--poe-border-dim);
+    }
+    /* Rarity gradients */
+    #item-tooltip.rare, #equipped-tooltip.rare     { background: linear-gradient(180deg, rgba(200,160,40,0.18) 0%, transparent 26%); }
+    #item-tooltip.unique, #equipped-tooltip.unique { background: linear-gradient(180deg, rgba(175,96,37,0.24) 0%, transparent 26%); }
+    #item-tooltip.magic, #equipped-tooltip.magic   { background: linear-gradient(180deg, rgba(100,100,220,0.18) 0%, transparent 26%); }
+    #item-tooltip.normal, #equipped-tooltip.normal { background: none; }
 
     /* Item header — rarity accent line across the top, name centred */
     .item-header {
@@ -148,6 +167,7 @@
     .item-rarity-bar { display: none; }
 
     .item-name {
+      font-family: var(--font-title);
       font-size: 18px; font-weight: 700; letter-spacing: 0.02em;
       line-height: 1.25; margin-bottom: 2px;
     }
@@ -323,6 +343,8 @@
     .pca-item.bad  .pca-text { color: rgba(255,180,180,0.9); }
     .pca-item.warn .pca-text { color: rgba(255,225,160,0.9); }
     .pca-empty { font-size: 12px; color: var(--poe-muted); font-style: italic; padding: 2px 4px; }
+    .pca-mod-line { font-size: 12px; color: var(--poe-mod); font-style: italic; margin-bottom: 1px; }
+    .pca-note { font-size: 11px; color: rgba(255,255,255,0.55); line-height: 1.35; }
 
     /* AI coach area */
     #ai-area {
@@ -431,6 +453,7 @@
       <span>PoE2 Gear Coach</span>
     </div>
     <div id="titlebar-right">
+      <button class="tb-btn" id="hud-toggle-btn" title="Toggle Click-Through HUD Mode">🔓 HUD Mode</button>
       <button class="tb-btn" id="settings-btn">⚙ Settings</button>
       <button class="tb-btn" id="close-btn">✕</button>
     </div>
@@ -455,10 +478,27 @@
     <span id="need-lightning"></span>
   </div>
 
-  <!-- Two-column body -->
+  <!-- Body layout -->
   <div id="body">
 
-    <!-- LEFT: PoE-style tooltip -->
+    <!-- LEFT: Equipped Tooltip (hidden unless compared) -->
+    <div id="equipped-tooltip" style="display:none">
+      <div class="item-header">
+        <div class="item-name" id="eq-tooltip-name">—</div>
+        <div class="item-base" id="eq-tooltip-base"></div>
+      </div>
+      <div class="sep"></div>
+      <div id="eq-tooltip-meta"></div>
+      <div id="eq-tooltip-reqs"></div>
+      <div class="sep" id="eq-sep-reqs" style="display:none"></div>
+      <div id="eq-tooltip-props"></div>
+      <div class="sep" id="eq-sep-props" style="display:none"></div>
+      <div id="eq-tooltip-implicits" class="affix-block"></div>
+      <div class="sep" id="eq-sep-implicits" style="display:none"></div>
+      <div id="eq-tooltip-affixes" class="affix-block"></div>
+    </div>
+
+    <!-- MIDDLE: PoE-style tooltip -->
     <div id="item-tooltip">
       <div class="item-header">
         <div class="item-rarity-bar" id="rarity-bar"></div>
@@ -530,6 +570,23 @@
         <button id="set-equipped-btn">Set as equipped ↑</button>
       </div>
 
+      <!-- Trade Market Value (Inline) -->
+      <div class="pca-section" id="trade-value-section" style="display:none">
+        <div class="pca-title">Trade Market Value</div>
+        <div id="trade-value-details" style="font-size: 12px; line-height: 1.45; padding: 9px 11px; background: rgba(200,162,97,0.04); border: 1px solid var(--poe-border-dim); border-radius: 4px; color: var(--poe-white);">
+          <div id="trade-value-summary"></div>
+          <div id="trade-value-listings" style="margin-top: 6px;"></div>
+          <button class="foot-btn" id="trade-value-open-btn" style="margin-top: 8px; width: 100%;">Open Trade Site ↗</button>
+        </div>
+      </div>
+
+      <!-- Crafting Potential -->
+      <div class="pca-section" id="crafting-potential-section" style="display:none">
+        <div class="pca-title">Crafting Bench Potential</div>
+        <div id="crafting-potential-details" style="font-size: 12px; line-height: 1.45; padding: 6px 8px; background: rgba(175,140,84,0.05); border: 1px dashed rgba(175,140,84,0.25); border-radius: 4px; color: var(--poe-white);">
+        </div>
+      </div>
+
       <!-- Why it won/lost -->
       <div class="pca-section" id="why-won-lost-section" style="display:none">
         <div class="pca-title">Why it won/lost</div>
@@ -568,19 +625,7 @@
     </div>
   </div>
 
-  <!-- Trade Research popup — hidden until user clicks 💰 Trade Value -->
-  <div id="price-popup" style="display:none">
-    <div class="price-card">
-      <div class="price-card-hdr">
-        <span>Trade Research</span>
-        <button class="tb-btn" id="price-popup-close" title="Close">✕</button>
-      </div>
-      <div id="price-popup-body"></div>
-      <div class="price-card-foot">
-        <button class="foot-btn" id="trade-open-btn">Open Trade Site →</button>
-      </div>
-    </div>
-  </div>
+
 
 </div><!-- /#shell -->
 
