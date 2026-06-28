@@ -27,3 +27,6 @@ session.json
 .idea/
 *.swp
 *.swo
+
+# Data caches
+data/poe2db-cache/

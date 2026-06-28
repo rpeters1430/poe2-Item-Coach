@@ -1,6 +1,6 @@
 {
   "name": "poe2-gear-coach-overlay",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "PoE2 Gear Coach — polished clipboard overlay with PoE-styled tooltip, comparison engine, and optional AI advice",
   "main": "src/main.js",
   "scripts": {

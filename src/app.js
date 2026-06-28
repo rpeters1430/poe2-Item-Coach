@@ -419,8 +419,9 @@ function selectStageForPlayerLevel(level) {
   const entries = Object.entries(profile.stages);
   if (!entries.length) return;
 
+  const eligible = entries.filter(([, stage]) => !stage?.data?.manualOnly);
   let bestKey = null;
-  for (const [key, stage] of entries) {
+  for (const [key, stage] of eligible) {
     const min = Number(stage?.data?.minLevel ?? stage?.minLevel ?? 0);
     const max = Number(stage?.data?.maxLevel ?? stage?.maxLevel ?? 100);
     if (level >= min && level <= max) {
@@ -431,7 +432,7 @@ function selectStageForPlayerLevel(level) {
 
   if (!bestKey) {
     let bestDistance = Infinity;
-    for (const [key, stage] of entries) {
+    for (const [key, stage] of eligible.length ? eligible : entries) {
       const min = Number(stage?.data?.minLevel ?? stage?.minLevel ?? 0);
       const max = Number(stage?.data?.maxLevel ?? stage?.maxLevel ?? 100);
       const mid = (min + max) / 2;
@@ -723,6 +724,49 @@ function cleanStageLabel(name) {
   return text;
 }
 
+function normalizeGuideNameText(text) {
+  return String(text || "")
+    .replace(/\.build$/i, "")
+    .replace(/\b([Ll]eveli)n\b/g, "$1ng")
+    .replace(/\b([Dd]eade|[Dd]eadey)\b/g, "Deadeye")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function stripStagePrefixFromName(text) {
+  return normalizeGuideNameText(text)
+    .replace(/^(?:early|live gear|uber endgame|crit hybrid|non[-\s]?crit\s+(?:midgame|hybrid swap)|midgame|hybrid swap)\s*[-–—]\s*/i, "")
+    .replace(/^(?:lvl|level)\s*\d+\s*(?:[-–—]\s*\d+|\+)?\s*[-–—]\s*/i, "")
+    .trim();
+}
+
+function inferVariantRange(name, data = null) {
+  const lower = normalizeGuideNameText(name).toLowerCase();
+  // Mobalytics/Fubgun endgame export variants do not expose useful level ranges.
+  // The item level_intervals mostly describe required gear levels, so use the guide variant names.
+  if (/live gear/.test(lower)) return { min: 1, max: 100, label: "Live Gear", manualOnly: true };
+  if (/uber endgame/.test(lower)) return { min: 95, max: 100, label: "Uber Endgame" };
+  if (/crit hybrid/.test(lower) && !/non[-\s]?crit/.test(lower)) return { min: 90, max: 94, label: "Crit Hybrid" };
+  if (/non[-\s]?crit.*hybrid swap|hybrid swap/.test(lower)) return { min: 85, max: 89, label: "non-crit Hybrid swap" };
+  if (/non[-\s]?crit.*midgame|midgame/.test(lower)) return { min: 77, max: 84, label: "non-crit Midgame" };
+  if (/^early\b/.test(lower)) return { min: 1, max: 76, label: "Early" };
+  return null;
+}
+
+function isNonCritStageContext(profile, stageKey) {
+  const stage = profile?.stages?.[stageKey];
+  const text = `${profile?.name || ""} ${stage?.label || ""} ${stage?.data?.name || ""}`.toLowerCase();
+  if (/non[-\s]?crit|early|midgame/.test(text) && !/crit hybrid|uber endgame/.test(text)) return true;
+  const crit = Number(window.currentPobbBuild?.stats?.critChance ?? window.currentPobbBuild?.stats?.offense?.critChance ?? NaN);
+  return Number.isFinite(crit) && crit > 0 && crit < 15;
+}
+
+function isCritStageContext(profile, stageKey) {
+  const stage = profile?.stages?.[stageKey];
+  const text = `${stage?.label || ""} ${stage?.data?.name || ""}`.toLowerCase();
+  return /crit hybrid|uber endgame/.test(text) && !/non[-\s]?crit/.test(text);
+}
+
 function normalizeBuildFile(data, fileName) {
   const fileBaseName = fileName.replace(/\.build$/i, "");
   const fileHasLevel = /(?:lvl|level|leveling|stage)\s*\d+|\b\d+\s*[-–—]\s*\d+|\b\d+\s*\+/i.test(fileBaseName);
@@ -735,7 +779,7 @@ function normalizeBuildFile(data, fileName) {
 
   // Fix the typo-trimmer: change Levelin back to Leveling
   name = name.replace(/\b([Ll]eveli)n\b/g, "$1ng").replace(/\b([Ll]eveli)N\b/g, "$1NG");
-  const range = extractLevelRange(name, data, fileName);
+  const range = inferVariantRange(name, data) || extractLevelRange(name, data, fileName);
   const inventory = Array.isArray(data.inventory_slots) ? data.inventory_slots.map(normalizeInventorySlot) : [];
   const skills = Array.isArray(data.skills) ? data.skills.map(normalizeSkill) : [];
   const skillNames = skills.map(skill => skill.name);
@@ -749,6 +793,7 @@ function normalizeBuildFile(data, fileName) {
     minLevel: range.min,
     maxLevel: range.max,
     label: range.label || cleanStageLabel(name),
+    manualOnly: Boolean(range.manualOnly),
     inventory,
     skills,
     passiveCount: Array.isArray(data.passives) ? data.passives.length : 0,
@@ -759,6 +804,28 @@ function normalizeBuildFile(data, fileName) {
 
 function extractLevelRange(name, data, fileName = "") {
   const text = String(name || "");
+  const fileText = String(fileName || "");
+
+  // Fubgun variant names mapping
+  if (/early/i.test(text) || /early/i.test(fileText)) {
+    return { min: 1, max: 76, label: "Early (1-76)" };
+  }
+  if (/non-crit midgame/i.test(text) || /non-crit midgame/i.test(fileText) || /midgame/i.test(text) || /midgame/i.test(fileText)) {
+    return { min: 77, max: 84, label: "non-crit Midgame (77-84)" };
+  }
+  if (/non-crit hybrid swap/i.test(text) || /non-crit hybrid swap/i.test(fileText) || /hybrid swap/i.test(text) || /hybrid swap/i.test(fileText)) {
+    return { min: 85, max: 89, label: "non-crit Hybrid swap (85-89)" };
+  }
+  if (/crit hybrid/i.test(text) || /crit hybrid/i.test(fileText)) {
+    return { min: 90, max: 94, label: "Crit Hybrid (90-94)" };
+  }
+  if (/uber endgame/i.test(text) || /uber endgame/i.test(fileText) || /endgame/i.test(text) || /endgame/i.test(fileText)) {
+    return { min: 95, max: 100, label: "Uber Endgame (95-100)" };
+  }
+  if (/live gear/i.test(text) || /live gear/i.test(fileText) || /live/i.test(text) || /live/i.test(fileText)) {
+    return { min: 100, max: 100, label: "Live Gear Reference (100)" };
+  }
+
   const rangeRegex = /(?:lvl|level|leveling|stage)\.?\s*(\d+)\s*[-–—]\s*(\d+)/i;
   const rawRangeRegex = /\b(\d+)\s*[-–—]\s*(\d+)\b/;
   const plusRegex = /(?:lvl|level|leveling|stage)\.?\s*(\d+)\s*\+/i;
@@ -836,9 +903,12 @@ function mapInventoryIdToSlot(id, text = "", name = "") {
   if (/belt|sash/.test(itemText)) return "belt";
   if (/flask/.test(itemText)) return "flask";
   if (/charm/.test(itemText)) return "charm";
-  if (/quiver/.test(itemText)) return "quiver";
 
+  // Prefer actual Weapon/Offhand IDs before reading modifier text
+  if (value.includes("weapon")) return "weapon";
   if (value.includes("offhand")) return "quiver";
+
+  if (/quiver/.test(itemText)) return "quiver";
   if (value.includes("helm")) return "helmet";
   if (value.includes("body")) return "body";
   if (value.includes("glove")) return "gloves";
@@ -908,14 +978,15 @@ function createImportedProfile(stages) {
 }
 
 function commonBuildName(stages) {
-  const first = stages[0];
-  let cleaned = first.name
-    .replace(/lvl\s*\d+\s*-\s*\d+\s*-\s*/i, "")
-    .replace(/lvl\s*\d+\+\s*-\s*/i, "")
-    .trim();
-  // Fix the typo-trimmer: change Levelin back to Leveling
-  cleaned = cleaned.replace(/\b([Ll]eveli)n\b/g, "$1ng").replace(/\b([Ll]eveli)N\b/g, "$1NG");
-  return `${cleaned || "Imported PoE2 Build"} (${stages.length} stages)`;
+  const cleaned = stages
+    .map(stage => stripStagePrefixFromName(stage.name || stage.fileName || ""))
+    .filter(Boolean);
+  if (!cleaned.length) return `Imported PoE2 Build (${stages.length} stages)`;
+
+  const counts = new Map();
+  for (const name of cleaned) counts.set(name, (counts.get(name) || 0) + 1);
+  const best = [...counts.entries()].sort((a, b) => b[1] - a[1] || b[0].length - a[0].length)[0]?.[0] || cleaned[0];
+  return `${normalizeGuideNameText(best) || "Imported PoE2 Build"} (${stages.length} stages)`;
 }
 
 function weightsForStage(stage) {
@@ -968,7 +1039,8 @@ function buildImportedRules(stages, pobBuild = null) {
     rules.push({
       match: /critical hit chance|critical damage/i,
       category: "damage",
-      points: 5
+      points: 2,
+      note: "Low priority until the selected guide stage actually swaps into crit scaling."
     });
     rules.push({
       match: /accuracy rating/i,
@@ -1554,9 +1626,10 @@ function buildShoppingList(profile, stageKey, rows) {
   const stageData = profile.stages?.[stageKey]?.data;
   const guide = stageData?.prioritySlots || {};
   const isBowBuild = /frost|bow|ice shot|crossbow|projectile/i.test(profile.name);
+  const nonCrit = isNonCritStageContext(profile, stageKey);
   const defaults = isBowBuild ? {
-    weapon: ["+Level to Projectile Skills", "Cold damage to attacks", "Critical damage bonus", "Attack speed"],
-    quiver: ["+Level to Projectile Skills", "Cold damage to attacks", "Attack speed", "Life or resistance"],
+    weapon: nonCrit ? ["Flat physical/cold damage to attacks", "+Level to Projectile Skills", "Attack speed", "Bow/projectile damage"] : ["+Level to Projectile Skills", "Cold damage to attacks", "Critical damage bonus", "Attack speed"],
+    quiver: nonCrit ? ["Flat cold/physical damage to attacks", "+Level to Projectile Skills", "Attack speed", "Life or resistance"] : ["+Level to Projectile Skills", "Cold damage to attacks", "Attack speed", "Life or resistance"],
     helmet: ["Life", "Resistance", "Attributes if gems/items are blocked"],
     body: ["Life", "Strong defensive base", "Resistance"],
     gloves: ["Flat cold damage to attacks", "Attack speed", "Life or resistance"],
@@ -1577,7 +1650,8 @@ function buildShoppingList(profile, stageKey, rows) {
   };
   const slots = rows.map(row => row.slot).filter(slot => defaults[slot] || guide[slot]);
   return slots.map(slot => {
-    const items = mergeShoppingTerms([...(guide[slot] || []), ...(defaults[slot] || [])]);
+    let items = mergeShoppingTerms([...(guide[slot] || []), ...(defaults[slot] || [])]);
+    if (nonCrit) items = items.filter(item => !/critical|crit/i.test(item));
     return { slot, items: items.slice(0, 4) };
   });
 }
@@ -2101,8 +2175,11 @@ function buildNextSteps(rows, equippedRows = [], futureRows = [], requirementPro
   if (damageWeak) {
     const guideNote = prioritySlots[damageWeak.slot]?.[0];
     const isBowBuild2 = /frost|bow|ice shot|crossbow|projectile/i.test(profile.name);
+    const nonCrit = isNonCritStageContext(profile, stageKey);
     const damageUpgradeHint = isBowBuild2
-      ? `Upgrade ${label(damageWeak.slot)} for +Level to Projectile Skills, cold damage to attacks, or critical stats.`
+      ? (nonCrit
+        ? `Upgrade ${label(damageWeak.slot)} for flat physical/cold damage to attacks, attack speed, or +Level to Projectile Skills.`
+        : `Upgrade ${label(damageWeak.slot)} for +Level to Projectile Skills, cold damage to attacks, or critical stats.`)
       : `Upgrade ${label(damageWeak.slot)} for better flat damage, attack speed, or damage scaling.`;
     steps.push(guideNote ? `${label(damageWeak.slot)}: ${guideNote}` : damageUpgradeHint);
   }
@@ -2162,13 +2239,18 @@ function buildFixSlotsReport(build, rows) {
   const gaps = buildResistanceGapReport(build).filter(gap => gap.name !== "Chaos" && gap.value < 75);
   if (!gaps.length) return [];
   const urgentGaps = gaps.filter(gap => gap.value < 0);
-  const main = (urgentGaps.length ? urgentGaps : gaps).slice(0, 3).map(gap => gap.name);
+  const lowGaps = gaps.filter(gap => gap.value < 50 && gap.value >= 0);
+  const uncapped = gaps.filter(gap => gap.value >= 50);
+  const main = (urgentGaps.length ? urgentGaps : lowGaps.length ? lowGaps : uncapped).slice(0, 3).map(gap => gap.name);
   const secondary = gaps.filter(gap => !main.includes(gap.name)).map(gap => gap.name);
   const resText = main.join(main.length > 1 ? " and " : "");
   const ringResText = gaps.map(gap => gap.name).join("/");
   const hasRingRows = rows.filter(row => row.slot === "ring" && row.entry).length;
+  const isCleanup = !urgentGaps.length && !lowGaps.length;
   const suggestions = [
-    `${resText} resistance ${main.length > 1 ? "are" : "is"} the main problem. Fix ${main.length > 1 ? "them" : "it"} before chasing small damage upgrades.`,
+    isCleanup
+      ? `${resText} resistance ${main.length > 1 ? "are" : "is"} uncapped cleanup, not an emergency. Add it when convenient while keeping damage and life.`
+      : `${resText} resistance ${main.length > 1 ? "are" : "is"} the main survival gap. Fix ${main.length > 1 ? "them" : "it"} before chasing small damage upgrades.`,
     `${hasRingRows > 1 ? "Ring 1 / Ring 2" : "Rings"}: best quick place to add ${ringResText} resistance without touching weapon damage.`,
     `Belt: look for life plus ${main.join(" or ")} resistance.`,
     "Body Armor / Helmet / Gloves: good defensive slots for life and resistances.",
@@ -2335,15 +2417,6 @@ function formatScore(value) {
 function label(key) {
   const labels = { body: "Body Armor", quiver: "Quiver", offhand: "Offhand", flask: "Flask", charm: "Charm" };
   return labels[key] || String(key).charAt(0).toUpperCase() + String(key).slice(1);
-}
-
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
 }
 
 init();

@@ -27,7 +27,7 @@ function defaultFrostRules() {
     { match: /\+\d+ to level of all projectile skills/i,            category:"synergy",   points:22, label:"+levels to projectile skills",      note:"Massively scales Ice Shot — the best mod type for this build." },
     { match: /increased damage with bow skills|increased projectile damage|increased damage with crossbow skills/i, category:"synergy", points:13, label:"projectile/bow damage", note:"Scales Ice Shot and all projectile damage." },
     { match: /attack speed|reload speed/i,                           category:"damage",    points:13, label:"attack speed",                      note:"More shots per second — direct DPS increase." },
-    { match: /critical hit chance|critical damage bonus|critical damage/i, category:"damage", points:14, label:"critical stats",                note:"Highly valued — this build is deeply invested in critical hits." },
+    { match: /critical hit chance|critical damage bonus|critical damage/i, category:"damage", points:3, label:"critical stats",                note:"Low priority until the guide stage swaps into crit scaling." },
     { match: /cold penetration/i,                                    category:"synergy",   points:14, label:"cold penetration",                 note:"Bypasses enemy cold resistance — high value." },
     { match: /maximum life/i,                                        category:"defense",   points:10, label:"maximum life",                      note:"Survivability — always a priority." },
     { match: /evasion rating/i,                                      category:"defense",   points:12, label:"evasion rating",                    note:"Core defensive stat for Deadeye — evasion scales this ascendancy." },
@@ -178,6 +178,11 @@ function scoreItem(item, profile, slot, stageKey) {
         basePoints = -10;
         overrideNote = "⚠️ Precise Technique prevents Critical Strikes. Crit is useless.";
       }
+      const stageText = `${stageKey || ""} ${sw?.label || ""} ${activeProfile?.name || ""}`.toLowerCase();
+      if (!hasPreciseTechnique && /critical hit chance|critical damage/i.test(line) && /non[-\s]?crit|early|midgame/.test(stageText) && !/crit hybrid|uber endgame/.test(stageText)) {
+        basePoints = Math.min(basePoints, 2);
+        overrideNote = "Low priority in this non-crit stage — flat cold/physical damage and attack speed usually matter more.";
+      }
       if (hasPreciseTechnique && /accuracy rating/i.test(line)) {
         basePoints = Math.max(basePoints, 15);
         overrideNote = "Accuracy rating (highly valued for Precise Technique).";
@@ -273,9 +278,6 @@ function modClass(line) {
 
 // ─── HTML helpers ─────────────────────────────────────────────────────────────
 
-function esc(v) {
-  return String(v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-}
 
 function tierRelClass(ti) {
   if (!ti || ti.tierCount <= 1) return "t1";
@@ -357,20 +359,18 @@ function renderTooltip(item, isEquipped = false) {
   const sepProps = document.getElementById(isEquipped ? "eq-sep-props" : "sep-props");
   if (sepProps) sepProps.style.display = propsHtml ? "" : "none";
 
-  // Implicits (with tier badges when available)
+  // Implicits
   const implHtml = item.implicits.map((l, i) => {
-    const ti = item.implicitTiers?.[i];
-    return `<div class="affix-line ${modClass(l)}">${tierBadgeHtml(ti)}${esc(l)}</div>`;
+    return `<div class="affix-line ${modClass(l)}">${esc(l)}</div>`;
   }).join("");
   const implicitsEl = document.getElementById(`${prefix}-implicits`);
   if (implicitsEl) implicitsEl.innerHTML = implHtml;
-  const sepImplicits = document.getElementById(isEquipped ? "eq-sep-implicits" : "eq-sep-implicits");
+  const sepImplicits = document.getElementById(isEquipped ? "eq-sep-implicits" : "sep-implicits");
   if (sepImplicits) sepImplicits.style.display = (implHtml && item.explicits.length) ? "" : "none";
 
-  // Explicits (with tier badges when available)
+  // Explicits
   const explHtml = item.explicits.map((l, i) => {
-    const ti = item.explicitTiers?.[i];
-    return `<div class="affix-line ${modClass(l)}">${tierBadgeHtml(ti)}${esc(l)}</div>`;
+    return `<div class="affix-line ${modClass(l)}">${esc(l)}</div>`;
   }).join("");
   const affixesEl = document.getElementById(`${prefix}-affixes`);
   if (affixesEl) affixesEl.innerHTML = explHtml || (item.mods.length === 0 ? '<div class="affix-line plain" style="color:var(--poe-muted);font-style:italic">Unidentified</div>' : "");
@@ -378,59 +378,172 @@ function renderTooltip(item, isEquipped = false) {
 
 // ─── PoB-style per-stat delta comparison ─────────────────────────────────────
 
-function formatModDelta(line, delta) {
-  // Extract the suffix text after the first run of digits to keep the stat name
-  const m = line.match(/^[^0-9]*[0-9]+\.?[0-9]*/);
-  const suffix = m ? line.slice(m[0].length).replace(/^\s*[–-]\s*/, "").trimStart() : line;
-  const sign = delta > 0 ? "+" : "";
-  return `${sign}${Math.round(delta)} ${suffix}`.trim();
+function getStatSignature(line) {
+  // Strip leading +/- only if attached to a digit
+  let sig = line.replace(/[-+]\s*(\d)/g, "$1");
+  // Replace all numbers (with optional decimals) with '#'
+  sig = sig.replace(/\d+(?:\.\d+)?/g, "#");
+  // Normalize spaces and lowercase
+  return sig.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function getStatValues(line) {
+  const matches = line.match(/[-+]?\d+(?:\.\d+)?/g) || [];
+  const numbers = matches.map(Number).filter(n => !isNaN(n));
+  if (numbers.length === 0) return null;
+  if (numbers.length === 2) {
+    return (numbers[0] + numbers[1]) / 2;
+  }
+  return numbers[0];
+}
+
+function getStatImportance(line) {
+  const rules = activeProfile?.statRules || [];
+  for (const rule of rules) {
+    if (rule.match.test(line)) {
+      return rule.points || 0;
+    }
+  }
+  return 0;
+}
+
+function formatModDelta(line, delta, type) {
+  if (delta === null || delta === undefined) {
+    if (type === "new") return `+ ${line}`;
+    if (type === "lost") return `− ${line}`;
+    return line;
+  }
+
+  const roundedVal = delta % 1 !== 0 ? Math.round(delta * 10) / 10 : Math.round(delta);
+  const absVal = Math.abs(roundedVal);
+  
+  if (roundedVal < 0) {
+    // Range matching (e.g. "Adds 24 to 42 Physical Damage")
+    const rangeMatch = line.match(/(?:Adds\s+)?[-+]?\d+\s+to\s+[-+]?\d+\s+(.+)/i);
+    if (rangeMatch) {
+      return `Loses ${absVal} ${rangeMatch[1]}`;
+    }
+    
+    // Non-range matching (e.g. "+80% to Fire Resistance")
+    const match = line.match(/[-+]?[0-9]+\.?[0-9]*%?/);
+    if (!match) {
+      return `Loses ${line}`;
+    }
+    const numStr = match[0];
+    const index = line.indexOf(numStr);
+    const prefix = line.substring(0, index);
+    const suffix = line.substring(index + numStr.length);
+    
+    const isPercent = numStr.includes("%");
+    const unit = isPercent ? "%" : "";
+    
+    const cleanPrefix = prefix.replace(/[-+\s]+/g, "").trim();
+    const cleanSuffix = suffix.replace(/[-+\s]+/g, " ").trim();
+    const joined = [cleanPrefix, cleanSuffix].filter(Boolean).join(" ");
+    return `Loses ${absVal}${unit} ${joined}`.trim();
+  }
+
+  // Positive changes
+  const sign = roundedVal > 0 ? "+" : "";
+  const rangeMatch = line.match(/(?:Adds\s+)?[-+]?\d+\s+to\s+[-+]?\d+\s+(.+)/i);
+  if (rangeMatch) {
+    const statName = rangeMatch[1];
+    if (line.toLowerCase().startsWith("adds")) {
+      return `Adds ${sign}${absVal} ${statName}`;
+    }
+    return `${sign}${absVal} ${statName}`;
+  }
+
+  const match = line.match(/[-+]?[0-9]+\.?[0-9]*%?/);
+  if (!match) {
+    return `+ ${line}`;
+  }
+  const numStr = match[0];
+  const index = line.indexOf(numStr);
+  const prefix = line.substring(0, index);
+  const suffix = line.substring(index + numStr.length);
+  
+  const isPercent = numStr.includes("%");
+  const unit = isPercent ? "%" : "";
+
+  if (prefix.trim() === "" || /^[-+]$/.test(prefix.trim())) {
+    return `${sign}${absVal}${unit}${suffix}`;
+  }
+  
+  return `${prefix}${sign}${absVal}${unit}${suffix}`;
 }
 
 function buildStatDelta(newItem, equippedItem) {
-  const newMap = new Map();   // label → { value, line }
+  const newMap = new Map();   // sig → { value, line }
   const eqMap  = new Map();
 
-  (newItem.explicits || []).forEach((line, i) => {
-    const ti = newItem.explicitTiers?.[i];
-    if (ti?.label && ti.value != null && !newMap.has(ti.label)) newMap.set(ti.label, { value: ti.value, line });
-  });
-  (newItem.implicits || []).forEach((line, i) => {
-    const ti = newItem.implicitTiers?.[i];
-    if (ti?.label && ti.value != null && !newMap.has(ti.label)) newMap.set(ti.label, { value: ti.value, line });
-  });
-  (equippedItem.explicits || []).forEach((line, i) => {
-    const ti = equippedItem.explicitTiers?.[i];
-    if (ti?.label && ti.value != null && !eqMap.has(ti.label)) eqMap.set(ti.label, { value: ti.value, line });
-  });
-  (equippedItem.implicits || []).forEach((line, i) => {
-    const ti = equippedItem.implicitTiers?.[i];
-    if (ti?.label && ti.value != null && !eqMap.has(ti.label)) eqMap.set(ti.label, { value: ti.value, line });
-  });
+  const newMods = [...(newItem.implicits || []), ...(newItem.explicits || [])];
+  const eqMods  = [...(equippedItem.implicits || []), ...(equippedItem.explicits || [])];
+
+  for (const mod of newMods) {
+    const sig = getStatSignature(mod);
+    const val = getStatValues(mod);
+    if (sig && !newMap.has(sig)) {
+      newMap.set(sig, { line: mod, value: val });
+    }
+  }
+
+  for (const mod of eqMods) {
+    const sig = getStatSignature(mod);
+    const val = getStatValues(mod);
+    if (sig && !eqMap.has(sig)) {
+      eqMap.set(sig, { line: mod, value: val });
+    }
+  }
 
   const rows = [];
   const seen = new Set();
 
-  for (const [label, ns] of newMap) {
-    seen.add(label);
-    const es = eqMap.get(label);
-    const delta = ns.value - (es?.value || 0);
-    if (delta === 0) continue;
-    rows.push({ delta, line: ns.line, cls: delta > 0 ? "positive" : "negative", sort: Math.abs(delta) });
-  }
-  for (const [label, es] of eqMap) {
-    if (seen.has(label)) continue;
-    rows.push({ delta: -es.value, line: es.line, cls: "negative", sort: Math.abs(es.value) });
+  for (const [sig, ns] of newMap) {
+    seen.add(sig);
+    const es = eqMap.get(sig);
+    if (es) {
+      // Shared stat
+      let delta = null;
+      if (ns.value !== null && es.value !== null) {
+        delta = ns.value - es.value;
+      }
+      if (delta === 0) {
+        // Shared stat has identical values -> skip
+        continue;
+      }
+      if (ns.value === null && es.value === null) {
+        // Shared stat has no numeric values and is identical -> skip
+        continue;
+      }
+      const cls = delta >= 0 ? "positive" : "negative";
+      const text = formatModDelta(ns.line, ns.value !== null && es.value !== null ? delta : null, "shared");
+      rows.push({ line: ns.line, delta: delta !== null ? delta : 0, cls, text });
+    } else {
+      // New stat
+      const cls = "positive";
+      const text = formatModDelta(ns.line, ns.value, "new");
+      rows.push({ line: ns.line, delta: ns.value !== null ? ns.value : 0, cls, text });
+    }
   }
 
-  // Undetected mods: text-level diff (present/absent)
-  const newUndet = (newItem.explicits || []).filter((l, i) => !newItem.explicitTiers?.[i]);
-  const eqUndet  = (equippedItem.explicits || []).filter((l, i) => !equippedItem.explicitTiers?.[i]);
-  const eqSet    = new Set(eqUndet.map(l => l.trim().toLowerCase()));
-  const newSet   = new Set(newUndet.map(l => l.trim().toLowerCase()));
-  for (const l of newUndet) if (!eqSet.has(l.trim().toLowerCase())) rows.push({ text: `+ ${l}`, cls: "positive", sort: 0 });
-  for (const l of eqUndet)  if (!newSet.has(l.trim().toLowerCase())) rows.push({ text: `− ${l}`, cls: "negative", sort: 0 });
+  for (const [sig, es] of eqMap) {
+    if (seen.has(sig)) continue;
+    // Lost stat
+    const cls = "negative";
+    const text = formatModDelta(es.line, es.value !== null ? -es.value : null, "lost");
+    rows.push({ line: es.line, delta: es.value !== null ? -es.value : 0, cls, text });
+  }
 
-  return rows.sort((a, b) => b.sort - a.sort).slice(0, 10);
+  // Sort by rules points (importance) descending first, then by absolute raw magnitude descending
+  rows.sort((a, b) => {
+    const impA = Math.abs(getStatImportance(a.line));
+    const impB = Math.abs(getStatImportance(b.line));
+    if (impB !== impA) return impB - impA;
+    return Math.abs(b.delta) - Math.abs(a.delta);
+  });
+
+  return rows.slice(0, 10);
 }
 
 // ─── Coach panel renderer ─────────────────────────────────────────────────────
@@ -537,8 +650,7 @@ function renderCoach(scored, compDelta, savedItem) {
     // PoB-style per-stat delta lines
     const statRows = buildStatDelta(scored.item, savedItem.item);
     const deltaHtml = statRows.map(d => {
-      const text = d.text !== undefined ? d.text : formatModDelta(d.line, d.delta);
-      return `<div class="eq-delta-stat ${d.cls}">${esc(text)}</div>`;
+      return `<div class="eq-delta-stat ${d.cls}">${esc(d.text)}</div>`;
     }).join("");
     document.getElementById("eq-deltas").innerHTML = deltaHtml || `<div class="eq-delta-stat neutral">No detected stat changes</div>`;
     
@@ -554,7 +666,12 @@ function renderCoach(scored, compDelta, savedItem) {
 
     document.getElementById("set-equipped-btn").style.display = "";
   } else {
-    eqBox.style.display = "none";
+    eqBox.style.display = "";
+    document.getElementById("eq-name").textContent = "(No equipped item saved)";
+    document.getElementById("eq-deltas").innerHTML = `<div class="eq-delta-stat neutral" style="color:var(--poe-muted); font-style:italic;">No equipped item saved for this slot. Paste/copy an item and set it as equipped below to enable comparisons.</div>`;
+    const confEl = document.getElementById("eq-confidence");
+    if (confEl) confEl.style.display = "none";
+    document.getElementById("set-equipped-btn").style.display = "";
   }
 
   // Why it won/lost (Gains and Losses delta breakdown)
@@ -1063,9 +1180,9 @@ document.getElementById("set-equipped-btn").addEventListener("click", () => {
   savedFullSession.fullGearText = replaceInGearMap(savedFullSession.fullGearText||"", lastSlot, lastItemText);
   savedGearMap = buildGearMap(savedFullSession.fullGearText);
   window.poe2Coach.saveSession(savedFullSession);
-  document.getElementById("eq-name").textContent = lastScored?.item?.names[0] || "New item";
-  document.getElementById("eq-deltas").innerHTML = `<span class="eq-delta-chip neutral">Set as equipped ✓</span>`;
-  document.getElementById("set-equipped-btn").style.display = "none";
+  
+  // Re-render immediately to update comparison HUD
+  render(lastItemText);
 });
 
 // AI Coach

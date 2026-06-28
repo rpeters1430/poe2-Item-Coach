@@ -17,6 +17,15 @@ You hover item in PoE2
 
 Lower-risk approach: no game memory reading, no OCR, no input automation, and no game-file modification. It only reacts to clipboard item text that you copy yourself. Use at your own discretion.
 
+## Side-by-Side Equipped Comparison
+
+When comparing a copied item, the overlay automatically expands into a side-by-side view (when you have your current gear saved). It displays:
+1. The **Equipped Item** on the left.
+2. The **Copied Item** in the middle.
+3. The **Evaluation & Stat Deltas** on the right, showing exactly what you gain or lose between the two items (`+` / `-` stat deltas) independent of the build's fit score.
+
+![Item Comparison Tooltip](docs/item_comparison.jpg)
+
 ---
 
 ## Quick start
@@ -47,7 +56,7 @@ The app starts in the system tray. A tray icon appears (bottom-right on Windows)
 After extracting the zip:
 
 ```bash
-cd poe2-overlay
+cd poe2-Item-Coach
 git init
 git add .
 git commit -m "Initial PoE2 Gear Coach overlay"
@@ -102,7 +111,7 @@ Output goes to `dist/`. You can share the installer with friends.
 ## Project layout
 
 ```
-poe2-overlay/
+poe2-Item-Coach/
 ├── package.json              ← Electron + electron-builder config
 ├── .gitignore                ← Keeps node_modules, dist, and secrets out of git
 ├── .env.example              ← Example only; do not commit real keys
@@ -139,6 +148,10 @@ const CLIPBOARD_POLL_MS = 400; // ms — lower = more responsive, higher = less 
 ## Notes on GGG ToS
 
 This tool **only reads the clipboard** after you copy an item yourself. It does not read game memory, inject into the process, automate clicks/keypresses, or modify game files. That is intentionally a lower-risk design, but no third-party tool can honestly promise zero policy risk. Use at your own discretion.
+
+### Client Language Support
+
+Please note that this tool currently **only supports the English Path of Exile 2 client**. The item parser and detection logic key off English headers (such as `Item Class:`, `Armour:`, `Requires:`, etc.). Non-English clients will not trigger the overlay.
 
 ---
 
@@ -181,19 +194,9 @@ Security notes:
 - Leave the API key field blank to keep an existing saved key.
 - Use **Clear saved API key** to remove it.
 
-AI features added in v11:
+## Development Notes
 
-- **AI explain latest report** in Settings.
-- **AI Coach** button in the overlay for the currently copied item.
-- Gemini and OpenAI provider abstraction in the main process.
-- Renderer processes never call provider APIs directly; they use the secure preload IPC bridge.
-
-
-## v13 repo-ready rebuild
-
-This package is ready to push into a GitHub repository. It includes `.gitignore`, `.env.example`, `SECURITY.md`, and `CHANGELOG.md`.
-
-Before committing, keep these files out of git:
+When working with this repository, keep these files out of git:
 
 ```bash
 node_modules/
@@ -203,13 +206,13 @@ ai-settings.json
 session.json
 ```
 
-Basic syntax check:
+To run a basic syntax check:
 
 ```bash
 npm run check
 ```
 
-## AI model defaults
+## AI Model Defaults
 
 AI Coach uses provider-specific model presets so you do not have to type model IDs manually.
 
@@ -217,21 +220,21 @@ Default presets:
 - Gemini: `gemini-2.5-flash`
 - OpenAI: `gpt-5.4-nano`
 
-The settings screen also keeps a Custom model option for accounts/endpoints that support a different exact model ID. API keys remain stored locally in Electron userData and are not written into project files or exported reports. If a chosen model ID is not available on your API account, the Test AI button will show the provider error so you can switch to Custom or another preset.
+The settings screen also keeps a Custom model option for accounts/endpoints that support a different exact model ID. API keys remain stored locally in Electron `userData` and are not written into project files or exported reports. If a chosen model ID is not available on your API account, the Test AI button will show the provider error so you can switch to Custom or another preset.
 
-## v0.14 pobb.in import
+## PoB / pobb.in Import
 
-The settings window now has an **Import PoB / pobb.in current build** section. Paste a `pobb.in` URL and click **Import pobb.in**. The app fetches the public page through the Electron main process, then fills/uses visible data locally:
+The settings window has an **Import PoB / pobb.in current build** section. Paste a `pobb.in` URL and click **Import pobb.in**. The app fetches the public page through the Electron main process, then fills/uses visible data locally:
 
-- player level, when visible
+- Player level, when visible
 - Life / ES / eHP
-- visible resistance summary
+- Visible resistance summary
 - DPS / hit chance
-- visible gear names
-- visible gem names
-- the encoded PoB export code, stored locally for future decoding work
+- Visible gear names
+- Visible gem names
+- The encoded PoB export code, stored locally for future decoding work
 
-Current limitation: the visible `pobb.in` page usually shows gear names and stats, but not full copied item affixes or exact Strength/Dexterity/Intelligence totals. Those fields remain user-entered for now unless the page exposes them. Full PoB export decoding is planned as a later improvement.
+The app will also attempt to decode the full PoB export XML from the pobb.in raw endpoint to load exact equipped item stats, affixes, and attributes. If the preview stats are unavailable, it will fall back to using the raw export data.
 
 ## Updating without reinstalling every time
 
@@ -242,40 +245,8 @@ npm run check
 npm start
 ```
 
-Do not run `npm audit fix --force` for normal updates. It can upgrade Electron/electron-builder across major versions. See `UPDATE.md` for the safer workflow.
-
-
-
-## v17 notes
-
-- Improved pobb.in resistance parsing, including meta-description fallback and compact `-9%/43%/-33%/0%` formats.
-- Player level imported from pobb.in is now preserved after auto-selecting the closest guide stage.
-- Str/Dex/Int auto-fill is attempted when pobb.in exposes those values; otherwise manual entry is still required.
-- No dependency reinstall is needed when updating from v16; overwrite source files and run `npm run check && npm start`.
-
-
-## v22 update
-
-The overlay popup is now larger and uses bigger text for easier in-game reading. Update by copying the v22 source files over your current project folder while keeping your existing `node_modules`, then run:
-
-```powershell
-npm run check
-npm start
-```
-
+Do not run `npm audit fix --force` for normal updates. It can upgrade Electron/electron-builder across major versions. See [UPDATE.md](file:///C:/Users/James/Desktop/poe2-Item-Coach/UPDATE.md) for the safer workflow.
 
 ### Build file import tip
 
 If Windows only lets you pick one `.build` file, use **Choose build folder** instead. Extract the Mobalytics/build zip, choose the folder that contains the `.build` files, and the app will import all `.build` files in that folder.
-
-
-## v27 pobb.in fallback
-
-The pobb.in importer tries the public raw endpoint first (`/pob/:id/raw`) and then reads the preview page for final visible stats. If the preview page returns error 1101, the app still imports equipped gear from the raw export when possible.
-
-
-## v28 notes
-
-- Fixed pobb.in raw import splitting so Item Class headers are no longer created as empty equipment cards.
-- Re-detects slot from decoded item text so belts, charms, and flasks are not misfiled when PoB slot names are ambiguous.
-- Keeps flasks/charms as utility items instead of ranking them as armor upgrades.

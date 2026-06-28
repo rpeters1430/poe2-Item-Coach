@@ -33,9 +33,44 @@ let settingsWindow = null;  // Full settings / build-import UI
 let tray = null;
 let clipboardPoller = null;
 let lastClipboardText = "";
+let isPaused = false;
 
 // How often we check the clipboard (ms). Lower = more responsive, higher = less CPU.
 const CLIPBOARD_POLL_MS = 400;
+
+// ─── IPC Handlers ─────────────────────────────────────────────────────────────
+
+// Hide when clicked outside (the renderer sends this message)
+ipcMain.on("overlay:dismiss", () => hideOverlay());
+
+// Settings button inside the overlay opens the settings window
+ipcMain.on("overlay:open-settings", () => createSettingsWindow());
+
+// Renderer requests the current saved session/profile data
+ipcMain.handle("session:load", () => loadSession());
+
+// Dynamic window resizing
+ipcMain.on("overlay:resize", (event, { width, height }) => {
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    const bounds = overlayWindow.getBounds();
+    overlayWindow.setBounds({
+      x: bounds.x,
+      y: bounds.y,
+      width: Math.round(width),
+      height: Math.round(height)
+    });
+  }
+});
+
+// Toggle click-through (HUD mode)
+ipcMain.on("overlay:set-click-through", (event, enabled) => {
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    overlayWindow.setIgnoreMouseEvents(enabled, { forward: true });
+  }
+});
+
+// Save session from the settings window
+ipcMain.on("session:save", (_event, data) => saveSession(data));
 
 // ─── App lifecycle ────────────────────────────────────────────────────────────
 
@@ -97,35 +132,6 @@ function createOverlayWindow() {
   overlayWindow.loadFile(path.join(__dirname, "overlay.html"));
   overlayWindow.setAlwaysOnTop(true, "screen-saver", 1);
   overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-
-  // Hide when clicked outside (the renderer sends this message)
-  ipcMain.on("overlay:dismiss", () => hideOverlay());
-
-  // Settings button inside the overlay opens the settings window
-  ipcMain.on("overlay:open-settings", () => createSettingsWindow());
-
-  // Renderer requests the current saved session/profile data
-  ipcMain.handle("session:load", () => loadSession());
-
-  // Dynamic window resizing
-  ipcMain.on("overlay:resize", (event, { width, height }) => {
-    if (overlayWindow && !overlayWindow.isDestroyed()) {
-      const bounds = overlayWindow.getBounds();
-      overlayWindow.setBounds({
-        x: bounds.x,
-        y: bounds.y,
-        width: Math.round(width),
-        height: Math.round(height)
-      });
-    }
-  });
-
-  // Toggle click-through (HUD mode)
-  ipcMain.on("overlay:set-click-through", (event, enabled) => {
-    if (overlayWindow && !overlayWindow.isDestroyed()) {
-      overlayWindow.setIgnoreMouseEvents(enabled, { forward: true });
-    }
-  });
 
   overlayWindow.on("blur", () => {
     // Only auto-hide if the overlay is focusable (it normally isn't)
@@ -227,9 +233,6 @@ function createSettingsWindow() {
   settingsWindow.loadFile(path.join(__dirname, "settings.html"));
   settingsWindow.once("ready-to-show", () => settingsWindow.show());
   settingsWindow.on("closed", () => { settingsWindow = null; });
-
-  // Save session from the settings window
-  ipcMain.on("session:save", (_event, data) => saveSession(data));
 }
 
 // ─── Clipboard watcher ────────────────────────────────────────────────────────
@@ -245,6 +248,7 @@ const CLIPBOARD_RETRY_MS = 80; // short retry after a transient Windows clipboar
 function scheduleClipboardPoll(delayMs = CLIPBOARD_POLL_MS) {
   clipboardPoller = setTimeout(() => {
     try {
+      if (isPaused) return;
       const text = clipboard.readText();
       if (text !== lastClipboardText) {
         lastClipboardText = text;
@@ -254,23 +258,35 @@ function scheduleClipboardPoll(delayMs = CLIPBOARD_POLL_MS) {
           hideOverlay();
         }
       }
-      scheduleClipboardPoll(CLIPBOARD_POLL_MS); // normal cadence on success
+      if (!isPaused) {
+        scheduleClipboardPoll(CLIPBOARD_POLL_MS); // normal cadence on success
+      }
     } catch (_err) {
-      scheduleClipboardPoll(CLIPBOARD_RETRY_MS); // short retry on Windows clipboard lock
+      if (!isPaused) {
+        scheduleClipboardPoll(CLIPBOARD_RETRY_MS); // short retry on Windows clipboard lock
+      }
     }
   }, delayMs);
 }
 
 function startClipboardWatcher() {
+  isPaused = false;
   lastClipboardText = (() => { try { return clipboard.readText(); } catch { return ""; } })();
-  scheduleClipboardPoll();
-}
-
-function stopClipboardWatcher() {
   if (clipboardPoller) {
     clearTimeout(clipboardPoller);
     clipboardPoller = null;
   }
+  scheduleClipboardPoll();
+  updateTrayMenu();
+}
+
+function stopClipboardWatcher() {
+  isPaused = true;
+  if (clipboardPoller) {
+    clearTimeout(clipboardPoller);
+    clipboardPoller = null;
+  }
+  updateTrayMenu();
 }
 
 /**
@@ -315,7 +331,7 @@ function saveSession(data) {
     fs.writeFileSync(SESSION_PATH, JSON.stringify(data, null, 2), "utf8");
     if (data && typeof data.startWithWindows === "boolean") {
       app.setLoginItemSettings({ openAtLogin: data.startWithWindows, openAsHidden: true });
-      updateTrayStartupCheckbox(data.startWithWindows);
+      updateTrayMenu();
     }
   } catch (err) {
     console.error("Could not save session:", err.message);
@@ -952,9 +968,9 @@ function decodePobExport(exportCode) {
     while (b64.length % 4) b64 += "=";
     const buffer = Buffer.from(b64, "base64");
     const attempts = [
-      () => zlib.inflateRawSync(buffer),
-      () => zlib.inflateSync(buffer),
-      () => zlib.gunzipSync(buffer),
+      () => zlib.inflateRawSync(buffer, { maxOutputLength: 5 * 1024 * 1024 }),
+      () => zlib.inflateSync(buffer, { maxOutputLength: 5 * 1024 * 1024 }),
+      () => zlib.gunzipSync(buffer, { maxOutputLength: 5 * 1024 * 1024 }),
       () => buffer,
     ];
     for (const attempt of attempts) {
@@ -1104,15 +1120,119 @@ function itemClassForSlot(slot, itemText = "") {
 }
 
 function normalizePobItemText(itemText, slot) {
-  let text = decodeXmlEntities(itemText).replace(/\r/g, "").trim();
-  text = text.replace(/\n{3,}/g, "\n\n");
-  if (!/^Item Class:/i.test(text)) {
-    text = `Item Class: ${itemClassForSlot(slot, text)}\n${text}`;
+  let rawText = decodeXmlEntities(itemText).replace(/\r/g, "").trim();
+  rawText = rawText.replace(/\n{3,}/g, "\n\n");
+  
+  // If the text already has -------- separators, it was likely copied from client, so return as-is
+  if (/--------/.test(rawText)) {
+    if (!/^Item Class:/i.test(rawText)) {
+      rawText = `Item Class: ${itemClassForSlot(slot, rawText)}\n${rawText}`;
+    }
+    return rawText.trim();
   }
-  if (!/--------/.test(text)) {
-    text = text.replace(/\n/g, "\n--------\n");
+
+  const lines = rawText.split("\n").map(l => l.trim()).filter(Boolean);
+  if (lines.length === 0) return "";
+
+  const props = [];
+  const implicits = [];
+  const explicits = [];
+  
+  let itemClass = itemClassForSlot(slot, rawText);
+  let rarity = "Rare";
+  let name = "";
+  let base = "";
+  let ilvl = "";
+  let levelReq = "";
+
+  let inImplicits = false;
+  let implicitCount = 0;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^Item Class:/i.test(line)) {
+      itemClass = line.replace(/^Item Class:\s*/i, "").trim();
+      continue;
+    }
+    if (/^Rarity:/i.test(line)) {
+      rarity = line.replace(/^Rarity:\s*/i, "").trim();
+      continue;
+    }
+    if (/^Unique ID:/i.test(line) || /^Item Context:/i.test(line) || /^Prefix:/i.test(line) || /^Suffix:/i.test(line) || /<ModRange/i.test(line) || /ModRange/i.test(line)) {
+      continue;
+    }
+    if (/^Item Level:\s*(\d+)/i.test(line)) {
+      ilvl = line.match(/^Item Level:\s*(\d+)/i)[1];
+      continue;
+    }
+    if (/^LevelReq:\s*(\d+)/i.test(line) || /^Requires Level\s*(\d+)/i.test(line)) {
+      levelReq = (line.match(/\d+/) || ["60"])[0];
+      continue;
+    }
+    if (/^Implicits:\s*(\d+)/i.test(line)) {
+      implicitCount = parseInt(line.match(/\d+/)[0], 10) || 0;
+      inImplicits = true;
+      continue;
+    }
+    
+    // If we haven't found name and base yet
+    if (!name && !/^(Armour|Evasion|Energy Shield|Quality|Physical Damage|Elemental Damage|Critical Hit Chance|Attacks per Second|Weapon Range):/i.test(line) && !line.includes(":")) {
+      name = line;
+      continue;
+    }
+    if (name && !base && !/^(Armour|Evasion|Energy Shield|Quality|Physical Damage|Elemental Damage|Critical Hit Chance|Attacks per Second|Weapon Range):/i.test(line) && !line.includes(":")) {
+      base = line;
+      continue;
+    }
+    
+    // Properties
+    if (/^(Armour|Evasion Rating|Energy Shield|Quality|Physical Damage|Elemental Damage|Critical Hit Chance|Attacks per Second|Weapon Range):/i.test(line)) {
+      props.push(line);
+      continue;
+    }
+    
+    // Mods
+    if (inImplicits && implicits.length < implicitCount) {
+      implicits.push(line);
+    } else {
+      explicits.push(line);
+    }
   }
-  return text.trim();
+
+  const blocks = [];
+  
+  // Header
+  const headerBlock = [];
+  headerBlock.push(`Item Class: ${itemClass}`);
+  headerBlock.push(`Rarity: ${rarity}`);
+  if (name) headerBlock.push(name);
+  if (base) headerBlock.push(base);
+  blocks.push(headerBlock.join("\n"));
+
+  // Properties
+  if (props.length > 0) {
+    blocks.push(props.join("\n"));
+  }
+
+  // Meta (ilvl / reqs)
+  const metaBlock = [];
+  if (ilvl) metaBlock.push(`Item Level: ${ilvl}`);
+  if (levelReq) metaBlock.push(`Requires Level ${levelReq}`);
+  if (metaBlock.length > 0) {
+    blocks.push(metaBlock.join("\n"));
+  }
+
+  // Implicits
+  if (implicits.length > 0) {
+    blocks.push(implicits.join("\n"));
+  }
+
+  // Explicits
+  if (explicits.length > 0) {
+    blocks.push(explicits.join("\n"));
+  }
+
+  return blocks.join("\n--------\n");
 }
 
 function detectPobItemName(itemText) {
@@ -1159,7 +1279,23 @@ function httpsTextRequest(urlString, { method = "GET", headers = {}, body = null
       res.on("data", (chunk) => { raw += chunk; });
       res.on("end", () => {
         if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-          httpsTextRequest(new URL(res.headers.location, url).toString(), { method, headers, body }).then(resolve, reject);
+          try {
+            const redirectedUrl = new URL(res.headers.location, url);
+            if (redirectedUrl.protocol !== "https:") {
+              reject(new Error("Redirect to non-HTTPS URL blocked."));
+              return;
+            }
+            const allowedHosts = ["pobb.in", "poe.ninja"];
+            const host = redirectedUrl.hostname.toLowerCase();
+            const allowed = allowedHosts.some(h => host === h || host.endsWith("." + h));
+            if (!allowed) {
+              reject(new Error(`Redirect to untrusted host (${host}) blocked.`));
+              return;
+            }
+            httpsTextRequest(redirectedUrl.toString(), { method, headers, body }).then(resolve, reject);
+          } catch (err) {
+            reject(new Error(`Invalid redirect URL: ${err.message}`));
+          }
           return;
         }
         if (res.statusCode < 200 || res.statusCode >= 300) {
@@ -1187,6 +1323,13 @@ function createTray() {
   tray = new Tray(icon);
   tray.setToolTip("PoE2 Gear Coach — watching clipboard");
 
+  updateTrayMenu();
+  tray.on("double-click", () => createSettingsWindow());
+}
+
+function updateTrayMenu() {
+  if (!tray) return;
+
   let startWithWindows = false;
   try {
     const session = loadSession();
@@ -1197,12 +1340,6 @@ function createTray() {
     }
   } catch (_) {}
 
-  updateTrayStartupCheckbox(startWithWindows);
-  tray.on("double-click", () => createSettingsWindow());
-}
-
-function updateTrayStartupCheckbox(enabled) {
-  if (!tray) return;
   const contextMenu = Menu.buildFromTemplate([
     {
       label: "Settings / Build Import",
@@ -1212,7 +1349,7 @@ function updateTrayStartupCheckbox(enabled) {
       id: "start-with-windows",
       label: "Start with Windows",
       type: "checkbox",
-      checked: enabled,
+      checked: startWithWindows,
       click: (menuItem) => {
         const val = menuItem.checked;
         app.setLoginItemSettings({ openAtLogin: val, openAsHidden: true });
@@ -1241,7 +1378,7 @@ function updateTrayStartupCheckbox(enabled) {
     {
       label: "Pause clipboard watcher",
       type: "checkbox",
-      checked: clipboardPoller === null,
+      checked: isPaused,
       click: (menuItem) => {
         if (menuItem.checked) {
           stopClipboardWatcher();
@@ -1478,7 +1615,7 @@ async function callOpenAI(settings, prompt) {
         { role: "developer", content: "Return only valid JSON for a Path of Exile 2 gear coaching tool." },
         { role: "user", content: prompt },
       ],
-      reasoning: { effort: "none" },
+      reasoning: { effort: "low" },
       text: { format: { type: "json_object" } },
     };
     const res = await httpsJsonRequest("https://api.openai.com/v1/responses", {

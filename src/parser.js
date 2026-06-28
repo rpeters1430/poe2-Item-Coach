@@ -55,15 +55,19 @@ function parseItem(text) {
   const sections2 = raw.split(/\r?\n--------\r?\n/);
   let implicits = [];
   let explicits = [];
+  
+  const cleanLine = (l) => l.replace(/\{[a-zA-Z0-9_]+\}/g, "").replace(/\([^)]*\)/g, "").replace(/\s+/g, " ").trim();
+  
   const modSections = sections2.filter(sec => {
     const lines = sec.trim().split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    if (lines.some(l => /^Rarity:/i.test(l))) return false;
     return lines.some(isModLike) && !lines.every(l => /^(Item Class|Rarity|Requires|Item Level|Quality|Armour|Evasion|Energy Shield|Physical Damage|Critical|Attacks|Weapon Range):/i.test(l));
   });
   if (modSections.length === 1) {
-    explicits = modSections[0].trim().split(/\r?\n/).map(l=>l.trim()).filter(Boolean).filter(isModLike);
+    explicits = modSections[0].trim().split(/\r?\n/).map(l=>cleanLine(l.trim())).filter(Boolean).filter(isModLike);
   } else if (modSections.length >= 2) {
-    implicits = modSections[0].trim().split(/\r?\n/).map(l=>l.trim()).filter(Boolean).filter(isModLike);
-    explicits = modSections.slice(1).flatMap(s => s.trim().split(/\r?\n/).map(l=>l.trim()).filter(Boolean).filter(isModLike));
+    implicits = modSections[0].trim().split(/\r?\n/).map(l=>cleanLine(l.trim())).filter(Boolean).filter(isModLike);
+    explicits = modSections.slice(1).flatMap(s => s.trim().split(/\r?\n/).map(l=>cleanLine(l.trim())).filter(Boolean).filter(isModLike));
   }
 
   const parsed = {
@@ -84,7 +88,8 @@ function extractMeta(lines, regex) {
 
 function isModLike(line) {
   if (!line) return false;
-  if (/^(Item Class|Rarity|Requires|Item Level|Quality|Armour|Evasion Rating|Energy Shield|Physical Damage|Critical Hit Chance|Attacks per Second|Weapon Range|Elemental Damage|Unidentified|Corrupted|Mirrored):/i.test(line)) return false;
+  if (line.startsWith("{") && line.endsWith("}")) return false;
+  if (/^(Item Class|Rarity|Requires|Item Level|Quality|Armour|Evasion Rating|Energy Shield|Physical Damage|Critical Hit Chance|Attacks per Second|Weapon Range|Elemental Damage|Unidentified|Corrupted|Mirrored)/i.test(line)) return false;
   if (/^(Normal|Magic|Rare|Unique|Currency|Gem|Superior)$/i.test(line)) return false;
   if (/^--------$/.test(line)) return false;
   return /[+\-%\d]|adds|increased|reduced|maximum|speed|damage|life|strength|dexterity|intelligence|armour|evasion|energy shield|projectile|bow|crossbow|resistance|reload|chance|bonus|more|less/i.test(line);
@@ -197,7 +202,18 @@ function analyzeCraftingPotential(item) {
   };
 }
 
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+const esc = escapeHtml;
+
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { parseItem, extractMeta, isModLike, inferSlot, getModType, analyzeCraftingPotential };
+  module.exports = { parseItem, extractMeta, isModLike, inferSlot, getModType, analyzeCraftingPotential, escapeHtml, esc };
 }
 
