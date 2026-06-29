@@ -197,7 +197,10 @@ function scoreItem(item, profile, slot, stageKey) {
       const tierInfo = item.modTierMap?.get(line) || null;
       const tierMult = (typeof tierScoreMultiplier === "function") ? tierScoreMultiplier(tierInfo) : 1.0;
 
-      const pts = Math.round(basePoints * (lw[rule.category]??1) * (sw[rule.category]??profile.baseWeights[rule.category]??1) * tierMult * actContextMult(rule.category));
+      const leagueWeight  = lw[rule.category] ?? 1;
+      const stageWeight   = sw[rule.category] ?? profile.baseWeights[rule.category] ?? 1;
+      const actMult       = actContextMult(rule.category);
+      const pts = Math.round(basePoints * leagueWeight * stageWeight * tierMult * actMult);
       scores[rule.category] += pts;
       hits.push({ line, category:rule.category, points:pts, note:overrideNote, ruleIndex: i, tierInfo });
       if (pts < 0) warnings.push(overrideNote);

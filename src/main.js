@@ -357,8 +357,15 @@ const PRICES_CACHE_PATH = path.join(app.getPath("userData"), "prices.json");
 let _pricesMemCache = null;
 let _pricesMemFetched = 0;
 
+const VALID_NINJA_TYPES = new Set([
+  "UniqueWeapon", "UniqueArmour", "UniqueAccessory", "UniqueFlask", "UniqueJewel",
+  "Currency", "Prophecy", "DivinationCard",
+]);
+
 ipcMain.handle("prices:get", async (_event, { type, league } = {}) => {
-  return fetchNinjaPrices(type || "UniqueWeapon", league || "Standard");
+  const safeType = VALID_NINJA_TYPES.has(type) ? type : "UniqueWeapon";
+  const safeLeague = typeof league === "string" && league.trim() ? league.trim().slice(0, 100) : "Standard";
+  return fetchNinjaPrices(safeType, safeLeague);
 });
 
 async function fetchNinjaPrices(type, league) {
@@ -411,7 +418,9 @@ async function fetchNinjaPrices(type, league) {
     _pricesMemFetched = now;
     try {
       fs.writeFileSync(PRICES_CACHE_PATH, JSON.stringify({ fetched: now, data: _pricesMemCache }, null, 2), "utf8");
-    } catch { /* non-fatal */ }
+    } catch (err) {
+      console.warn("Could not write prices cache to disk (non-fatal):", err.message);
+    }
 
     return { ok: true, prices: priceMap };
   } catch (err) {
@@ -453,20 +462,31 @@ async function warmTradeSession() {
 // unlike Node's https which Cloudflare rejects on TLS fingerprint alone.
 // net.fetch() (Electron 22+) uses Chromium's networking stack with session cookies
 // and avoids the forbidden-header / ERR_INVALID_ARGUMENT issues that plagued net.request().
-async function netRequest(urlString, { method = "GET", headers = {}, body = null } = {}) {
+async function netRequest(urlString, { method = "GET", headers = {}, body = null, timeoutMs = 30000 } = {}) {
   const payload = body ? (typeof body === "string" ? body : JSON.stringify(body)) : null;
-  const res = await net.fetch(urlString, {
-    method,
-    headers: {
-      "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
-      "accept": "application/json, */*",
-      "accept-language": "en-US,en;q=0.9",
-      ...(payload ? { "content-type": "application/json" } : {}),
-      ...headers,
-    },
-    ...(payload ? { body: payload } : {}),
-    credentials: "include",
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let res;
+  try {
+    res = await net.fetch(urlString, {
+      method,
+      headers: {
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+        "accept": "application/json, */*",
+        "accept-language": "en-US,en;q=0.9",
+        ...(payload ? { "content-type": "application/json" } : {}),
+        ...headers,
+      },
+      ...(payload ? { body: payload } : {}),
+      credentials: "include",
+      signal: controller.signal,
+    });
+  } catch (err) {
+    clearTimeout(timer);
+    if (err.name === "AbortError") throw new Error(`Request timed out after ${timeoutMs}ms`);
+    throw err;
+  }
+  clearTimeout(timer);
   const raw = await res.text();
   if (!res.ok) {
     throw new Error(`HTTP ${res.status}: ${raw.slice(0, 200)}`);
@@ -566,7 +586,7 @@ async function getTradeStats(forceRefresh = false) {
     }
   }
   _tradeStatsCache = { map, fetched: now };
-  try { fs.writeFileSync(TRADE_STATS_PATH, JSON.stringify({ v: TRADE_STATS_VER, fetched: now, map: Object.fromEntries(map) }), "utf8"); } catch {}
+  try { fs.writeFileSync(TRADE_STATS_PATH, JSON.stringify({ v: TRADE_STATS_VER, fetched: now, map: Object.fromEntries(map) }), "utf8"); } catch (err) { console.warn("Could not write trade stats cache:", err.message); }
   return map;
 }
 
@@ -598,6 +618,12 @@ const SLOT_TO_TRADE_CATEGORY = {
 };
 
 ipcMain.handle("trade:price-check", async (_event, { rarity, name, slot, mods } = {}) => {
+  if (typeof rarity !== "string" || typeof name !== "string") {
+    return { ok: false, error: "Invalid parameters." };
+  }
+  if (!Array.isArray(mods) || mods.some(m => typeof m !== "string")) {
+    return { ok: false, error: "Mods must be an array of strings." };
+  }
   const rarityL = (rarity || "").toLowerCase();
   const league  = "poe2/Standard";
   const baseUrl = `https://www.pathofexile.com/trade2/search/${league}`;
@@ -1076,12 +1102,12 @@ function decodePobExport(exportCode) {
       try {
         const xml = attempt().toString("utf8");
         if (/<(PathOfBuilding|Build|Items|Item)\b/i.test(xml)) return { xml };
-      } catch (_err) {
-        // Try the next decode mode.
+      } catch (err) {
+        console.warn("decodePobExport: decode attempt failed:", err.message);
       }
     }
-  } catch (_err) {
-    // Ignore decode errors; visible pobb.in parsing still works.
+  } catch (err) {
+    console.warn("decodePobExport: failed to decode export code:", err.message);
   }
   return null;
 }
@@ -1499,11 +1525,17 @@ function updateTrayMenu() {
 // API keys are stored in Electron userData, outside the app source/zip.
 const AI_SETTINGS_PATH = path.join(app.getPath("userData"), "ai-settings.json");
 
+const DEFAULT_AI_MODELS = {
+  gemini: "gemini-2.5-flash",
+  openai: "gpt-5.4-nano",
+  claude: "claude-haiku-4-5-20251001",
+};
+
 function defaultAISettings() {
   return {
     enabled: false,
     provider: "gemini",
-    model: "gemini-2.5-flash",
+    model: DEFAULT_AI_MODELS.gemini,
     hasApiKey: false,
   };
 }
@@ -1522,9 +1554,7 @@ function loadRawAISettings() {
 function publicAISettings() {
   const raw = loadRawAISettings();
   const provider = raw.provider || "gemini";
-  let defaultModel = "gemini-2.5-flash";
-  if (provider === "openai") defaultModel = "gpt-5.4-nano";
-  else if (provider === "claude") defaultModel = "claude-haiku-4-5-20251001";
+  const defaultModel = DEFAULT_AI_MODELS[provider] || DEFAULT_AI_MODELS.gemini;
 
   return {
     enabled: Boolean(raw.enabled),
@@ -1538,9 +1568,7 @@ function saveAISettings(data = {}) {
   const prev = loadRawAISettings();
   const validProviders = ["gemini", "openai", "claude"];
   const provider = validProviders.includes(data.provider) ? data.provider : "gemini";
-  let defaultModel = "gemini-2.5-flash";
-  if (provider === "openai") defaultModel = "gpt-5.4-nano";
-  else if (provider === "claude") defaultModel = "claude-haiku-4-5-20251001";
+  const defaultModel = DEFAULT_AI_MODELS[provider] || DEFAULT_AI_MODELS.gemini;
 
   const next = {
     enabled: Boolean(data.enabled),
@@ -1654,14 +1682,14 @@ function parsePossiblyJson(text) {
 }
 
 async function callGemini(settings, prompt) {
-  const model = encodeURIComponent(settings.model || "gemini-2.5-flash");
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(settings.apiKey)}`;
+  const model = encodeURIComponent(settings.model || DEFAULT_AI_MODELS.gemini);
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
   const body = {
     contents: [{ role: "user", parts: [{ text: prompt }] }],
     generationConfig: { temperature: 0.2, responseMimeType: "application/json" },
   };
   const startTime = Date.now();
-  const res = await httpsJsonRequest(url, { body });
+  const res = await httpsJsonRequest(url, { headers: { "x-goog-api-key": settings.apiKey }, body });
   const durationSec = ((Date.now() - startTime) / 1000).toFixed(1);
   const text = res?.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("\n") || "";
   const tokens = res?.usageMetadata?.totalTokenCount || null;
@@ -1669,7 +1697,7 @@ async function callGemini(settings, prompt) {
 }
 
 async function callClaude(settings, prompt) {
-  const model = settings.model || "claude-haiku-4-5-20251001";
+  const model = settings.model || DEFAULT_AI_MODELS.claude;
   const body = {
     model,
     max_tokens: 512,
@@ -1702,7 +1730,7 @@ function extractOpenAIResponseText(res) {
 }
 
 async function callOpenAI(settings, prompt) {
-  const model = settings.model || "gpt-5.4-nano";
+  const model = settings.model || DEFAULT_AI_MODELS.openai;
   const startTime = Date.now();
 
   // Prefer the current Responses API for newer GPT models. If an account/model
