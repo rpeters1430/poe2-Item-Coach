@@ -445,47 +445,36 @@ async function warmTradeSession() {
     win.webContents.once("did-finish-load", done);
     win.webContents.once("did-fail-load", done);
     setTimeout(done, 18000); // give up after 18 s
-    win.loadURL("https://www.pathofexile.com/trade2/search/Standard").catch(done);
+    win.loadURL("https://www.pathofexile.com/trade2/search/poe2/Standard").catch(done);
   });
 }
 
 // net.request() uses Chromium networking (proper TLS + session cookies),
 // unlike Node's https which Cloudflare rejects on TLS fingerprint alone.
-function netRequest(urlString, { method = "GET", headers = {}, body = null } = {}) {
-  return new Promise((resolve, reject) => {
-    const req = net.request({ method, url: urlString, redirect: "follow", useSessionCookies: true });
-    req.setHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36");
-    req.setHeader("Accept", "application/json, */*");
-    req.setHeader("Accept-Language", "en-US,en;q=0.9");
-    req.setHeader("Sec-Fetch-Dest", "empty");
-    req.setHeader("Sec-Fetch-Mode", "cors");
-    req.setHeader("Sec-Fetch-Site", "same-origin");
-    for (const [k, v] of Object.entries(headers)) req.setHeader(k, v);
-    if (body) {
-      const payload = typeof body === "string" ? body : JSON.stringify(body);
-      req.setHeader("Content-Type", "application/json");
-      req.setHeader("Content-Length", String(Buffer.byteLength(payload)));
-      req.write(payload);
-    }
-    const chunks = [];
-    req.on("response", res => {
-      res.on("data", c => chunks.push(c));
-      res.on("end", () => {
-        const raw = Buffer.concat(chunks).toString("utf8");
-        if (res.statusCode < 200 || res.statusCode >= 300) {
-          reject(new Error(`HTTP ${res.statusCode}: ${raw.slice(0, 200)}`));
-        } else if (raw.trimStart().startsWith("<")) {
-          // Cloudflare returned an HTML challenge page instead of JSON
-          reject(new Error("Cloudflare challenge — session not yet warm"));
-        } else {
-          resolve(raw);
-        }
-      });
-      res.on("error", reject);
-    });
-    req.on("error", reject);
-    req.end();
+// net.fetch() (Electron 22+) uses Chromium's networking stack with session cookies
+// and avoids the forbidden-header / ERR_INVALID_ARGUMENT issues that plagued net.request().
+async function netRequest(urlString, { method = "GET", headers = {}, body = null } = {}) {
+  const payload = body ? (typeof body === "string" ? body : JSON.stringify(body)) : null;
+  const res = await net.fetch(urlString, {
+    method,
+    headers: {
+      "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+      "accept": "application/json, */*",
+      "accept-language": "en-US,en;q=0.9",
+      ...(payload ? { "content-type": "application/json" } : {}),
+      ...headers,
+    },
+    ...(payload ? { body: payload } : {}),
+    credentials: "include",
   });
+  const raw = await res.text();
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}: ${raw.slice(0, 200)}`);
+  }
+  if (raw.trimStart().startsWith("<")) {
+    throw new Error("Cloudflare challenge — session not yet warm");
+  }
+  return raw;
 }
 
 const TRADE_STATS_PATH = path.join(app.getPath("userData"), "trade-stats.json");
@@ -499,8 +488,47 @@ function normalizeStatText(text) {
     .toLowerCase();
 }
 
+function findStatId(userInput, statsMap) {
+  const cleanInput = userInput.toLowerCase().trim();
+  if (!cleanInput) return null;
+
+  // 1. Exact match on normalized text
+  const normInput = cleanInput.replace(/[\d]+/g, "#");
+  if (statsMap.has(normInput)) {
+    return statsMap.get(normInput);
+  }
+
+  // 2. Check if the normalized user input is a substring of any GGG stat
+  for (const [key, id] of statsMap.entries()) {
+    if (key.includes(normInput) || normInput.includes(key)) {
+      return id;
+    }
+  }
+
+  // 3. Match by checking if all alphabetic words from user input are present in the GGG stat
+  const words = cleanInput.replace(/[^a-z]/g, " ").split(/\s+/).filter(w => w.length > 1);
+  if (words.length > 0) {
+    for (const [key, id] of statsMap.entries()) {
+      if (words.every(w => key.includes(w))) {
+        return id;
+      }
+    }
+  }
+
+  // 4. Fallback: match if any word is present
+  if (words.length > 0) {
+    for (const [key, id] of statsMap.entries()) {
+      if (words.some(w => key.includes(w))) {
+        return id;
+      }
+    }
+  }
+
+  return null;
+}
+
 // Cache version — bump to force-expire old stats caches that may have wrong IDs
-const TRADE_STATS_VER = 2;
+const TRADE_STATS_VER = 3;
 
 async function getTradeStats(forceRefresh = false) {
   const now = Date.now();
@@ -521,15 +549,20 @@ async function getTradeStats(forceRefresh = false) {
   }
 
   const raw = await netRequest("https://www.pathofexile.com/api/trade2/data/stats", {
-    headers: { "Referer": "https://www.pathofexile.com/trade2/search/Standard" },
+    headers: { "Referer": "https://www.pathofexile.com/trade2/search/poe2/Standard" },
   });
   const data = JSON.parse(raw);
   const map = new Map();
-  // Only index Explicit stat IDs — implicit/pseudo/monster IDs cause "Invalid id" in search
-  for (const cat of (data.result || [])) {
-    if (cat.label !== "Explicit") continue;
+  // Index Pseudo stats first so they win over Explicit when both match.
+  // Pseudo stats aggregate all sources of a mod (e.g. total fire resistance across all affixes)
+  // which is what trade searches should use. Explicit stays as fallback for specific mods.
+  for (const label of ["Pseudo", "Explicit"]) {
+    const cat = (data.result || []).find(c => c.label === label);
+    if (!cat) continue;
     for (const entry of (cat.entries || [])) {
-      if (entry.text && entry.id) map.set(normalizeStatText(entry.text), entry.id);
+      if (entry.text && entry.id && !map.has(normalizeStatText(entry.text))) {
+        map.set(normalizeStatText(entry.text), entry.id);
+      }
     }
   }
   _tradeStatsCache = { map, fetched: now };
@@ -559,14 +592,14 @@ const SLOT_TO_NINJA_TYPE = {
 };
 
 const SLOT_TO_TRADE_CATEGORY = {
-  offhand: "armour.shield", quiver: "weapon.quiver",
+  weapon: "weapon", offhand: "armour.shield", quiver: "weapon.quiver",
   helmet: "armour.helmet", body: "armour.chest", gloves: "armour.gloves", boots: "armour.boots",
   ring: "accessory.ring", amulet: "accessory.amulet", belt: "accessory.belt",
 };
 
 ipcMain.handle("trade:price-check", async (_event, { rarity, name, slot, mods } = {}) => {
   const rarityL = (rarity || "").toLowerCase();
-  const league  = "Standard";
+  const league  = "poe2/Standard";
   const baseUrl = `https://www.pathofexile.com/trade2/search/${league}`;
 
   // Warm up Cloudflare session on first use (idempotent — no-op after first call)
@@ -576,7 +609,7 @@ ipcMain.handle("trade:price-check", async (_event, { rarity, name, slot, mods } 
     // Unique items: reuse poe.ninja cache
     if (rarityL === "unique") {
       const ninjaType = SLOT_TO_NINJA_TYPE[slot?.toLowerCase()] || "UniqueArmour";
-      const pr = await fetchNinjaPrices(ninjaType, league);
+      const pr = await fetchNinjaPrices(ninjaType, league.replace(/^poe2\//, ""));
       if (pr.ok && pr.prices) {
         const key   = (name || "").toLowerCase();
         const entry = pr.prices[key]
@@ -661,6 +694,72 @@ ipcMain.handle("trade:open", async (_event, url) => {
   const safe = String(url || "");
   if (/^https:\/\/www\.pathofexile\.com\/trade2\//.test(safe)) {
     shell.openExternal(safe);
+  }
+});
+
+ipcMain.handle("trade:custom-search", async (_event, { slot, maxLevel, stats, rarity, league: leagueArg } = {}) => {
+  const VALID_LEAGUES = ["poe2/Standard", "poe2/Hardcore"];
+  const league  = VALID_LEAGUES.includes(leagueArg) ? leagueArg : "poe2/Standard";
+  const baseUrl = `https://www.pathofexile.com/trade2/search/${league}`;
+
+  try { await warmTradeSession(); } catch {}
+
+  try {
+    const statsMap = await getTradeStats();
+    const filters = [];
+    const matchedStats = [];
+    const unmatchedStats = [];
+
+    for (const s of (stats || [])) {
+      if (!s.text) continue;
+      const statId = findStatId(s.text, statsMap);
+      if (statId) {
+        const filter = { id: statId, disabled: false };
+        if (s.min != null && !isNaN(parseFloat(s.min))) {
+          filter.value = { min: parseFloat(s.min) };
+        }
+        filters.push(filter);
+        matchedStats.push(s.text);
+      } else {
+        unmatchedStats.push(s.text);
+      }
+    }
+
+    const category = SLOT_TO_TRADE_CATEGORY[slot?.toLowerCase()] || null;
+    const typeFilters = {};
+    if (category) typeFilters.category = { option: category };
+    const VALID_RARITIES = ["normal", "magic", "rare", "unique", "nonunique"];
+    if (rarity && VALID_RARITIES.includes(rarity)) typeFilters.rarity = { option: rarity };
+
+    const query = {
+      status: { option: "online" },
+      stats: filters.length > 0 ? [{ type: "and", filters }] : [],
+    };
+
+    query.filters = {};
+    if (Object.keys(typeFilters).length > 0) {
+      query.filters.type_filters = { filters: typeFilters };
+    }
+    if (maxLevel != null && !isNaN(parseInt(maxLevel))) {
+      query.filters.req_filters = { filters: { lvl: { max: parseInt(maxLevel) } } };
+    }
+    if (Object.keys(query.filters).length === 0) delete query.filters;
+
+    const raw = await netRequest(`https://www.pathofexile.com/api/trade2/search/${league}`, {
+      method: "POST",
+      headers: { "Origin": "https://www.pathofexile.com", "Referer": baseUrl },
+      body: { query, sort: { price: "asc" } },
+    });
+
+    const searchData = JSON.parse(raw);
+    if (searchData?.error) throw new Error(searchData.error.message || JSON.stringify(searchData.error));
+
+    const { id: queryId } = searchData;
+    const queryUrl = queryId ? `${baseUrl}/${queryId}` : baseUrl;
+
+    return { ok: true, tradeUrl: queryUrl, matchedStats, unmatchedStats };
+  } catch (err) {
+    return { ok: false, error: err.message };
   }
 });
 

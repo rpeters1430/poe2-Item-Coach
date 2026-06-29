@@ -74,4 +74,6 @@ contextBridge.exposeInMainWorld("poe2Coach", {
 
   /** Open a pathofexile.com/trade2 URL in the system default browser. */
   openTrade: (url) => ipcRenderer.invoke("trade:open", url),
+  /** Custom trade search */
+  customTradeSearch: (options) => ipcRenderer.invoke("trade:custom-search", options),
 });

@@ -1259,12 +1259,28 @@ function scoreItem(item, profile, slot, stageKey) {
         if (usedLineCategories.has(hitKey)) continue;
         usedLineCategories.add(hitKey);
 
+        const keystones = window.currentPobbBuild?.keystones || [];
+        const hasBloodMagic = keystones.some(k => /blood magic/i.test(k));
+        const hasPreciseTechnique = keystones.some(k => /precise technique/i.test(k));
+
         let base = rule.points;
         let note = rule.note;
         // Bonded mods are conditional — only active with a matching bonded piece
         if (/^bonded:/i.test(line)) {
           base = Math.round(base * 0.3);
           note = `(Bonded — only active with the matching item) ${note}`;
+        }
+        if (hasBloodMagic && /maximum mana|mana regeneration|mana reservation/i.test(line)) {
+          base = -10;
+          note = "⚠️ Blood Magic removes Mana. Mana stats are useless.";
+        }
+        if (hasPreciseTechnique && /critical hit chance|critical damage/i.test(line)) {
+          base = -10;
+          note = "⚠️ Precise Technique prevents Critical Strikes. Crit is useless.";
+        }
+        if (hasPreciseTechnique && /accuracy rating/i.test(line)) {
+          base = Math.max(base, 15);
+          note = "Accuracy rating (highly valued for Precise Technique).";
         }
         const slotMultiplier = slotWeights[rule.category] ?? 1;
         const stageMultiplier = stageWeights[rule.category] ?? profile.baseWeights[rule.category] ?? 1;

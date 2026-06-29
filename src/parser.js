@@ -111,6 +111,7 @@ function inferSlot(item) {
   if (/boots?/.test(cls))     return "boots";
   if (/helmets?/.test(cls))   return "helmet";
   if (/body\s+armou?rs?/.test(cls)) return "body";
+  if (/shields?/.test(cls) || /foc(?:us|i)/.test(cls)) return "offhand";
   if (/bows?|crossbows?|staves|staff|wands?|sceptres?|maces?|swords?|axes|daggers?|quarterstaves/.test(cls)) return "weapon";
 
   // fallback: base name

@@ -197,7 +197,7 @@ function scoreItem(item, profile, slot, stageKey) {
       const tierInfo = item.modTierMap?.get(line) || null;
       const tierMult = (typeof tierScoreMultiplier === "function") ? tierScoreMultiplier(tierInfo) : 1.0;
 
-      const pts = Math.round(basePoints * (lw[rule.category]??1) * (sw[rule.category]??profile.baseWeights[rule.category]??1) * tierMult);
+      const pts = Math.round(basePoints * (lw[rule.category]??1) * (sw[rule.category]??profile.baseWeights[rule.category]??1) * tierMult * actContextMult(rule.category));
       scores[rule.category] += pts;
       hits.push({ line, category:rule.category, points:pts, note:overrideNote, ruleIndex: i, tierInfo });
       if (pts < 0) warnings.push(overrideNote);
@@ -579,12 +579,11 @@ function renderCoach(scored, compDelta, savedItem) {
       const el = document.getElementById(elId);
       if (!el) return;
       if (gap > 0) {
-        el.style.display = "";
         const color = val < 0 ? "var(--bad)" : "var(--warn)";
         el.innerHTML = `${emoji} ${label} <span style="color:${color}; font-weight:bold;">+${gap} to cap</span>`;
-      } else {
         el.style.display = "";
-        el.innerHTML = `${emoji} ${label} <span style="color:var(--good); font-weight:bold;">Capped</span>`;
+      } else {
+        el.style.display = "none";
       }
     };
 
@@ -592,7 +591,8 @@ function renderCoach(scored, compDelta, savedItem) {
     makeChip(coldVal, coldGap, "Cold", "❄", "need-cold");
     makeChip(lightVal, lightGap, "Lightning", "⚡", "need-lightning");
 
-    needsDiv.style.display = "flex";
+    const anyUncapped = fireGap > 0 || coldGap > 0 || lightGap > 0;
+    needsDiv.style.display = anyUncapped ? "flex" : "none";
   } else if (needsDiv) {
     needsDiv.style.display = "none";
   }
@@ -665,6 +665,8 @@ function renderCoach(scored, compDelta, savedItem) {
     }
 
     document.getElementById("set-equipped-btn").style.display = "";
+    const eqTradeBtn = document.getElementById("eq-trade-btn");
+    if (eqTradeBtn) eqTradeBtn.style.display = "";
   } else {
     eqBox.style.display = "";
     document.getElementById("eq-name").textContent = "(No equipped item saved)";
@@ -672,6 +674,8 @@ function renderCoach(scored, compDelta, savedItem) {
     const confEl = document.getElementById("eq-confidence");
     if (confEl) confEl.style.display = "none";
     document.getElementById("set-equipped-btn").style.display = "";
+    const eqTradeBtn = document.getElementById("eq-trade-btn");
+    if (eqTradeBtn) eqTradeBtn.style.display = "none";
   }
 
   // Why it won/lost (Gains and Losses delta breakdown)
@@ -897,8 +901,21 @@ function deserializeProfile(raw) {
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
+// Extra weight multipliers applied per actContext on top of stage/slot weights.
+// Lets "Campaign progress" in Settings actually nudge priorities without replacing stage weights.
+const ACT_CONTEXT_WEIGHTS = {
+  act1:     { resistance: 0.65, attributes: 1.45, mobility: 1.35, defense: 0.85 },
+  act2plus: { resistance: 1.5,  defense: 1.2,  attributes: 0.9 },
+  maps:     { damage: 1.2,  synergy: 1.25, resistance: 1.1, attributes: 0.7 },
+};
+
+function actContextMult(category) {
+  const w = ACT_CONTEXT_WEIGHTS[currentSession.actContext] || {};
+  return w[category] ?? 1.0;
+}
+
 let activeProfile   = DEFAULT_PROFILES.frostCrossbow;
-let currentSession  = { playerLevel:1, playerStr:0, playerDex:0, playerInt:0 };
+let currentSession  = { playerLevel:1, playerStr:0, playerDex:0, playerInt:0, actContext:"auto" };
 let savedGearMap    = {};
 let savedFullSession= null;
 let lastItem        = null;
@@ -1083,8 +1100,8 @@ function renderPriceResult(result) {
   return `<div class="tr-no-data" style="color:var(--poe-muted);">${esc(result.error || "Trade search unavailable.")}</div>`;
 }
 
-async function fetchAndShowTradeValue() {
-  if (!lastItem) return;
+async function fetchAndShowTradeValueForItem(item, slot, isEquipped = false) {
+  if (!item) return;
   const section = document.getElementById("trade-value-section");
   const summary = document.getElementById("trade-value-summary");
   const listings = document.getElementById("trade-value-listings");
@@ -1092,18 +1109,21 @@ async function fetchAndShowTradeValue() {
   if (!section || !summary || !listings) return;
 
   section.style.display = "";
-  summary.innerHTML = '<div class="tr-loading" style="color:var(--poe-muted);">Fetching trade data…</div>';
+  section.scrollIntoView({ behavior: "smooth", block: "nearest" });
+
+  const label = isEquipped ? "equipped item" : "copied item";
+  summary.innerHTML = `<div class="tr-loading" style="color:var(--poe-muted);">Fetching trade data for ${label}…</div>`;
   listings.innerHTML = "";
 
-  let tradeUrl = "https://www.pathofexile.com/trade2/search/Standard";
+  let tradeUrl = "https://www.pathofexile.com/trade2/search/poe2/Standard";
   if (openBtn) openBtn.onclick = () => window.poe2Coach.openTrade(tradeUrl);
 
   try {
     const result = await window.poe2Coach.priceCheck({
-      rarity: lastItem.rarity,
-      name:   lastItem.names?.[0] || "",
-      slot:   lastSlot,
-      mods:   lastItem.explicits || [],
+      rarity: item.rarity,
+      name:   item.names?.[0] || "",
+      slot:   slot,
+      mods:   item.explicits || [],
     });
 
     if (result?.tradeUrl) {
@@ -1113,8 +1133,8 @@ async function fetchAndShowTradeValue() {
 
     summary.innerHTML = renderPriceResult(result);
 
-    const rarityL = (lastItem.rarity || "").toLowerCase();
-    const mods = lastItem.explicits || [];
+    const rarityL = (item.rarity || "").toLowerCase();
+    const mods = item.explicits || [];
     if (rarityL !== "unique" && !result?.listings?.length && mods.length) {
       const modRows = mods.slice(0, 5).map((l, i) => {
         return `<div class="tr-mod-row" style="display:flex; align-items:center; gap:4px; font-size:11px; margin-top:2px;"><span style="color:var(--poe-mod);">${esc(l)}</span></div>`;
@@ -1141,6 +1161,7 @@ window.poe2Coach.onItemDetected(({ itemText, session }) => {
     currentSession.hitChance   = pStats.hitChance !== undefined ? Number(pStats.hitChance) : null;
     currentSession.resistances = pStats.resistances || null;
     currentSession.keystones   = session.pobbBuild?.keystones || [];
+    currentSession.actContext  = session.actContext || "auto";
 
     // Trigger ignore mouse state to match active HUD Mode when item is updated
     if (window.poe2Coach?.setIgnoreMouseEvents) {
@@ -1160,7 +1181,21 @@ window.poe2Coach.onItemDetected(({ itemText, session }) => {
     populateStages(activeProfile);
 
     if (session.slot  && slotSelect.querySelector(`option[value="${session.slot}"]`))   slotSelect.value  = session.slot;
-    if (session.stage && stageSelect.querySelector(`option[value="${session.stage}"]`)) stageSelect.value = session.stage;
+    if (session.stage && stageSelect.querySelector(`option[value="${session.stage}"]`)) {
+      stageSelect.value = session.stage;
+    } else {
+      // Auto-infer stage from actContext or player level
+      const lvl = currentSession.playerLevel;
+      const actCtx = currentSession.actContext;
+      const inferredStage =
+        actCtx === "act1"     ? "leveling"  :
+        actCtx === "act2plus" ? "leveling"  :
+        actCtx === "maps"     ? "endgame"   :
+        lvl >= 65 ? "endgame" : lvl >= 30 ? "earlyMaps" : "leveling";
+      if (stageSelect.querySelector(`option[value="${inferredStage}"]`)) {
+        stageSelect.value = inferredStage;
+      }
+    }
   } else {
     noBuildWarn.style.display = "";
     populateSlots(activeProfile);
@@ -1357,7 +1392,19 @@ if (hudToggleBtn) {
 }
 
 // Trade Research
-document.getElementById("price-btn").addEventListener("click", () => { if (lastItem) fetchAndShowTradeValue(); });
+document.getElementById("price-btn").addEventListener("click", () => {
+  if (lastItem) fetchAndShowTradeValueForItem(lastItem, lastSlot, false);
+});
+
+const eqTradeBtn = document.getElementById("eq-trade-btn");
+if (eqTradeBtn) {
+  eqTradeBtn.addEventListener("click", () => {
+    const savedEntry = savedGearMap[lastSlot];
+    if (savedEntry?.item) {
+      fetchAndShowTradeValueForItem(savedEntry.item, lastSlot, true);
+    }
+  });
+}
 
 // Initial populate
 populateSlots(activeProfile);

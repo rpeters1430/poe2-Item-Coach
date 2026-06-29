@@ -275,6 +275,7 @@
       <div class="nav-section">Tools</div>
       <button class="nav-item" data-tab="health"><span class="nav-icon">📊</span>Health Report</button>
       <button class="nav-item" data-tab="compare"><span class="nav-icon">⚖</span>Compare Items</button>
+      <button class="nav-item" data-tab="trade-search"><span class="nav-icon">🔍</span>Trade Search</button>
       <button class="nav-item" data-tab="ai"><span class="nav-icon">✦</span>AI Coach</button>
 
       <div class="nav-section">App</div>
@@ -426,6 +427,95 @@
         </div>
         <button class="btn primary" id="analyzeBtn">Compare items</button>
         <div id="results" class="hidden" style="margin-top:16px"></div>
+      </div>
+
+      <!-- ── Trade Search ────────────────────────────────────────────────── -->
+      <div class="tab-pane" id="tab-trade-search">
+        <div class="pane-header">
+          <h2>Trade Search</h2>
+          <p>Build a trade query for the official PoE2 trade site. Pick your slot, set stat minimums, and click <strong>Open Trade Site</strong> — the link opens directly in your browser.</p>
+        </div>
+
+        <div class="import-card">
+
+          <!-- ── Step 1: Item basics ── -->
+          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 700; margin-bottom: 8px;">1 · Item basics</div>
+          <div class="profile-sel" style="grid-template-columns: 1fr 1fr 1fr 1fr; margin-bottom: 0;">
+            <label>Slot
+              <select id="trade-slot">
+                <option value="">Any</option>
+                <option value="ring">Ring</option>
+                <option value="amulet">Amulet</option>
+                <option value="belt">Belt</option>
+                <option value="helmet">Helmet</option>
+                <option value="body">Body Armour</option>
+                <option value="gloves">Gloves</option>
+                <option value="boots">Boots</option>
+                <option value="weapon">Weapon</option>
+                <option value="quiver">Quiver</option>
+                <option value="offhand">Shield / Offhand</option>
+              </select>
+            </label>
+            <label>Rarity
+              <select id="trade-rarity">
+                <option value="">Any</option>
+                <option value="rare" selected>Rare</option>
+                <option value="magic">Magic</option>
+                <option value="nonunique">Non-Unique</option>
+              </select>
+            </label>
+            <label>Max Req. Level
+              <input type="number" id="trade-max-level" placeholder="No limit" min="1" max="100"
+                style="padding: 10px 12px; border-radius: 10px; background: #111722; border: 1px solid var(--border); color: var(--text); font-family: inherit; font-size: 13px;" />
+            </label>
+            <label>League
+              <select id="trade-league">
+                <option value="poe2/Standard">Standard</option>
+                <option value="poe2/Hardcore">Hardcore</option>
+              </select>
+            </label>
+          </div>
+
+          <hr class="section-sep" style="margin: 16px 0;" />
+
+          <!-- ── Step 2: Stat filters ── -->
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 700;">2 · Stat filters <span id="trade-filter-count" style="font-weight:400; color: var(--accent);"></span></div>
+            <button class="btn" id="trade-add-filter-btn" style="padding: 5px 12px; font-size: 12px;">+ Add Row</button>
+          </div>
+          <p style="font-size: 11px; color: var(--muted); margin: 0 0 10px; line-height: 1.5;">
+            Type a stat as it appears in-game — e.g. <em>fire resistance</em>, <em>maximum life</em>, <em>dexterity</em>. Min value is optional. Up to 6 filters.
+          </p>
+
+          <div style="display: grid; grid-template-columns: 24px 1fr 90px auto; gap: 6px; align-items: center; margin-bottom: 4px; padding: 0 2px;">
+            <span></span>
+            <span style="font-size: 10px; color: var(--muted); letter-spacing: 0.05em; text-transform: uppercase;">Stat name</span>
+            <span style="font-size: 10px; color: var(--muted); letter-spacing: 0.05em; text-transform: uppercase;">Min value</span>
+            <span></span>
+          </div>
+
+          <div id="trade-filters-container" style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px;"></div>
+
+          <!-- ── Actions ── -->
+          <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+            <button class="btn primary" id="generate-trade-btn" style="flex: 1;">Open Trade Site ↗</button>
+            <button class="btn" id="clear-trade-form-btn" style="padding: 9px 18px;">Clear</button>
+          </div>
+
+          <!-- ── Status ── -->
+          <div id="trade-search-status" style="font-size: 12px; min-height: 18px; color: var(--muted);"></div>
+
+          <!-- ── Result URL ── -->
+          <div id="trade-url-row" style="display: none; margin-top: 10px;">
+            <div style="font-size: 11px; color: var(--muted); margin-bottom: 5px;">Generated link — also opens automatically in your browser:</div>
+            <div style="display: flex; gap: 6px;">
+              <input id="trade-url-output" type="text" readonly
+                style="flex: 1; padding: 8px 10px; border-radius: 8px; background: #0d1018; border: 1px solid var(--border); color: var(--accent); font-family: 'JetBrains Mono', monospace; font-size: 11px;" />
+              <button class="btn" id="trade-copy-url-btn" style="padding: 7px 14px; font-size: 12px;">Copy</button>
+            </div>
+          </div>
+
+        </div>
       </div>
 
       <!-- ── AI Coach ───────────────────────────────────────────────────── -->
@@ -770,6 +860,148 @@ document.getElementById("importPobbBtn").addEventListener("click", async () => {
     summary.innerHTML = lines.map(l=>`<div>${l}</div>`).join("");
   } catch(e) { summary.className="import-result err"; summary.textContent=`Failed: ${e.message}`; }
 });
+
+// ── Trade Search ──────────────────────────────────────────────────────────────
+(function () {
+  const MAX_FILTERS = 6;
+  const container   = document.getElementById("trade-filters-container");
+  const countEl     = document.getElementById("trade-filter-count");
+  const addBtn      = document.getElementById("trade-add-filter-btn");
+  const statusEl    = document.getElementById("trade-search-status");
+  const urlRow      = document.getElementById("trade-url-row");
+  const urlOutput   = document.getElementById("trade-url-output");
+  const copyBtn     = document.getElementById("trade-copy-url-btn");
+
+  function updateFilterCount() {
+    const n = container.querySelectorAll(".trade-filter-row").length;
+    countEl.textContent = n > 0 ? `(${n})` : "";
+    addBtn.disabled = n >= MAX_FILTERS;
+    addBtn.style.opacity = n >= MAX_FILTERS ? "0.4" : "";
+  }
+
+  function addFilterRow(text = "", min = "") {
+    const rows = container.querySelectorAll(".trade-filter-row");
+    if (rows.length >= MAX_FILTERS) return;
+
+    const idx  = rows.length + 1;
+    const row  = document.createElement("div");
+    row.className = "trade-filter-row";
+    row.style.cssText = "display: grid; grid-template-columns: 24px 1fr 90px auto; gap: 6px; align-items: center;";
+
+    const numEl = document.createElement("span");
+    numEl.style.cssText = "font-size: 11px; color: var(--muted); text-align: right; padding-right: 2px;";
+    numEl.textContent = idx;
+
+    const textIn = document.createElement("input");
+    textIn.type = "text";
+    textIn.className = "trade-filter-text";
+    textIn.placeholder = ["fire resistance", "cold resistance", "maximum life", "lightning resistance", "dexterity", "strength"][idx - 1] || "stat name…";
+    textIn.value = text;
+    textIn.style.cssText = "padding: 8px 10px; border-radius: 8px; background: #111722; border: 1px solid var(--border); color: var(--text); font-family: inherit; font-size: 12px; min-width: 0;";
+
+    const minIn = document.createElement("input");
+    minIn.type = "number";
+    minIn.className = "trade-filter-min";
+    minIn.placeholder = "Min";
+    minIn.value = min;
+    minIn.style.cssText = "padding: 8px 10px; border-radius: 8px; background: #111722; border: 1px solid var(--border); color: var(--text); font-family: inherit; font-size: 12px;";
+
+    const removeBtn = document.createElement("button");
+    removeBtn.className = "btn";
+    removeBtn.textContent = "✕";
+    removeBtn.title = "Remove this filter";
+    removeBtn.style.cssText = "padding: 6px 10px; font-size: 12px;";
+    removeBtn.addEventListener("click", () => {
+      row.remove();
+      // Re-number remaining rows
+      container.querySelectorAll(".trade-filter-row").forEach((r, i) => {
+        const num = r.querySelector(".trade-filter-num");
+        if (num) num.textContent = i + 1;
+      });
+      updateFilterCount();
+    });
+
+    numEl.className = "trade-filter-num";
+    row.append(numEl, textIn, minIn, removeBtn);
+    container.appendChild(row);
+    updateFilterCount();
+    textIn.focus();
+  }
+
+  // Initialise with 3 rows
+  addFilterRow(); addFilterRow(); addFilterRow();
+
+  addBtn.addEventListener("click", () => addFilterRow());
+
+  // Generate & open
+  document.getElementById("generate-trade-btn").addEventListener("click", async () => {
+    statusEl.textContent = "Searching GGG stat database…";
+    statusEl.style.color = "var(--muted)";
+    urlRow.style.display = "none";
+
+    const slot     = document.getElementById("trade-slot").value;
+    const rarity   = document.getElementById("trade-rarity").value;
+    const maxLevel = document.getElementById("trade-max-level").value;
+    const league   = document.getElementById("trade-league").value;
+
+    const stats = [];
+    container.querySelectorAll(".trade-filter-row").forEach(row => {
+      const text = row.querySelector(".trade-filter-text")?.value.trim();
+      const min  = row.querySelector(".trade-filter-min")?.value;
+      if (text) stats.push({ text, min: min ? parseFloat(min) : null });
+    });
+
+    if (stats.length === 0) {
+      statusEl.textContent = "Add at least one stat filter before searching.";
+      statusEl.style.color = "var(--warn)";
+      return;
+    }
+
+    try {
+      const res = await window.poe2Coach.customTradeSearch({ slot, rarity, maxLevel, stats, league });
+      if (res?.ok && res.tradeUrl) {
+        // Build status message
+        const parts = [];
+        if (res.matchedStats?.length)   parts.push(`✓ ${res.matchedStats.length} stat${res.matchedStats.length > 1 ? "s" : ""} matched`);
+        if (res.unmatchedStats?.length) parts.push(`⚠ ${res.unmatchedStats.length} not found: ${res.unmatchedStats.map(s => `"${s}"`).join(", ")}`);
+        statusEl.textContent = parts.length ? parts.join(" · ") : "✓ Query ready";
+        statusEl.style.color = res.unmatchedStats?.length ? "var(--warn)" : "var(--good)";
+
+        urlOutput.value = res.tradeUrl;
+        urlRow.style.display = "";
+        window.poe2Coach.openTrade(res.tradeUrl);
+      } else {
+        statusEl.textContent = `Error: ${res?.error || "Unknown error — check the app log."}`;
+        statusEl.style.color = "var(--bad)";
+      }
+    } catch (err) {
+      statusEl.textContent = `Failed: ${err.message}`;
+      statusEl.style.color = "var(--bad)";
+    }
+  });
+
+  // Copy URL
+  copyBtn.addEventListener("click", () => {
+    if (!urlOutput.value) return;
+    navigator.clipboard.writeText(urlOutput.value).then(() => {
+      copyBtn.textContent = "Copied!";
+      setTimeout(() => { copyBtn.textContent = "Copy"; }, 1800);
+    });
+  });
+
+  // Clear form
+  document.getElementById("clear-trade-form-btn").addEventListener("click", () => {
+    document.getElementById("trade-max-level").value = "";
+    document.getElementById("trade-rarity").value = "rare";
+    container.querySelectorAll(".trade-filter-row").forEach(row => {
+      row.querySelector(".trade-filter-text").value = "";
+      row.querySelector(".trade-filter-min").value = "";
+    });
+    statusEl.textContent = "";
+    statusEl.style.color = "var(--muted)";
+    urlRow.style.display = "none";
+  });
+}());
 </script>
 </body>
 </html>

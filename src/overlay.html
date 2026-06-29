@@ -323,6 +323,12 @@
       color: var(--poe-gold); font-family: inherit; cursor: pointer; margin-top: 7px;
     }
     #set-equipped-btn:hover { background: rgba(92,74,30,0.6); }
+    #eq-trade-btn {
+      font-size: 11px; padding: 4px 10px; border-radius: 3px;
+      background: rgba(40,55,80,0.35); border: 1px solid var(--poe-border-dim);
+      color: var(--poe-white); font-family: inherit; cursor: pointer; margin-top: 7px;
+    }
+    #eq-trade-btn:hover { background: rgba(40,55,80,0.6); border-color: var(--poe-border); }
 
     /* Pros / cons */
     .pca-section { margin-top: 8px; }
@@ -567,7 +573,10 @@
         <div class="eq-name" id="eq-name"></div>
         <div class="eq-delta-row" id="eq-deltas"></div>
         <div class="eq-confidence" id="eq-confidence" style="font-size: 10px; color: var(--poe-muted); margin-top: 8px; font-style: italic;"></div>
-        <button id="set-equipped-btn">Set as equipped ↑</button>
+        <div style="display:flex; gap:6px; margin-top:7px;">
+          <button id="set-equipped-btn" style="margin-top:0; flex:1;">Set as equipped ↑</button>
+          <button id="eq-trade-btn" style="margin-top:0; flex:1;">Search Trade ↗</button>
+        </div>
       </div>
 
       <!-- Trade Market Value (Inline) -->
