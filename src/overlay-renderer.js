@@ -198,7 +198,7 @@ function scoreItem(item, profile, slot, stageKey) {
       const tierMult = (typeof tierScoreMultiplier === "function") ? tierScoreMultiplier(tierInfo) : 1.0;
 
       const leagueWeight  = lw[rule.category] ?? 1;
-      const stageWeight   = sw[rule.category] ?? profile.baseWeights[rule.category] ?? 1;
+      const stageWeight   = sw[rule.category] ?? profile.baseWeights?.[rule.category] ?? 1;
       const actMult       = actContextMult(rule.category);
       const pts = Math.round(basePoints * leagueWeight * stageWeight * tierMult * actMult);
       scores[rule.category] += pts;

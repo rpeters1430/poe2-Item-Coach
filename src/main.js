@@ -467,6 +467,7 @@ async function netRequest(urlString, { method = "GET", headers = {}, body = null
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   let res;
+  let raw;
   try {
     res = await net.fetch(urlString, {
       method,
@@ -481,13 +482,13 @@ async function netRequest(urlString, { method = "GET", headers = {}, body = null
       credentials: "include",
       signal: controller.signal,
     });
+    raw = await res.text();
   } catch (err) {
     clearTimeout(timer);
     if (err.name === "AbortError") throw new Error(`Request timed out after ${timeoutMs}ms`);
     throw err;
   }
   clearTimeout(timer);
-  const raw = await res.text();
   if (!res.ok) {
     throw new Error(`HTTP ${res.status}: ${raw.slice(0, 200)}`);
   }
@@ -618,7 +619,7 @@ const SLOT_TO_TRADE_CATEGORY = {
 };
 
 ipcMain.handle("trade:price-check", async (_event, { rarity, name, slot, mods } = {}) => {
-  if (typeof rarity !== "string" || typeof name !== "string") {
+  if (typeof rarity !== "string" || typeof name !== "string" || (slot !== undefined && typeof slot !== "string")) {
     return { ok: false, error: "Invalid parameters." };
   }
   if (!Array.isArray(mods) || mods.some(m => typeof m !== "string")) {
@@ -1102,10 +1103,11 @@ function decodePobExport(exportCode) {
       try {
         const xml = attempt().toString("utf8");
         if (/<(PathOfBuilding|Build|Items|Item)\b/i.test(xml)) return { xml };
-      } catch (err) {
-        console.warn("decodePobExport: decode attempt failed:", err.message);
+      } catch (_err) {
+        // Try the next decode mode.
       }
     }
+    console.warn("decodePobExport: no decode method produced valid XML for the provided export code.");
   } catch (err) {
     console.warn("decodePobExport: failed to decode export code:", err.message);
   }
@@ -1682,7 +1684,8 @@ function parsePossiblyJson(text) {
 }
 
 async function callGemini(settings, prompt) {
-  const model = encodeURIComponent(settings.model || DEFAULT_AI_MODELS.gemini);
+  const resolvedModel = settings.model || DEFAULT_AI_MODELS.gemini;
+  const model = encodeURIComponent(resolvedModel);
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
   const body = {
     contents: [{ role: "user", parts: [{ text: prompt }] }],
@@ -1693,7 +1696,7 @@ async function callGemini(settings, prompt) {
   const durationSec = ((Date.now() - startTime) / 1000).toFixed(1);
   const text = res?.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("\n") || "";
   const tokens = res?.usageMetadata?.totalTokenCount || null;
-  return { provider: "gemini", model: settings.model, advice: parsePossiblyJson(text), rawText: text, tokens, durationSec };
+  return { provider: "gemini", model: resolvedModel, advice: parsePossiblyJson(text), rawText: text, tokens, durationSec };
 }
 
 async function callClaude(settings, prompt) {
