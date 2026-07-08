@@ -3,7 +3,49 @@
 This file tracks actionable improvements for the PoE2 Item Coach overlay after the v2 UI rebuild.
 Organized by impact tier. Items marked ✅ are **implemented and in the codebase**; items marked 🔧 are in-progress; items with no marker are **not yet started**.
 
-**Last reviewed against codebase: 2026-06-25 (updated 2026-06-25)**
+**Last reviewed against codebase: 2026-06-25 (updated 2026-07-08)**
+
+---
+
+## Priority 2b — Minion Build Scoring (added 2026-07-08)
+
+Found while auditing the coach against an imported Minion Army Infernalist leveling guide.
+
+### ✅ Minion builds were scored as if they were attack builds
+`inferBuildFocus()` only sets `focus.spell` when skill/gear text literally contains
+`spell|cast|sorcer|wizard`. Minion skill names (`Skeletal Sniper`, `Volcano`, `Raging Spirits`,
+`Summon Infernal Hound`) never match that, so `buildImportedRules()` fell through to
+`if (!focus.spell) { ... points: -10 ... }` and penalized minion damage on every minion build,
+even though `focus.minion` was already being detected correctly (it just wasn't used for
+anything besides a display tag).
+
+**Fix (`src/app.js`, `src/overlay-renderer.js`):**
+- `defaultGenericRules()` no longer bundles "minion damage" into the generic attack-build
+  penalty — only "spell damage" keeps the default penalty.
+- `buildImportedRules()` now has a real `if (focus.minion)` branch with positive rules for
+  minion damage, minion attack/cast speed, minion life/resistance, Spirit, reservation
+  efficiency, and minion extra-elemental-damage mods — instead of falling into the generic
+  attack-build penalty.
+- `createImportedProfile()` computes `focus` once and stores it on the profile (`profile.focus`)
+  so both the rule engine and slot weighting can use it, and so it survives serialization to
+  `session.json` for the live overlay to read.
+- New `slotRulesForFocus()` de-weights weapon/quiver damage and up-weights ring/amulet/gloves
+  synergy when `focus.minion` is true — minions deal the damage, not your weapon.
+- `overlay-renderer.js`'s `modClass()` no longer hardcodes "spell damage" as red/negative
+  coloring when the active imported profile is minion-focused.
+
+### ✅ Spirit (minion/aura resource) was completely unparsed
+PoE2's Spirit stat — the resource that caps how many minions/auras you can run — didn't
+exist anywhere in the codebase. `main.js`'s pobb.in scraper now captures `stats.spirit`
+(same pattern as `hitChance`), and the pobb.in import summary shows a Spirit pill plus a
+warning when the imported build looks minion/aura-based (gem list matches
+`skeleton|skeletal|zombie|spectre|golem|raging spirit|summon|minion`) but Spirit is low or
+missing.
+
+**Not yet done:** dedicated "Spirit budget" card in the full health report (only the pobb.in
+import summary surfaces it today); the same minion-focus audit hasn't been extended to
+`overlay-renderer.js`'s built-in `DEFAULT_PROFILES` (only the imported-build path is fixed,
+which is what actually matters since imported builds always replace the defaults).
 
 ---
 

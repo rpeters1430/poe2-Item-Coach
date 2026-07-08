@@ -49,7 +49,7 @@ function defaultGenericRules() {
     { match: /fire resistance|cold resistance|lightning resistance|chaos resistance|all resistances/i, category:"resistance", points:9, label:"elemental resistance", note:"Helps cap your resistances." },
     { match: /strength|dexterity|intelligence/i, category:"attributes", points:7, label:"attributes",     note:"Required for gem and gear stat requirements." },
     { match: /movement speed/i,               category:"mobility",  points:18, label:"movement speed",    note:"Critical for survival and map clearing." },
-    { match: /spell damage|minion damage/i,   category:"synergy",   points:-7, label:"spell/minion damage",note:"Likely not useful for an attack build." },
+    { match: /spell damage/i,                 category:"synergy",   points:-7, label:"spell damage",      note:"Likely not useful for an attack build." },
   ];
 }
 
@@ -275,7 +275,10 @@ function modClass(line) {
   if (/maximum life|\+.*to.*life/i.test(l))                 return "life";
   if (/movement speed/i.test(l))                            return "move";
   if (/physical damage|adds.*physical/i.test(l))            return "phys";
-  if (/spell damage|minion damage/i.test(l))                return "neg";
+  // Spell/minion damage isn't universally bad — it's negative only for attack
+  // builds. Check the imported build's detected focus rather than hardcoding
+  // "neg", which used to mislabel minion damage on minion builds as bad.
+  if (/spell damage/i.test(l) && !activeProfile?.focus?.minion)           return "neg";
   return "";
 }
 

@@ -1028,6 +1028,7 @@ function parsePobbHtml(html, url) {
     dps: firstNumberAfter("DPS", statSource, combinedText),
     speed: firstNumberAfter("Speed", statSource, combinedText),
     hitChance: firstNumberAfter("Hit Chance", statSource, combinedText),
+    spirit: firstNumberAfter("Spirit", statSource, combinedText),
     str: firstNumberAfter("Str", statSource, combinedText) ?? firstNumberAfter("Strength", statSource, combinedText),
     dex: firstNumberAfter("Dex", statSource, combinedText) ?? firstNumberAfter("Dexterity", statSource, combinedText),
     int: firstNumberAfter("Int", statSource, combinedText) ?? firstNumberAfter("Intelligence", statSource, combinedText),
