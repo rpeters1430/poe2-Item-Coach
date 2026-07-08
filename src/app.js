@@ -185,7 +185,7 @@ function defaultGenericRules() {
     { match: /fire resistance|cold resistance|lightning resistance|chaos resistance|all resistances/i, category: "resistance", points: 9, label: "elemental resistance", note: "Helps cap your resistances." },
     { match: /strength|dexterity|intelligence/i, category: "attributes", points: 7, label: "attributes",     note: "Required for gem and gear stat requirements." },
     { match: /movement speed/i,               category: "mobility",  points: 18, label: "movement speed",    note: "Critical for survival and map clearing." },
-    { match: /spell damage|minion damage/i,   category: "synergy",   points: -7, label: "spell/minion damage",note: "Likely not useful for an attack build." },
+    { match: /spell damage/i,                 category: "synergy",   points: -7, label: "spell damage",      note: "Likely not useful for an attack build." },
   ];
 }
 
@@ -954,6 +954,10 @@ function inferBuildFocus(text) {
   };
 }
 
+function buildFocusText(stages) {
+  return stages.map(stage => `${stage.name} ${stage.skills.map(s => s.name).join(" ")} ${stage.inventory.map(i => i.text).join(" ")}`).join(" ");
+}
+
 function createImportedProfile(stages) {
   const profileName = commonBuildName(stages);
   const allSlots = Array.from(new Set(stages.flatMap(stage => stage.inventory.map(item => item.slot)).filter(slot => slot !== "other")));
@@ -965,16 +969,33 @@ function createImportedProfile(stages) {
       ...weightsForStage(stage),
     }];
   }));
+  const focus = inferBuildFocus(buildFocusText(stages));
   return {
     name: profileName,
     imported: true,
+    focus,
     slots: allSlots.length ? allSlots : BUILD_PROFILES.frostCrossbow.slots,
     baseWeights: BUILD_PROFILES.frostCrossbow.baseWeights,
     stages: stageEntries,
-    statRules: buildImportedRules(stages, window.currentPobbBuild),
-    slotRules: defaultSlotRules(),
+    statRules: buildImportedRules(stages, window.currentPobbBuild, focus),
+    slotRules: slotRulesForFocus(focus),
     importedStages: stages,
   };
+}
+
+// Minion armies don't care about weapon/quiver DPS (minions deal the damage),
+// and lean on rings/amulet/gloves for minion damage/life rolls instead.
+function slotRulesForFocus(focus) {
+  const rules = defaultSlotRules();
+  if (focus?.minion) {
+    rules.weapon  = { ...rules.weapon,  damage: 0.35, synergy: 1.0 };
+    rules.offhand = { ...rules.offhand, damage: 0.5,  synergy: 1.3 };
+    rules.quiver  = { ...rules.quiver,  damage: 0.5,  synergy: 1.2 };
+    rules.gloves  = { ...rules.gloves,  damage: 0.6,  synergy: 1.35 };
+    rules.ring    = { ...rules.ring,    synergy: 1.35 };
+    rules.amulet  = { ...rules.amulet,  synergy: 1.3 };
+  }
+  return rules;
 }
 
 function commonBuildName(stages) {
@@ -996,10 +1017,9 @@ function weightsForStage(stage) {
   return { damage: 1.0, defense: 0.9, attributes: 1.35, resistance: 0.9, mobility: 1.25, synergy: 1.15 };
 }
 
-function buildImportedRules(stages, pobBuild = null) {
-  const text = stages.map(stage => `${stage.name} ${stage.skills.map(s => s.name).join(" ")} ${stage.inventory.map(i => i.text).join(" ")}`).join(" ");
-  const focus = inferBuildFocus(text);
-  
+function buildImportedRules(stages, pobBuild = null, precomputedFocus = null) {
+  const focus = precomputedFocus || inferBuildFocus(buildFocusText(stages));
+
   // Dynamic weight modifiers based on Keystones
   const keystones = pobBuild?.keystones || [];
   const hasBloodMagic = keystones.some(k => /blood magic/i.test(k));
@@ -1056,7 +1076,19 @@ function buildImportedRules(stages, pobBuild = null) {
     rules.unshift({ match: /projectile skills|projectile damage|bow skills|crossbow skills|quiver/i, category: "synergy", points: 14, note: "The imported build appears projectile/bow focused." });
     rules.unshift({ match: /attack speed|reload speed/i, category: "damage", points: 13, note: "The imported build is attack/projectile based, so attack speed/reload speed matters." });
   }
-  if (!focus.spell) {
+  if (focus.minion) {
+    // Minion armies deal damage through their summons, so minion/Spirit stats
+    // are the core damage/defense scaling for this build — not off-plan noise.
+    rules.unshift(
+      { match: /minions deal .*% (increased|more) damage|minion damage/i, category: "synergy", points: 18, label: "minion damage", note: "Directly scales your summoned minions — the core damage stat for this build." },
+      { match: /minion attack speed|minion cast speed|minion attack and cast speed/i, category: "synergy", points: 15, label: "minion speed", note: "Faster minion attacks/casts — high value for a minion army." },
+      { match: /minions? have .*% (increased|to) (all )?(elemental )?resistance|minion (maximum )?life/i, category: "defense", points: 13, label: "minion life/resistance", note: "Keeps your minions alive — a dead minion deals no damage." },
+      { match: /\bspirit\b/i, category: "synergy", points: 16, label: "Spirit", note: "Spirit lets you summon more minions and run more auras — the core resource for a minion army." },
+      { match: /reservation/i, category: "synergy", points: 6, label: "reservation efficiency", note: "Cheaper aura/minion upkeep frees Spirit for more minions." },
+      { match: /minions? deal .*% of (their |your )?damage as extra (fire|cold|lightning|chaos)/i, category: "synergy", points: 10, label: "minion extra elemental damage", note: "Extra elemental damage scales your minions further." },
+      { match: /curse effect|critical hit chance with spells/i, category: "synergy", points: 6, label: "curse/spell support", note: "Supports the curses and spells that set up your minions." }
+    );
+  } else if (!focus.spell) {
     rules.push({ match: /spell damage|minion damage/i, category: "synergy", points: -10, note: "This does not look relevant to the imported attack build." });
   }
   return rules;
@@ -2381,6 +2413,17 @@ function pobbWarningsForReport(build) {
   const hit = Number(stats.hitChance || 0);
   if (hit > 0 && hit < 90) warnings.push(`Hit chance is low (${hit}%). Accuracy or level difference may be hurting damage consistency.`);
 
+  const gemsLower = (build.gems || []).join(" ").toLowerCase();
+  const looksMinion = /skeleton|skeletal|zombie|spectre|golem|raging spirit|summon|minion/.test(gemsLower);
+  const spirit = Number(stats.spirit);
+  if (looksMinion) {
+    if (Number.isFinite(spirit) && spirit > 0) {
+      warnings.push(`Spirit: ${spirit}. This is your minion/aura budget — every extra Spirit lets you summon another minion or run another aura. Prioritize +Spirit on gear/tree if you're capped out on minions.`);
+    } else {
+      warnings.push("This looks like a minion/aura build, but Spirit wasn't found on the pobb.in page. Spirit is your minion/aura budget — worth checking manually in-game.");
+    }
+  }
+
   if (!build.equippedGearText && (build.gear || []).length) {
     warnings.push("pobb.in imported gear names, but full item affixes were not decoded. Overlay comparisons may use saved/manual gear until full item text is available.");
   }
@@ -2400,6 +2443,7 @@ function renderPobbMiniCard(build) {
       <div class="total-pill"><span>DPS / Hit</span><strong>${escapeHtml(stats.dps ?? "—")} / ${escapeHtml(stats.hitChance ?? "—")}%</strong></div>
       <div class="total-pill"><span>Resists</span><strong>F ${escapeHtml(r.fire ?? "—")}% / C ${escapeHtml(r.cold ?? "—")}% / L ${escapeHtml(r.lightning ?? "—")}% / Ch ${escapeHtml(r.chaos ?? "—")}%</strong></div>
       <div class="total-pill"><span>Attributes</span><strong>Str ${escapeHtml(stats.str ?? "—")} / Dex ${escapeHtml(stats.dex ?? "—")} / Int ${escapeHtml(stats.int ?? "—")}</strong></div>
+      <div class="total-pill"><span>Spirit</span><strong>${escapeHtml(stats.spirit ?? "—")}</strong></div>
     </div>
     <p class="mini-note"><strong>Gear:</strong> ${escapeHtml(gear || "not found")}</p>
     ${build?.equippedGearText ? `<p class="mini-note good-text"><strong>Equipped gear loaded:</strong> full PoB item text is now in the gear set box and will be used for overlay comparisons.</p>` : `<p class="mini-note warn-text"><strong>Equipped affixes not loaded:</strong> using gear names only until the PoB export can be decoded.</p>`}
