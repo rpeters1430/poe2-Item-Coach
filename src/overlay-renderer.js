@@ -275,10 +275,11 @@ function modClass(line) {
   if (/maximum life|\+.*to.*life/i.test(l))                 return "life";
   if (/movement speed/i.test(l))                            return "move";
   if (/physical damage|adds.*physical/i.test(l))            return "phys";
-  // Spell/minion damage isn't universally bad — it's negative only for attack
-  // builds. Check the imported build's detected focus rather than hardcoding
-  // "neg", which used to mislabel minion damage on minion builds as bad.
-  if (/spell damage/i.test(l) && !activeProfile?.focus?.minion)           return "neg";
+  // Spell/minion damage isn't universally bad — each is negative only when
+  // the active build doesn't actually use that damage type. Check the
+  // imported build's detected focus per mod type rather than hardcoding "neg".
+  if (/spell damage/i.test(l) && !activeProfile?.focus?.spell)            return "neg";
+  if (/minion damage/i.test(l) && !activeProfile?.focus?.minion)          return "neg";
   return "";
 }
 
