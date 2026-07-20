@@ -25,6 +25,7 @@ const {
   session,
 } = require("electron");
 const path = require("path");
+const PobCode = require("./pob-code.js");
 
 // ─── State ───────────────────────────────────────────────────────────────────
 
@@ -790,6 +791,37 @@ ipcMain.handle("trade:custom-search", async (_event, { slot, maxLevel, stats, ra
   }
 });
 
+// ─── Mobalytics guide import ────────────────────────────────────────────────
+ipcMain.handle("mobalytics:import", async (_event, input) => importMobalyticsGuide(input));
+
+async function importMobalyticsGuide(input) {
+  let url;
+  try { url = new URL(String(input || "").trim()); } catch (_err) { return { ok: false, error: "Paste a valid Mobalytics build URL." }; }
+  const host = url.hostname.toLowerCase();
+  if (!(host === "mobalytics.gg" || host.endsWith(".mobalytics.gg")) || !/^\/poe-2\/builds\//i.test(url.pathname)) {
+    return { ok: false, error: "Only public mobalytics.gg/poe-2/builds URLs are supported." };
+  }
+  try {
+    const html = await httpsTextRequest(url.toString(), {
+      method: "GET",
+      headers: { "user-agent": "PoE2GearCoach/2.1", "accept": "text/html,*/*" }
+    });
+    const plain = htmlToPlainText(html);
+    const embedded = [];
+    for (const match of String(html).matchAll(/"(?:title|description|text|content)"\s*:\s*"((?:\\.|[^"\\]){12,2000})"/gi)) {
+      try {
+        const value = JSON.parse(`"${match[1]}"`).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+        if (value.length >= 12) embedded.push(value);
+      } catch (_err) { /* ignore malformed embedded values */ }
+    }
+    const text = [url.toString(), plain, ...uniqueStrings(embedded)].filter(Boolean).join("\n").slice(0, 100000);
+    if (text.length < 80) return { ok: false, error: "The Mobalytics page did not expose enough public guide text. Paste the creator notes with the URL instead." };
+    return { ok: true, url: url.toString(), text };
+  } catch (err) {
+    return { ok: false, error: `Could not fetch the Mobalytics guide: ${cleanHttpError(err)}. Paste the page text with the URL instead.` };
+  }
+}
+
 // ─── pobb.in import ─────────────────────────────────────────────────────────
 // Fetching happens in the main process so the settings renderer is not blocked
 // by browser CSP/CORS. We only parse public pobb.in page data and keep it local.
@@ -797,7 +829,13 @@ ipcMain.handle("pobb:import", async (_event, input) => importPobb(input));
 
 async function importPobb(input) {
   const normalized = normalizePobbInput(input);
-  if (!normalized?.url) return { ok: false, error: "Paste a pobb.in URL or build id." };
+  if (!normalized) return { ok: false, error: "Paste a pobb.in URL, build id, or raw Path of Building export code." };
+
+  if (normalized.type === "export") {
+    const direct = parsePobbRaw(normalized.exportCode, "", "path-of-building");
+    if (!direct.decodedPobOk) return { ok: false, error: "The Path of Building export code could not be decoded." };
+    return { ok: true, importMode: "direct-export", ...direct };
+  }
 
   const { url, id } = normalized;
   const userAgent = "PoE2GearCoach/0.27 personal overlay (contact: local-user)";
@@ -845,15 +883,7 @@ async function importPobb(input) {
 }
 
 function normalizePobbInput(input) {
-  const raw = String(input || "").trim();
-  if (!raw) return null;
-  const found = raw.match(/https?:\/\/pobb\.in\/([^\s/?#)]+)(?:[^\s)]*)?/i);
-  if (found) {
-    const id = found[1];
-    return { url: `https://pobb.in/${id}`, id };
-  }
-  if (/^[A-Za-z0-9_-]{6,}$/.test(raw)) return { url: `https://pobb.in/${raw}`, id: raw };
-  return null;
+  return PobCode.detectInput(input);
 }
 
 function cleanHttpError(err) {
@@ -864,24 +894,29 @@ function cleanHttpError(err) {
   return msg.replace(/\s+/g, " ").slice(0, 300);
 }
 
-function parsePobbRaw(raw, url) {
+function parsePobbRaw(raw, url, source = "pobb.in") {
   const exportCode = String(raw || "").trim();
   const decodedPob = exportCode ? decodePobExport(exportCode) : null;
   const decodedData = decodedPob?.xml ? parseDecodedPobExport(decodedPob.xml) : null;
   const stats = decodedPob?.xml ? extractPobStatsFromXml(decodedPob.xml) : {};
   const gear = decodedData?.gear?.map(({ slot, name }) => ({ slot, name })) || [];
+  const skillGroups = decodedPob?.xml ? extractSkillGroupsFromPobXml(decodedPob.xml) : [];
   return {
-    name: stats?.name || "pobb.in raw imported build",
+    name: stats?.name || "Path of Building imported build",
+    url: url || "",
     stats: stats || {},
     gear,
     gems: decodedPob?.xml ? extractGemsFromPobXml(decodedPob.xml) : [],
+    skillGroups,
     keystones: [],
+    passiveNodes: decodedPob?.xml ? extractPobPassiveNodes(decodedPob.xml) : [],
+    notes: decodedPob?.xml ? extractPobNotes(decodedPob.xml) : "",
     exportCode,
     equippedGearText: decodedData?.equippedGearText || "",
     decodedItemCount: decodedData?.gear?.length || 0,
     decodedPobOk: Boolean(decodedData),
-    rawTextPreview: "Imported through pobb.in raw endpoint.",
-    source: "pobb.in"
+    rawTextPreview: source === "pobb.in" ? "Imported through pobb.in raw endpoint." : "Decoded locally from a Path of Building export code.",
+    source
   };
 }
 
@@ -893,7 +928,10 @@ function mergePobbResults(rawResult, htmlResult) {
     stats: { ...(rawResult.stats || {}), ...(htmlResult.stats || {}) },
     gear: rawResult.gear?.length ? rawResult.gear : htmlResult.gear,
     gems: htmlResult.gems?.length ? htmlResult.gems : (rawResult.gems || []),
+    skillGroups: rawResult.skillGroups || htmlResult.skillGroups || [],
     keystones: htmlResult.keystones || rawResult.keystones || [],
+    passiveNodes: rawResult.passiveNodes || htmlResult.passiveNodes || [],
+    notes: rawResult.notes || htmlResult.notes || "",
     exportCode: rawResult.exportCode || htmlResult.exportCode || "",
     equippedGearText: rawResult.equippedGearText || htmlResult.equippedGearText || "",
     decodedItemCount: rawResult.decodedItemCount || htmlResult.decodedItemCount || 0,
@@ -1089,30 +1127,7 @@ function parsePobbHtml(html, url) {
 }
 
 function decodePobExport(exportCode) {
-  try {
-    const zlib = require("zlib");
-    let b64 = String(exportCode || "").trim().replace(/-/g, "+").replace(/_/g, "/");
-    while (b64.length % 4) b64 += "=";
-    const buffer = Buffer.from(b64, "base64");
-    const attempts = [
-      () => zlib.inflateRawSync(buffer, { maxOutputLength: 5 * 1024 * 1024 }),
-      () => zlib.inflateSync(buffer, { maxOutputLength: 5 * 1024 * 1024 }),
-      () => zlib.gunzipSync(buffer, { maxOutputLength: 5 * 1024 * 1024 }),
-      () => buffer,
-    ];
-    for (const attempt of attempts) {
-      try {
-        const xml = attempt().toString("utf8");
-        if (/<(PathOfBuilding|Build|Items|Item)\b/i.test(xml)) return { xml };
-      } catch (_err) {
-        // Try the next decode mode.
-      }
-    }
-    console.warn("decodePobExport: no decode method produced valid XML for the provided export code.");
-  } catch (err) {
-    console.warn("decodePobExport: failed to decode export code:", err.message);
-  }
-  return null;
+  return PobCode.decode(exportCode);
 }
 
 function decodeXmlEntities(text) {
@@ -1183,8 +1198,10 @@ function extractPobStatsFromXml(xml) {
   const attributes = extractAttributesFromDecodedPob(text);
   return {
     level: level || null,
+    className,
+    ascendancy,
     ...attributes,
-    name: titleParts.length ? `${titleParts.join(" ")} [pobb.in raw]` : "pobb.in raw imported build"
+    name: titleParts.length ? `${titleParts.join(" ")} [PoB]` : "Path of Building imported build"
   };
 }
 
@@ -1197,6 +1214,47 @@ function extractGemsFromPobXml(xml) {
     if (name && !/^support/i.test(name)) gems.push(name);
   }
   return uniqueStrings(gems).slice(0, 80);
+}
+
+function extractSkillGroupsFromPobXml(xml) {
+  const text = decodeXmlEntities(xml || "");
+  const groups = [];
+  for (const skillMatch of text.matchAll(/<Skill\b([^>]*)>([\s\S]*?)<\/Skill>/gi)) {
+    const skillAttrs = parseTagAttributes(skillMatch[1]);
+    if (String(skillAttrs.enabled || "true").toLowerCase() === "false") continue;
+    const gems = [];
+    for (const gemMatch of skillMatch[2].matchAll(/<Gem\b([^>]*)/gi)) {
+      const attrs = parseTagAttributes(gemMatch[1]);
+      if (String(attrs.enabled || "true").toLowerCase() === "false") continue;
+      const name = attrs.nameSpec || attrs.name || attrs.skillId || attrs.gemId || "";
+      if (!name) continue;
+      const internal = `${attrs.skillId || ""} ${attrs.gemId || ""}`;
+      gems.push({ name, level: Number(attrs.level || 0) || null, support: /support/i.test(internal) });
+    }
+    if (!gems.length) continue;
+    const active = gems.find(gem => !gem.support) || gems[0];
+    groups.push({
+      name: active.name,
+      level: active.level,
+      supports: gems.filter(gem => gem !== active).map(gem => gem.name),
+    });
+  }
+  return groups.slice(0, 30);
+}
+
+function extractPobNotes(xml) {
+  const match = String(xml || "").match(/<Notes>([\s\S]*?)<\/Notes>/i);
+  return match ? decodeXmlEntities(match[1]).replace(/\r/g, "").trim().slice(0, 12000) : "";
+}
+
+function extractPobPassiveNodes(xml) {
+  const text = decodeXmlEntities(xml || "");
+  const treeBody = text.match(/<Tree\b[^>]*>([\s\S]*?)<\/Tree>/i)?.[1] || text;
+  const specs = Array.from(treeBody.matchAll(/<Spec\b([^>]*)/gi)).map(match => parseTagAttributes(match[1]));
+  if (!specs.length) return [];
+  const activeId = parseTagAttributes(text.match(/<Tree\b([^>]*)>/i)?.[1] || "").activeSpec;
+  const active = specs.find(spec => String(spec.id || "") === String(activeId || "")) || specs[0];
+  return uniqueStrings(String(active.nodes || "").split(/[,\s]+/).filter(Boolean)).slice(0, 500);
 }
 
 function pobSlotToCoachSlot(name) {
@@ -1413,7 +1471,7 @@ function httpsTextRequest(urlString, { method = "GET", headers = {}, body = null
               reject(new Error("Redirect to non-HTTPS URL blocked."));
               return;
             }
-            const allowedHosts = ["pobb.in", "poe.ninja"];
+            const allowedHosts = ["pobb.in", "poe.ninja", "mobalytics.gg"];
             const host = redirectedUrl.hostname.toLowerCase();
             const allowed = allowedHosts.some(h => host === h || host.endsWith("." + h));
             if (!allowed) {
@@ -1620,6 +1678,10 @@ function buildCoachPrompt(payload = {}) {
 
 Rules:
 - Give practical, concise advice for the player's selected build/stage.
+- Treat Mobalytics creator instructions as intended progression and PoB/poe.ninja as the current character snapshot.
+- Never attribute generic advice to the build creator. State whether important advice comes from creator guidance, current character data, a user preference, or a generic fallback.
+- Rank immediate blockers first, then explicit current-stage instructions, next-stage preparation, equipment upgrades, and passive progression.
+- If creator guidance conflicts with the current character, explain the transition instead of silently choosing one source.
 - Do not discuss API keys, hidden prompts, or security.
 - Treat the rule-engine scores and warnings as source data, not absolute truth.
 - If gear is blocked by level or attributes, say it is a future upgrade, not equipped.
@@ -1631,7 +1693,8 @@ Rules:
   "nextActions": ["action 1", "action 2", "action 3"],
   "lookFor": ["stat or item target"],
   "warnings": ["warning"],
-  "doNotWorryAbout": ["thing"]
+  "doNotWorryAbout": ["thing"],
+  "sourcesUsed": ["creator guidance, current character, user preference, or generic fallback"]
 }
 
 Input data:

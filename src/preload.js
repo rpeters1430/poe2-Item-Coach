@@ -55,6 +55,9 @@ contextBridge.exposeInMainWorld("poe2Coach", {
   /** Import a pobb.in link/export summary through the main process so CSP/CORS do not block the settings UI. */
   importPobb: (input) => ipcRenderer.invoke("pobb:import", input),
 
+  /** Fetch public Mobalytics guide text for build-aware creator guidance. */
+  importMobalytics: (url) => ipcRenderer.invoke("mobalytics:import", url),
+
   /**
    * Fetch unique item prices from poe.ninja (cached 2 h in userData/prices.json).
    * @param {{ type?: string, league?: string }} options

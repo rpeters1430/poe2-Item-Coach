@@ -302,7 +302,7 @@
               <input id="buildFolderInput" type="file" accept=".build,application/json,.json" webkitdirectory directory multiple />
             </label>
           </div>
-          <div id="importSummary" class="import-result">No build imported yet — using the default Frost Crossbow/Bow profile.</div>
+          <div id="importSummary" class="import-result">No build imported yet — using neutral generic attack scoring.</div>
         </div>
       </div>
 
@@ -310,11 +310,11 @@
       <div class="tab-pane" id="tab-mobalytics">
         <div class="pane-header">
           <h2>Import Mobalytics guide</h2>
-          <p>Open the Mobalytics build guide in your browser, select all text on the page (Ctrl+A), copy it (Ctrl+C), then paste it below. The importer reads stage labels, skills, gear priorities, and stat weights.</p>
+          <p>Paste the guide URL together with the creator's guide text. The importer keeps creator instructions, stage labels, skills, gear priorities, and stat weights as build-specific evidence.</p>
         </div>
         <div class="import-card">
           <h3>Paste guide text</h3>
-          <p>Include the variant/stage buttons, skills, and gear sections for best results.</p>
+          <p>Include the variant/stage buttons, skills, equipment sections, and written progression notes for best results.</p>
           <div class="btn-row">
             <button class="btn" id="sampleMobalyticsBtn">Load sample (Ice Shot Deadeye)</button>
             <button class="btn primary" id="importMobalyticsBtn">Import guide text</button>
@@ -328,12 +328,12 @@
       <div class="tab-pane" id="tab-pobb">
         <div class="pane-header">
           <h2>Import from pobb.in / Path of Building</h2>
-          <p>Paste a <strong>pobb.in</strong> share link. The importer fetches your character's level, stats, resistances, equipped gear names, and gems. When the raw PoB export is decodable, full item affixes are extracted automatically.</p>
+          <p>Paste a <strong>pobb.in</strong> share link, build id, or the complete raw Path of Building export code. Raw codes are decoded locally and never uploaded.</p>
         </div>
         <div class="import-card">
-          <h3>pobb.in link</h3>
+          <h3>Build link or export code</h3>
           <div class="url-row">
-            <input id="pobbInput" type="text" placeholder="https://pobb.in/your-build-id" spellcheck="false" />
+            <input id="pobbInput" type="text" placeholder="https://pobb.in/id or eNrt... export code" spellcheck="false" />
             <button class="btn primary" id="importPobbBtn">Import</button>
           </div>
           <div id="pobbSummary" class="import-result">No pobb.in build imported yet.</div>
@@ -366,6 +366,12 @@
           <label>Strength      <input id="playerStr"   type="number" min="0" max="999" value="0" /></label>
           <label>Dexterity     <input id="playerDex"   type="number" min="0" max="999" value="0" /></label>
           <label>Intelligence  <input id="playerInt"   type="number" min="0" max="999" value="0" /></label>
+        </div>
+
+        <div class="import-card" style="margin-top:14px">
+          <h3>Personal coaching priorities</h3>
+          <p>Add one preference or correction per line. These are passed to the coach as user instructions and take precedence over generic fallback advice.</p>
+          <textarea id="userPreferences" class="guide-ta" style="min-height:100px" spellcheck="false" placeholder="Make Tempest Bell available faster&#10;Do not recommend an expensive campaign respec&#10;Prioritize smoother clearing over maximum boss DPS"></textarea>
         </div>
 
         <div id="stageDetails" class="hidden"></div>
@@ -597,6 +603,7 @@
 <!-- Scoring engine from browser app (unchanged) -->
 <script src="parser.js"></script>
 <script src="poe2-mod-data.js"></script>
+<script src="build-knowledge.js"></script>
 <script src="app.js"></script>
 
 <!-- Settings controller -->
@@ -623,6 +630,7 @@ function serializeStatRules(rules) {
 }
 
 function collectSession() {
+  if (typeof buildSessionData === "function") return buildSessionData();
   const buildKey = document.getElementById("buildSelect")?.value;
   const profile  = (typeof BUILD_PROFILES !== "undefined" && BUILD_PROFILES[buildKey]) || null;
   const data = {
@@ -823,42 +831,6 @@ document.getElementById("loadSessionBtn").addEventListener("click", () => {
     document.getElementById("sessionStatus").textContent = "✓ Session loaded.";
     document.getElementById("sessionStatus").className = "ai-status ok";
   });
-});
-
-// ── pobb.in import button ─────────────────────────────────────────────────────
-document.getElementById("importPobbBtn").addEventListener("click", async () => {
-  const input   = document.getElementById("pobbInput").value.trim();
-  const summary = document.getElementById("pobbSummary");
-  if (!input) { summary.className="import-result warn"; summary.textContent="Paste a pobb.in URL first."; return; }
-  summary.className="import-result"; summary.textContent="Importing…";
-  try {
-    const res = await window.poe2Coach.importPobb(input);
-    if (!res?.ok) { summary.className="import-result err"; summary.textContent=`Error: ${res?.error||"Unknown"}`; return; }
-    window.currentPobbBuild = res;
-    // Auto-fill player stats if available
-    const stats = res.stats||{};
-    if (stats.level && document.getElementById("playerLevel")) document.getElementById("playerLevel").value = stats.level;
-    if (stats.str   && document.getElementById("playerStr"))   document.getElementById("playerStr").value   = stats.str;
-    if (stats.dex   && document.getElementById("playerDex"))   document.getElementById("playerDex").value   = stats.dex;
-    if (stats.int   && document.getElementById("playerInt"))   document.getElementById("playerInt").value   = stats.int;
-    // Auto-fill gear text from decoded PoB if available
-    if (res.equippedGearText && document.getElementById("fullGearText")) {
-      document.getElementById("fullGearText").value = res.equippedGearText;
-      if (typeof refreshEquipmentFromPaste === "function") refreshEquipmentFromPaste({ runReport:false, silent:true });
-    }
-    const lines = [`✓ Imported: ${res.name||"pobb.in build"}`, `Mode: ${res.importMode||"preview"}`];
-    if (stats.life)     lines.push(`Life: ${stats.life}`);
-    if (stats.eHP)      lines.push(`eHP: ${stats.eHP}`);
-    if (stats.dps)      lines.push(`DPS: ${stats.dps}`);
-    if (stats.hitChance)lines.push(`Hit: ${stats.hitChance}%`);
-    const r = stats.resistances;
-    if (r) lines.push(`Resists: Fire ${r.fire||0}% / Cold ${r.cold||0}% / Lightning ${r.lightning||0}% / Chaos ${r.chaos||0}%`);
-    if (res.decodedItemCount) lines.push(`${res.decodedItemCount} items decoded from PoB export`);
-    else if (res.gear?.length) lines.push(`${res.gear.length} gear names imported (affixes not decoded)`);
-    if (res.importWarning) lines.push(`⚠ ${res.importWarning}`);
-    summary.className = "import-result ok";
-    summary.innerHTML = lines.map(l=>`<div>${l}</div>`).join("");
-  } catch(e) { summary.className="import-result err"; summary.textContent=`Failed: ${e.message}`; }
 });
 
 // ── Trade Search ──────────────────────────────────────────────────────────────
