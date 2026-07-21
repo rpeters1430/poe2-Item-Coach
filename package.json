@@ -9,8 +9,10 @@
     "build-win-portable": "electron-builder --win portable --x64",
     "build-mac": "electron-builder --mac",
     "build-linux": "electron-builder --linux",
-    "check": "node --check src/main.js && node --check src/preload.js && node --check src/overlay-renderer.js && node --check src/app.js && node --check src/poe2-mod-data.js",
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/overlay-renderer.js && node --check src/app.js && node --check src/build-knowledge.js && node --check src/pob-code.js && node --check src/poe2-mod-data.js",
     "test:parser": "node scripts/test-parser.js",
+    "test:build-knowledge": "node scripts/test-build-knowledge.js",
+    "test:pob-code": "node scripts/test-pob-code.js",
     "fetch-mods": "node scripts/fetch-poe2db.js"
   },
   "build": {

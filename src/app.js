@@ -142,6 +142,7 @@ const playerLevelInput = document.querySelector("#playerLevel");
 const playerStrInput = document.querySelector("#playerStr");
 const playerDexInput = document.querySelector("#playerDex");
 const playerIntInput = document.querySelector("#playerInt");
+const userPreferencesInput = document.querySelector("#userPreferences");
 const fullGearText = document.querySelector("#fullGearText");
 const healthResults = document.querySelector("#healthResults");
 const equipmentFields = document.querySelector("#equipmentFields");
@@ -313,11 +314,23 @@ async function handleBuildImport(event) {
   importSummary.innerHTML = renderImportSummary(importedProfile, failures);
 }
 
-function handleMobalyticsImport(opts = {}) {
-  const text = (mobalyticsGuideText?.value || "").trim();
+async function handleMobalyticsImport(opts = {}) {
+  let text = (mobalyticsGuideText?.value || "").trim();
   if (!text) {
     mobalyticsSummary.innerHTML = `<strong>Paste guide text first.</strong><br><span>Paste copied Mobalytics page text, or at least the build URL and key gear notes.</span>`;
     return;
+  }
+
+  const urlOnly = text.match(/^https?:\/\/(?:www\.)?mobalytics\.gg\/poe-2\/builds\/\S+$/i);
+  if (urlOnly && window.poe2Coach?.importMobalytics) {
+    mobalyticsSummary.innerHTML = `<strong>Fetching public guide text...</strong><br><span>Reading creator notes, skills, and progression sections.</span>`;
+    const fetched = await window.poe2Coach.importMobalytics(text);
+    if (!fetched?.ok) {
+      mobalyticsSummary.innerHTML = `<strong>Could not read the guide automatically.</strong><br><span>${escapeHtml(fetched?.error || "Paste the creator's page text together with the URL.")}</span>`;
+      return;
+    }
+    text = fetched.text;
+    mobalyticsGuideText.value = text;
   }
 
   const parsed = normalizeMobalyticsGuideText(text);
@@ -372,7 +385,10 @@ async function handlePobbImport() {
       stats: result.stats || {},
       gear: result.gear || [],
       gems: result.gems || [],
+      skillGroups: result.skillGroups || [],
       keystones: result.keystones || [],
+      passiveNodes: result.passiveNodes || [],
+      notes: result.notes || "",
       exportCode: result.exportCode || "",
       equippedGearText: result.equippedGearText || "",
       decodedItemCount: result.decodedItemCount || 0,
@@ -381,6 +397,7 @@ async function handlePobbImport() {
     };
 
     window.currentPobbBuild = build;
+    refreshImportedProfileFromCharacter(build);
     applyPobbBuildToSettings(build);
     pobbSummary.innerHTML = renderPobbSummary(build);
 
@@ -399,6 +416,17 @@ async function handlePobbImport() {
       button.textContent = previousText;
     }
   }
+}
+
+function refreshImportedProfileFromCharacter(build) {
+  const profile = getProfile();
+  if (!profile?.imported) return;
+  const liveFocus = inferBuildFocus(`${build?.name || ""} ${(build?.gems || []).join(" ")} ${(build?.keystones || []).join(" ")}`);
+  profile.focus = { ...profile.focus, ...Object.fromEntries(Object.entries(liveFocus).filter(([, value]) => value)) };
+  profile.slotRules = slotRulesForFocus(profile.focus);
+  profile.statRules = profile.source === "mobalytics" && profile.mobalytics
+    ? buildMobalyticsRules(profile.mobalytics, build)
+    : buildImportedRules(profile.importedStages || [], build, profile.focus);
 }
 
 function applyPobbBuildToSettings(build) {
@@ -513,6 +541,7 @@ function normalizeMobalyticsGuideText(text) {
   const focus = inferBuildFocus(clean);
   const priorities = extractMobalyticsPriorities(clean);
   const skills = extractMobalyticsSkills(clean);
+  const creatorInstructions = extractCreatorInstructions(clean);
 
   const stages = stageRanges.map((range, index) => ({
     fileName: `Mobalytics guide text stage ${index + 1}`,
@@ -528,11 +557,12 @@ function normalizeMobalyticsGuideText(text) {
     focus,
     priorityNotes: priorities.notes,
     prioritySlots: priorities.bySlot,
+    creatorInstructions,
     source: "mobalytics",
     rawText: clean,
   }));
 
-  return { name, author: authorMatch?.[1]?.trim() || "Mobalytics", stages, priorities, skills, focus, url: urlMatch?.[0] || "" };
+  return { name, author: authorMatch?.[1]?.trim() || "Mobalytics", stages, priorities, skills, focus, creatorInstructions, url: urlMatch?.[0] || "" };
 }
 
 function slugToTitle(slug) {
@@ -582,7 +612,10 @@ function extractMobalyticsSkills(text) {
   const known = [
     "Ice Shot", "Freezing Salvo", "Freezing Mark", "Herald of Ice", "Wind Dancer", "Combat Frenzy",
     "Lightning Arrow", "Explosive Shot", "Gas Arrow", "Magnetic Salvo", "Rain of Arrows", "Escape Shot",
-    "Permafrost Bolts", "Fragmentation Rounds", "Frozen Shot", "Load Permafrost Bolts"
+    "Permafrost Bolts", "Fragmentation Rounds", "Frozen Shot", "Load Permafrost Bolts",
+    "Storm Wave", "Falling Thunder", "Killing Palm", "Conductive Runes", "Hollow Focus",
+    "Herald of Thunder", "Quarterstaff Strike", "Charged Staff", "Rend", "Tempest Bell",
+    "Devour", "Whirling Assault", "Herald of Ash", "Herald of Ice", "Flicker Strike"
   ];
   const found = [];
   for (const name of known) {
@@ -593,9 +626,20 @@ function extractMobalyticsSkills(text) {
   return found;
 }
 
+function extractCreatorInstructions(text) {
+  const instructionCue = /\b(prioriti[sz]e|look for|use |swap|switch|replace|respec|keep |avoid|upgrade|until|later|early|then|after|before|recommend|need |important|focus on)\b/i;
+  const ignored = /^(cookie|privacy|sign in|log in|download|advert|comments?|likes?|views?)\b/i;
+  const lines = String(text || "")
+    .split(/\r?\n+/)
+    .map(line => line.replace(/^[-*•\d.)\s]+/, "").replace(/\s+/g, " ").trim())
+    .filter(line => line.length >= 18 && line.length <= 500 && instructionCue.test(line) && !ignored.test(line));
+  return Array.from(new Set(lines)).slice(0, 80);
+}
+
 function extractMobalyticsPriorities(text) {
   const lower = text.toLowerCase();
-  const bySlot = { weapon: [], quiver: [], helmet: [], body: [], gloves: [], boots: [], ring: [], amulet: [], belt: [], flask: [] };
+  const focus = inferBuildFocus(text);
+  const bySlot = { weapon: [], offhand: [], quiver: [], helmet: [], body: [], gloves: [], boots: [], ring: [], amulet: [], belt: [], flask: [] };
   const notes = [];
   const add = (slot, note) => {
     if (!bySlot[slot].includes(note)) bySlot[slot].push(note);
@@ -603,7 +647,7 @@ function extractMobalyticsPriorities(text) {
   };
 
   if (/flat damage|added damage|damage to attacks/.test(lower)) {
-    add("weapon", "Flat attack damage is a high-value leveling stat.");
+    if (!focus.unarmed) add("weapon", "Flat attack damage is a high-value leveling stat.");
     add("ring", "Flat damage on rings is useful while leveling.");
     add("gloves", "Flat damage to attacks on gloves is useful while leveling.");
   }
@@ -612,9 +656,14 @@ function extractMobalyticsPriorities(text) {
     add("quiver", "Projectile or bow-skill damage is a strong quiver stat.");
   }
   if (/cold|ice|freeze|chill/.test(lower)) {
-    add("weapon", "Cold damage to attacks fits the Ice Shot plan.");
-    add("quiver", "Cold/projectile attack scaling is preferred.");
-    add("gloves", "Cold damage to attacks is useful on gloves.");
+    if (!focus.unarmed) add("weapon", "Cold damage matches the guide's detected cold-damage plan.");
+    if (focus.bow) add("quiver", "Cold/projectile attack scaling matches the guide.");
+    add("gloves", "Cold damage is relevant because the guide uses cold skills or mechanics.");
+  }
+  if (/lightning|shock|electrocute|conductive/.test(lower)) {
+    if (!focus.unarmed) add("weapon", "Lightning damage matches the guide's detected lightning plan.");
+    add("gloves", "Lightning or elemental attack scaling is relevant to the guide.");
+    add("ring", "Lightning or elemental attack scaling may be useful when defenses are covered.");
   }
   if (/attack speed|reload speed/.test(lower)) {
     add("weapon", "Attack speed is a strong damage and feel stat.");
@@ -668,14 +717,17 @@ function createMobalyticsProfile(parsed) {
   profile.name = `${parsed.name} (${parsed.stages.length} Mobalytics stages)`;
   profile.source = "mobalytics";
   profile.mobalytics = parsed;
-  profile.statRules = buildMobalyticsRules(parsed);
-  const defaultSlots = BUILD_PROFILES.frostCrossbow.slots;
+  profile.statRules = buildMobalyticsRules(parsed, window.currentPobbBuild);
+  let defaultSlots = BUILD_PROFILES.genericAttack.slots;
+  if (parsed.focus?.bow) defaultSlots = [...defaultSlots.filter(slot => slot !== "offhand"), "quiver"];
+  if (parsed.focus?.unarmed) defaultSlots = defaultSlots.filter(slot => !["weapon", "offhand", "quiver"].includes(slot));
   profile.slots = Array.from(new Set([...defaultSlots, ...profile.slots])).filter(slot => !["flask", "charm", "other"].includes(slot));
+  if (parsed.focus?.unarmed) profile.slots = profile.slots.filter(slot => !["weapon", "offhand", "quiver"].includes(slot));
   return profile;
 }
 
-function buildMobalyticsRules(parsed) {
-  const rules = buildImportedRules(parsed.stages);
+function buildMobalyticsRules(parsed, pobBuild = null) {
+  const rules = buildImportedRules(parsed.stages, pobBuild, parsed.focus);
   const text = `${parsed.name} ${(parsed.priorities?.notes || []).join(" ")}`;
   const lower = text.toLowerCase();
   if (/movement speed|move speed/.test(lower)) {
@@ -797,6 +849,7 @@ function normalizeBuildFile(data, fileName) {
     inventory,
     skills,
     passiveCount: Array.isArray(data.passives) ? data.passives.length : 0,
+    passiveNodes: Array.isArray(data.passives) ? data.passives.map(passive => passive?.id || passive).filter(Boolean) : [],
     focus: inferred,
     raw: data,
   };
@@ -951,6 +1004,9 @@ function inferBuildFocus(text) {
     attack: /attack|bow|shot|projectile|arrow|crossbow/.test(lower),
     minion: /minion|skeletal|zombie|skeleton/.test(lower),
     spell: /spell|cast|sorcer|wizard/.test(lower),
+    melee: /melee|quarterstaff|spear|unarmed|palm|strike|bell/.test(lower),
+    unarmed: /unarmed|hollow palm|hollow focus|way of the stonefist/.test(lower),
+    quarterstaff: /quarterstaff|storm wave|falling thunder|tempest bell|charged staff/.test(lower),
   };
 }
 
@@ -974,8 +1030,8 @@ function createImportedProfile(stages) {
     name: profileName,
     imported: true,
     focus,
-    slots: allSlots.length ? allSlots : BUILD_PROFILES.frostCrossbow.slots,
-    baseWeights: BUILD_PROFILES.frostCrossbow.baseWeights,
+    slots: allSlots.length ? allSlots : BUILD_PROFILES.genericAttack.slots,
+    baseWeights: BUILD_PROFILES.genericAttack.baseWeights,
     stages: stageEntries,
     statRules: buildImportedRules(stages, window.currentPobbBuild, focus),
     slotRules: slotRulesForFocus(focus),
@@ -1024,6 +1080,7 @@ function buildImportedRules(stages, pobBuild = null, precomputedFocus = null) {
   const keystones = pobBuild?.keystones || [];
   const hasBloodMagic = keystones.some(k => /blood magic/i.test(k));
   const hasPreciseTechnique = keystones.some(k => /precise technique/i.test(k));
+  const hasHollowPalm = keystones.some(k => /hollow palm|hollow focus|way of the stonefist/i.test(k)) || focus.unarmed;
 
   const rules = [...defaultGenericRules()];
 
@@ -1072,6 +1129,9 @@ function buildImportedRules(stages, pobBuild = null, precomputedFocus = null) {
   if (focus.cold) {
     rules.unshift({ match: /cold damage to attacks|adds .* cold damage|cold damage/i, category: "synergy", points: 17, note: "The imported build appears to use Ice/cold scaling, so cold damage is highly relevant." });
   }
+  if (focus.lightning) {
+    rules.unshift({ match: /lightning damage to attacks|adds .* lightning damage|lightning damage|elemental damage with attacks/i, category: "synergy", points: 17, note: "The imported build uses lightning skills or mechanics, so lightning/elemental attack scaling is highly relevant." });
+  }
   if (focus.bow || focus.crossbow) {
     rules.unshift({ match: /projectile skills|projectile damage|bow skills|crossbow skills|quiver/i, category: "synergy", points: 14, note: "The imported build appears projectile/bow focused." });
     rules.unshift({ match: /attack speed|reload speed/i, category: "damage", points: 13, note: "The imported build is attack/projectile based, so attack speed/reload speed matters." });
@@ -1090,6 +1150,12 @@ function buildImportedRules(stages, pobBuild = null, precomputedFocus = null) {
     );
   } else if (!focus.spell) {
     rules.push({ match: /spell damage|minion damage/i, category: "synergy", points: -10, note: "This does not look relevant to the imported attack build." });
+  }
+  if (hasHollowPalm) {
+    rules.unshift(
+      { match: /evasion rating/i, category: "synergy", points: 16, label: "armour-piece evasion", note: "Hollow Palm gains attack speed from Evasion on equipped armour pieces." },
+      { match: /energy shield/i, category: "synergy", points: 16, label: "armour-piece energy shield", note: "Hollow Palm gains critical chance from Energy Shield on equipped armour pieces." }
+    );
   }
   return rules;
 }
@@ -1114,7 +1180,7 @@ function summarizeFocus(stages) {
     Object.entries(stage.focus).forEach(([key, value]) => { if (value) acc.add(key); });
     return acc;
   }, new Set());
-  const labelMap = { cold: "Cold/Ice", lightning: "Lightning", bow: "Bow", crossbow: "Crossbow", attack: "Attack", spell: "Spell", minion: "Minion" };
+  const labelMap = { cold: "Cold/Ice", lightning: "Lightning", bow: "Bow", crossbow: "Crossbow", attack: "Attack", spell: "Spell", minion: "Minion", melee: "Melee", unarmed: "Unarmed", quarterstaff: "Quarterstaff" };
   return Array.from(combined).map(key => labelMap[key] || key);
 }
 
@@ -1836,8 +1902,19 @@ function getCleanFullGearTextForSession() {
 
 function buildSessionData() {
   const profile = getProfile();
+  const userPreferences = String(userPreferencesInput?.value || "").split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  const buildKnowledge = window.BuildKnowledge?.create({
+    profile,
+    pobBuild: window.currentPobbBuild || null,
+    stageKey: stageSelect.value,
+    playerLevel: playerLevelInput.value,
+    playerStr: playerStrInput.value,
+    playerDex: playerDexInput.value,
+    playerInt: playerIntInput.value,
+    userPreferences,
+  }) || null;
   return {
-    version: 30,
+    version: 31,
     buildKey: buildSelect.value,
     startWithWindows: document.getElementById("startupCheckbox")?.checked || false,
     actContext: document.getElementById("actSelect")?.value || "auto",
@@ -1847,12 +1924,14 @@ function buildSessionData() {
     playerStr: playerStrInput.value,
     playerDex: playerDexInput.value,
     playerInt: playerIntInput.value,
+    userPreferences,
     fullGearText: getCleanFullGearTextForSession(),
     currentItem: currentItem.value,
     newItem: newItem.value,
     mobalyticsGuideText: mobalyticsGuideText.value,
     pobbInput: pobbInput?.value || "",
     pobbBuild: window.currentPobbBuild || null,
+    buildKnowledge,
     importedProfile: profile ? serializeProfileForSession(profile) : null,
   };
 }
@@ -1935,6 +2014,7 @@ function loadSession() {
   playerStrInput.value = data.playerStr || 0;
   playerDexInput.value = data.playerDex || 0;
   playerIntInput.value = data.playerInt || 0;
+  if (userPreferencesInput) userPreferencesInput.value = Array.isArray(data.userPreferences) ? data.userPreferences.join("\n") : (data.userPreferences || "");
   fullGearText.value = data.fullGearText || "";
   currentItem.value = data.currentItem || "";
   newItem.value = data.newItem || "";

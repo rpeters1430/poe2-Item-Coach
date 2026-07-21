@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+- Added a provenance-aware build knowledge model that combines Mobalytics creator intent, build stages, current PoB character data, and personal coaching priorities.
+- Added direct local import of raw Path of Building export codes, including grouped active skills/supports, notes, passive node ids, attributes, and equipped item affixes.
+- Added public Mobalytics URL fetching with a paste-the-page-text fallback when a guide cannot be read automatically.
+- Added Martial Artist, lightning, quarterstaff, and Hollow Palm focus detection and scoring rules.
+
+### Fixed
+- Removed Frost/Ice Shot as the fallback profile for the overlay and imported builds.
+- Fixed raw PoB export codes being mistaken for enormous pobb.in build ids.
+- Fixed the settings page registering two competing pobb.in import handlers.
+- Fixed Save to Overlay dropping build-specific Mobalytics metadata by using one canonical session builder.
+
 ## [2.1.0] - v32 - 2026-06-27
 
 ### Added

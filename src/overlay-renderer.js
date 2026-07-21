@@ -16,7 +16,7 @@ const SCORE_EXPLAIN = {
   attributes: "Str/Dex/Int — unlock gear and gem requirements.",
   resistance: "Fire/Cold/Lightning/Chaos resistance.",
   mobility:   "Movement speed (especially on boots).",
-  synergy:    "Cold/ice, bow/projectile, and guide-stage scaling stats.",
+  synergy:    "Stats that match the imported build, current stage, and creator guidance.",
 };
 
 function defaultFrostRules() {
@@ -902,7 +902,7 @@ function deserializeProfile(raw) {
       }));
     }
     return p;
-  } catch { return DEFAULT_PROFILES.frostCrossbow; }
+  } catch { return DEFAULT_PROFILES.genericAttack; }
 }
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -920,7 +920,7 @@ function actContextMult(category) {
   return w[category] ?? 1.0;
 }
 
-let activeProfile   = DEFAULT_PROFILES.frostCrossbow;
+let activeProfile   = DEFAULT_PROFILES.genericAttack;
 let currentSession  = { playerLevel:1, playerStr:0, playerDex:0, playerInt:0, actContext:"auto" };
 let savedGearMap    = {};
 let savedFullSession= null;
@@ -1178,7 +1178,7 @@ window.poe2Coach.onItemDetected(({ itemText, session }) => {
       activeProfile = deserializeProfile(session.importedProfile);
       noBuildWarn.style.display = "none";
     } else {
-      activeProfile = DEFAULT_PROFILES.frostCrossbow;
+      activeProfile = DEFAULT_PROFILES.genericAttack;
       noBuildWarn.style.display = "";
     }
     savedGearMap = buildGearMap(session.fullGearText || "");
@@ -1273,7 +1273,10 @@ document.getElementById("ai-btn").addEventListener("click", async () => {
       mods: savedEntry.item.mods || [],
     } : null,
     categoryDeltas,
+    buildKnowledge: window.BuildKnowledge?.compactForCoach(savedFullSession?.buildKnowledge) || null,
     buildContext: {
+      buildName: activeProfile.name || "Unknown build",
+      buildFocus: activeProfile.focus || {},
       stage: stageSelect.options[stageSelect.selectedIndex]?.textContent || stageSelect.value,
       hitChance: currentSession.hitChance,
       resistGaps,

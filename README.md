@@ -70,7 +70,7 @@ Do not commit real API keys. Use the Settings screen to save keys locally on eac
 ### First-time setup
 
 1. **Double-click the tray icon** (or right-click → "Settings / Build Import").
-2. Import your `.build` files or paste Mobalytics guide text.
+2. Import your `.build` files and a Mobalytics guide URL/text so creator instructions and progression stages are preserved.
 3. Set your **Player level**, **Str/Dex/Int**.
 4. Select the right **Build stage** for where you are in the game.
 5. Paste your current gear set in the Build Health Report section if you want copied items compared against what you are wearing.
@@ -224,7 +224,7 @@ The settings screen also keeps a Custom model option for accounts/endpoints that
 
 ## PoB / pobb.in Import
 
-The settings window has an **Import PoB / pobb.in current build** section. Paste a `pobb.in` URL and click **Import pobb.in**. The app fetches the public page through the Electron main process, then fills/uses visible data locally:
+The settings window accepts a `pobb.in` URL, a short pobb.in build id, or a complete raw Path of Building export code. Raw codes are decompressed locally and are not uploaded. The imported character snapshot is combined with the Mobalytics creator guidance rather than replacing it.
 
 - Player level, when visible
 - Life / ES / eHP
@@ -233,8 +233,14 @@ The settings window has an **Import PoB / pobb.in current build** section. Paste
 - Visible gear names
 - Visible gem names
 - The encoded PoB export code, stored locally for future decoding work
+- Active skills grouped with their supports when the raw export exposes them
+- PoB notes and passive node ids
 
 The app will also attempt to decode the full PoB export XML from the pobb.in raw endpoint to load exact equipped item stats, affixes, and attributes. If the preview stats are unavailable, it will fall back to using the raw export data.
+
+## Build-aware coaching
+
+The coach keeps three sources separate: Mobalytics supplies creator intent and future stages, PoB supplies the current character state, and Personal coaching priorities contain user corrections or preferences. AI advice receives a compact view of all three sources and labels important advice by provenance instead of presenting generic fallback advice as something the build creator said.
 
 ## Updating without reinstalling every time
 
