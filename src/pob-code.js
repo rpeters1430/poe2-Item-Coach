@@ -7,8 +7,13 @@ function detectInput(input) {
   if (!raw) return null;
   const found = raw.match(/https?:\/\/pobb\.in\/([^\s/?#)]+)(?:[^\s)]*)?/i);
   if (found) return { type: "pobb", url: `https://pobb.in/${found[1]}`, id: found[1] };
-  if (raw.length >= 500 && /^[A-Za-z0-9_-]+=*$/.test(raw)) return { type: "export", exportCode: raw };
-  if (/^[A-Za-z0-9_-]{6,120}$/.test(raw)) return { type: "pobb", url: `https://pobb.in/${raw}`, id: raw };
+  const compact = raw.replace(/\s+/g, "");
+  if (compact.length >= 80 && /^[A-Za-z0-9+/_-]+=*$/.test(compact)) {
+    return { type: "export", exportCode: compact };
+  }
+  if (/^[A-Za-z0-9_-]{6,120}$/.test(raw)) {
+    return { type: "pobb", url: `https://pobb.in/${raw}`, id: raw };
+  }
   return null;
 }
 

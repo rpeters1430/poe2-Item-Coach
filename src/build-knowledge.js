@@ -15,7 +15,8 @@
   function uniqueStrings(values, limit = 100) {
     const seen = new Set();
     const result = [];
-    for (const value of values || []) {
+    const items = Array.isArray(values) ? values : (values ? [values] : []);
+    for (const value of items) {
       const text = String(value || "").replace(/\s+/g, " ").trim();
       const key = text.toLowerCase();
       if (!text || seen.has(key)) continue;
@@ -53,7 +54,8 @@
     if (!stages.length) return null;
     const selected = stages.find(stage => stage.id === stageKey);
     if (selected) return selected;
-    const level = Number(playerLevel || 1);
+    let level = Number(playerLevel);
+    if (isNaN(level) || level <= 0) level = 1;
     return stages.find(stage => level >= stage.minLevel && level <= stage.maxLevel)
       || stages.slice().sort((a, b) => Math.abs(a.minLevel - level) - Math.abs(b.minLevel - level))[0];
   }
@@ -66,7 +68,7 @@
     const activeStage = findActiveStage(stages, options.stageKey, options.playerLevel || pob?.stats?.level);
     const activeIndex = activeStage ? stages.findIndex(stage => stage.id === activeStage.id) : -1;
     const nextStage = activeIndex >= 0 ? stages[activeIndex + 1] || null : null;
-    const currentPassiveNodes = pob.passiveNodes?.length ? pob.passiveNodes : (activeStage?.passiveNodes || []);
+    const currentPassiveNodes = Array.isArray(pob.passiveNodes) && pob.passiveNodes.length ? pob.passiveNodes : (activeStage?.passiveNodes || []);
     const currentPassiveSet = new Set(uniqueStrings(currentPassiveNodes, 500).map(node => node.toLowerCase()));
     const nextPassiveTargets = (nextStage?.passiveNodes || []).filter(node => !currentPassiveSet.has(node.toLowerCase()));
     const priorities = mobalytics.priorities || {};

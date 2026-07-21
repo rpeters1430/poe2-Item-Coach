@@ -46,4 +46,13 @@ assert.equal(compact.currentCharacter.stats.resistances.lightning, 13);
 assert.equal(compact.nextStage.skills[0], "Whirling Assault");
 assert.deepEqual(compact.nextPassiveTargets, ["melee2"]);
 
+// Defensive checks
+const invalidLevelKnowledge = BuildKnowledge.create({ profile, pobBuild, playerLevel: "not-a-number" });
+assert.equal(invalidLevelKnowledge.progression.activeStage.label, "Campaign");
+
+const stringPassivesKnowledge = BuildKnowledge.create({ profile, pobBuild: { ...pobBuild, passiveNodes: "not-an-array" } });
+assert.ok(Array.isArray(stringPassivesKnowledge.currentCharacter.passiveNodes));
+
+assert.deepEqual(BuildKnowledge.uniqueStrings("single string"), ["single string"]);
+
 console.log("All build knowledge tests passed.");

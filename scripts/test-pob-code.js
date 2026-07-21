@@ -17,4 +17,9 @@ assert.equal(PobCode.detectInput("abc123").type, "pobb");
 assert.equal(PobCode.detectInput("not valid"), null);
 assert.match(PobCode.decode(paddedExport).xml, /Storm Wave/);
 
+// Standard base64 with + and /
+const standardB64Export = zlib.deflateRawSync(Buffer.from(xml)).toString("base64");
+assert.equal(PobCode.detectInput(standardB64Export).type, "export");
+assert.match(PobCode.decode(standardB64Export).xml, /Storm Wave/);
+
 console.log("All PoB code tests passed.");
