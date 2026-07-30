@@ -35,19 +35,30 @@ When comparing a copied item, the overlay automatically expands into a side-by-s
 > Click "More info" → "Run anyway". This happens because the installer is not yet code-signed.  
 > The app only reads your clipboard — it does not write files outside its own userData folder.
 
-### Prerequisites
+There are two ways to get this running on a machine — pick whichever fits:
 
-- **Node.js 18+** — https://nodejs.org
+### Option A — Just run the app (no Node.js, no git, no repo)
 
-### Install & run
+Grab the latest installer from the repo's **[Releases](../../releases)** page and run it:
+
+- `PoE2 Gear Coach Setup <version>.exe` — installs normally, adds a Start Menu entry.
+- `PoE2 Gear Coach <version>.exe` — portable, no install; just run it from anywhere (e.g. a USB drive).
+
+That's it — skip to [First-time setup](#first-time-setup) below. Use this option on any machine where you only want to *use* the tool, not develop it.
+
+### Option B — Run from source (for development)
+
+**Prerequisite:** Node.js 18+ — https://nodejs.org
 
 ```bash
-# 1. Install dependencies (first time only)
-npm install
+# 1. One-time setup (installs deps, approves install scripts, verifies syntax)
+npm run setup
 
 # 2. Launch the overlay
 npm start
 ```
+
+`npm run setup` is safe to re-run any time — it's the single command to bring a fresh clone up to a working `npm start`. If you'd rather run the steps yourself (or `npm run setup` isn't available yet on a very old clone), see [UPDATE.md](file:///C:/Users/James/Desktop/poe2-Item-Coach/UPDATE.md).
 
 The app starts in the system tray. A tray icon appears (bottom-right on Windows).
 

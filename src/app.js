@@ -340,6 +340,10 @@ async function handleMobalyticsImport(opts = {}) {
   }
 
   const importedProfile = createMobalyticsProfile(parsed);
+  const guideAscendancy = parsed.stages?.[0]?.ascendancy;
+  const mismatchWarning = window.currentPobbBuild
+    ? buildIdentityMismatchWarning({ source: "mobalytics", mobalytics: { stages: [{ ascendancy: guideAscendancy }] } }, window.currentPobbBuild.stats)
+    : "";
   BUILD_PROFILES.mobalyticsBuild = importedProfile;
   renderBuildOptions();
   buildSelect.value = "mobalyticsBuild";
@@ -347,7 +351,7 @@ async function handleMobalyticsImport(opts = {}) {
   if (opts?.skipSave !== true) {
     saveSession();
   }
-  mobalyticsSummary.innerHTML = renderMobalyticsSummary(importedProfile, parsed);
+  mobalyticsSummary.innerHTML = renderMismatchBanner(mismatchWarning) + renderMobalyticsSummary(importedProfile, parsed);
 }
 
 
@@ -396,10 +400,12 @@ async function handlePobbImport() {
       rawTextPreview: result.rawTextPreview || "",
     };
 
+    const mismatchWarning = buildIdentityMismatchWarning(getProfile(), build.stats);
+
     window.currentPobbBuild = build;
     refreshImportedProfileFromCharacter(build);
     applyPobbBuildToSettings(build);
-    pobbSummary.innerHTML = renderPobbSummary(build);
+    pobbSummary.innerHTML = renderMismatchBanner(mismatchWarning) + renderPobbSummary(build);
 
     if (build.equippedGearText) {
       fullGearText.value = build.equippedGearText;
@@ -427,6 +433,24 @@ function refreshImportedProfileFromCharacter(build) {
   profile.statRules = profile.source === "mobalytics" && profile.mobalytics
     ? buildMobalyticsRules(profile.mobalytics, build)
     : buildImportedRules(profile.importedStages || [], build, profile.focus);
+}
+
+function buildIdentityMismatchWarning(profile, pobStats) {
+  if (!profile || profile.source !== "mobalytics") return "";
+  const guideAscendancy = String(profile.mobalytics?.stages?.[0]?.ascendancy || "").trim();
+  if (!guideAscendancy || /^unknown$/i.test(guideAscendancy)) return "";
+  const pobAscendancy = String(pobStats?.ascendancy || "").trim();
+  const pobClassName = String(pobStats?.className || "").trim();
+  const candidates = [pobAscendancy, pobClassName].filter(Boolean);
+  if (!candidates.length) return "";
+  const matches = candidates.some(value => value.toLowerCase() === guideAscendancy.toLowerCase());
+  if (matches) return "";
+  return `This character is ${escapeHtml(candidates.join(" / "))}, but the currently loaded Mobalytics guide is for ${escapeHtml(guideAscendancy)}. The guide's creator instructions and gear priorities may be for a different build — re-import the matching Mobalytics guide, or switch the Build dropdown to Generic Attack Build until you do.`;
+}
+
+function renderMismatchBanner(message) {
+  if (!message) return "";
+  return `<div class="import-result warn" style="margin-bottom:10px;"><strong>&#9888; Build mismatch detected.</strong><br><span>${message}</span></div>`;
 }
 
 function applyPobbBuildToSettings(build) {
@@ -1341,6 +1365,92 @@ function slotMismatch(item, selectedSlot) {
   return { inferred, selected: selectedSlot };
 }
 
+// Stat-rule scoring only understands numeric affixes. Unique items frequently carry
+// a mechanic instead — a granted skill, a reservation waiver, a free support, a
+// passive allocation, a status immunity — whose value comes from what it *unlocks*,
+// not from a point total. These patterns catch that mechanic text so the coach can
+// say "this may be underrated by its score" instead of just reporting a low number.
+const BUILD_ENABLING_PATTERNS = [
+  {
+    id: "grants-skill",
+    match: /grants?\s+(level\s+\d+\s+)?[\w' -]+?\bskill\b/i,
+    label: "Grants a skill",
+    reason: line => `Grants a skill for free ("${line}"). This can replace a gem slot or unlock a mechanic your build depends on — losing it means finding that skill another way.`,
+  },
+  {
+    id: "socketed-support",
+    match: /socketed (gems|skills) are supported by/i,
+    label: "Free support gem",
+    reason: line => `Supports socketed skills for free ("${line}"). This effectively gives you an extra support gem slot — replacing this item costs you that support somewhere else.`,
+  },
+  {
+    id: "reservation",
+    match: /no reservation|reservation efficiency|reduced (mana|spirit) reservation|reservation.*cost/i,
+    label: "Reservation reduction",
+    reason: line => `Reduces or removes a reservation cost ("${line}"). This can be what lets you fit your current aura/minion setup — losing it may mean you can no longer run everything you currently have active.`,
+  },
+  {
+    id: "allocates",
+    match: /\ballocates?\s+[\w' -]{3,}/i,
+    label: "Grants a passive",
+    reason: line => `Grants a passive tree node for free ("${line}"). Removing this item means finding those points elsewhere on the tree.`,
+  },
+  {
+    id: "status-immunity",
+    match: /cannot be (frozen|chilled|ignited|shocked|stunned|poisoned)/i,
+    label: "Status immunity",
+    reason: line => `Grants immunity to a status ailment ("${line}"). This is a defensive mechanic, not a stat — losing it reopens a death risk the score doesn't show.`,
+  },
+];
+
+function detectBuildEnabling(item) {
+  const hits = [];
+  const seen = new Set();
+  for (const rawLine of item.mods || []) {
+    const line = String(rawLine || "").trim();
+    for (const pattern of BUILD_ENABLING_PATTERNS) {
+      if (!seen.has(pattern.id) && pattern.match.test(line)) {
+        seen.add(pattern.id);
+        hits.push({ id: pattern.id, label: pattern.label, line, reason: pattern.reason(line) });
+      }
+    }
+  }
+  return hits;
+}
+
+function buildUtilityStars(buildEnabling) {
+  return buildEnabling && buildEnabling.length ? Math.min(5, buildEnabling.length + 1) : 0;
+}
+
+function renderUtilityStars(stars) {
+  return "★".repeat(stars) + "☆".repeat(5 - stars);
+}
+
+// Different slots can carry very different point budgets by design (a weapon
+// stacks attack speed + crit + flat damage; an amulet mostly carries life/
+// resistance/attributes at 1x multipliers). Comparing raw totals across slots
+// would always flag low-budget slots like amulet/ring/belt as "weakest" no
+// matter how good the equipped item is. This estimates each slot's own
+// realistic ceiling — the best single rule per category, scaled by that
+// slot's own multipliers — so "weakest slots" can rank relative shortfall
+// instead of absolute points.
+function slotScoreCeiling(profile, slot, stageKey) {
+  const stageWeights = profile.stages[stageKey] || {};
+  const slotWeights = profile.slotRules[slot] || {};
+  const bestByCategory = {};
+  for (const rule of profile.statRules) {
+    if (rule.points <= 0) continue;
+    if ((rule.points) > (bestByCategory[rule.category] || 0)) bestByCategory[rule.category] = rule.points;
+  }
+  let ceiling = 0;
+  for (const [category, points] of Object.entries(bestByCategory)) {
+    const slotMultiplier = slotWeights[category] ?? 1;
+    const stageMultiplier = stageWeights[category] ?? profile.baseWeights[category] ?? 1;
+    ceiling += points * slotMultiplier * stageMultiplier;
+  }
+  return Math.max(ceiling, 1);
+}
+
 function scoreItem(item, profile, slot, stageKey) {
   const scores = Object.fromEntries(SCORE_KEYS.map(key => [key, 0]));
   const hits = [];
@@ -1403,8 +1513,10 @@ function scoreItem(item, profile, slot, stageKey) {
   const attributeProblem = getAttributeRequirementProblem(item, getPlayerAttributes());
   if (attributeProblem) warnings.push(formatAttributeRequirementProblem(attributeProblem));
 
+  const buildEnabling = detectBuildEnabling(item);
+
   const total = Object.values(scores).reduce((sum, value) => sum + value, 0);
-  return { item, scores, total, hits, warnings, mismatch, attributeProblem };
+  return { item, scores, total, hits, warnings, mismatch, attributeProblem, buildEnabling };
 }
 
 function analyze() {
@@ -1816,7 +1928,7 @@ function renderShoppingList(shoppingList) {
 
 function buildExportText(report) {
   if (!report) return "No health report generated yet.";
-  const { profile, stage, playerLevel, playerAttrs, rows, missing, levelProblems, attributeProblems, pobbWarnings = [], weak, nextSteps, neededStats, gearTotals, resistanceGaps = [], fixSlots = [], shoppingList, count, equippedCount = 0, futureCount = 0 } = report;
+  const { profile, stage, playerLevel, playerAttrs, rows, missing, levelProblems, attributeProblems, pobbWarnings = [], weak, buildEnablingNotes = [], nextSteps, neededStats, gearTotals, resistanceGaps = [], fixSlots = [], shoppingList, count, equippedCount = 0, futureCount = 0 } = report;
   const lines = [];
   lines.push("PoE2 Gear Coach Health Report");
   lines.push(`Build: ${profile.name}`);
@@ -1857,6 +1969,11 @@ function buildExportText(report) {
   lines.push("Weakest slots:");
   weak.forEach(item => lines.push(`- ${item}`));
   lines.push("");
+  if (buildEnablingNotes.length) {
+    lines.push("Build-enabling gear (mechanic, not just stats — don't judge by raw score):");
+    buildEnablingNotes.forEach(item => lines.push(`- ${item}`));
+    lines.push("");
+  }
   lines.push("Warnings:");
   [...pobbWarnings, ...levelProblems, ...attributeProblems, ...missing].forEach(item => lines.push(`- ${item}`));
   if (![...pobbWarnings, ...levelProblems, ...attributeProblems, ...missing].length) lines.push("- None");
@@ -2231,12 +2348,23 @@ function analyzeBuildHealth() {
   const requirementProblems = [...levelProblems, ...attributeProblems];
   const equippedRows = rows.filter(row => row.entry && !row.reqProblem);
   const futureRows = rows.filter(row => row.entry && row.reqProblem);
+  // Items with a detected build-enabling mechanic (granted skill, reservation waiver,
+  // status immunity, etc.) are excluded here — a low raw score on these is expected
+  // and calling them "weak" would be actively wrong advice. They get their own
+  // section below instead, with the mechanic explained rather than a bare number.
   const weak = equippedRows
-    .filter(row => row.score !== null)
-    .sort((a, b) => a.score - b.score)
+    .filter(row => row.score !== null && !row.entry.scored.buildEnabling?.length)
+    .sort((a, b) => (a.score / slotScoreCeiling(profile, a.slot, stageKey)) - (b.score / slotScoreCeiling(profile, b.slot, stageKey)))
     .slice(0, 4)
     .map(row => `${label(row.slot)}: ${row.entry.scored.item.name} scored ${row.score}. ${healthAdviceForSlot(row.slot, row.entry.scored, profile, stageKey)}`);
   if (!weak.length && futureRows.length) weak.push("No currently equippable pasted gear detected. Update player level/attributes or paste your actually equipped low-level items.");
+  const buildEnablingNotes = equippedRows
+    .filter(row => row.entry.scored.buildEnabling?.length)
+    .map(row => {
+      const stars = buildUtilityStars(row.entry.scored.buildEnabling);
+      const reasons = row.entry.scored.buildEnabling.map(hit => hit.reason).join(" ");
+      return `${label(row.slot)}: ${row.entry.scored.item.name} — Build utility ${renderUtilityStars(stars)} (raw affix score ${row.score}). ${reasons} Recommended: keep until you have another way to cover what this solves.`;
+    });
   const gearTotals = aggregateGearTotals(equippedRows.map(row => row.entry));
   const neededStats = buildNeededStats({ rows, equippedRows, futureRows, gearTotals, requirementProblems, profile, stageKey, playerLevel, playerAttrs });
   const shoppingList = buildShoppingList(profile, stageKey, rows);
@@ -2245,7 +2373,7 @@ function analyzeBuildHealth() {
   const pobbWarnings = pobbWarningsForReport(window.currentPobbBuild);
   const nextSteps = [...pobbWarnings.slice(0, 2), ...buildNextSteps(rows, equippedRows, futureRows, requirementProblems, missing, profile, stageKey, playerLevel, playerAttrs)].slice(0, 6);
 
-  window.lastHealthReport = { profile, stage, playerLevel, playerAttrs, rows, equippedRows, futureRows, missing, levelProblems, attributeProblems, requirementProblems, pobbWarnings, weak, nextSteps, neededStats, gearTotals, resistanceGaps, fixSlots, shoppingList, count: items.length, equippedCount: equippedRows.length, futureCount: futureRows.length };
+  window.lastHealthReport = { profile, stage, playerLevel, playerAttrs, rows, equippedRows, futureRows, missing, levelProblems, attributeProblems, requirementProblems, pobbWarnings, weak, buildEnablingNotes, nextSteps, neededStats, gearTotals, resistanceGaps, fixSlots, shoppingList, count: items.length, equippedCount: equippedRows.length, futureCount: futureRows.length };
 
   healthResults.classList.remove("hidden");
   healthResults.innerHTML = renderHealthReport(window.lastHealthReport);
@@ -2403,7 +2531,7 @@ function splitUpgradesToBuckets(steps) {
   return { survival, damage };
 }
 
-function renderHealthReport({ profile, stage, playerLevel, playerAttrs, rows, missing, levelProblems, attributeProblems, requirementProblems, pobbWarnings = [], weak, nextSteps, neededStats = [], gearTotals = {}, resistanceGaps = [], fixSlots = [], shoppingList = [], count, equippedCount = 0, futureCount = 0 }) {
+function renderHealthReport({ profile, stage, playerLevel, playerAttrs, rows, missing, levelProblems, attributeProblems, requirementProblems, pobbWarnings = [], weak, buildEnablingNotes = [], nextSteps, neededStats = [], gearTotals = {}, resistanceGaps = [], fixSlots = [], shoppingList = [], count, equippedCount = 0, futureCount = 0 }) {
   const stageLabel = stage?.label || stageSelect.value;
   const rowHtml = rows.map(row => {
     const name = row.entry?.scored.item.name || "—";
@@ -2417,6 +2545,7 @@ function renderHealthReport({ profile, stage, playerLevel, playerAttrs, rows, mi
   return `
     <div class="muted-box"><strong>Build health report</strong><br>${count} item(s) parsed — ${equippedCount} counted as currently equippable, ${futureCount} treated as future/blocked. Build: ${escapeHtml(profile.name)}. Stage: ${escapeHtml(stageLabel)}. Player level: ${playerLevel}. Attributes: ${playerAttrs.str} Str / ${playerAttrs.dex} Dex / ${playerAttrs.int} Int.</div>
     ${window.currentPobbBuild ? `<article class="panel health-card" style="margin-top: 16px;"><h3>pobb.in current build</h3>${renderPobbMiniCard(window.currentPobbBuild)}</article>` : ""}
+    ${buildEnablingNotes.length ? `<article class="panel health-card" style="margin-top: 16px;"><h3>Build-enabling gear</h3><p class="mini-note">These items carry a mechanic (granted skill, reservation waiver, status immunity, etc.) instead of a plain stat roll. Don't judge them by raw score alone.</p>${renderList(buildEnablingNotes, "warn", "None detected.")}</article>` : ""}
     ${resistanceGaps.length ? `<article class="panel health-card" style="margin-top: 16px;"><h3>Resistance gap calculator</h3><p class="mini-note">Based on pobb.in final character stats, not just parsed gear affixes.</p>${renderResistanceGaps(resistanceGaps)}</article>` : ""}
     ${fixSlots.length ? `<article class="panel health-card" style="margin-top: 16px;"><h3>Best slots to fix current problem</h3>${renderList(fixSlots, "warn", "No specific slot fix needed.")}</article>` : ""}
     <article class="panel health-card" style="margin-top: 16px;">

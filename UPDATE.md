@@ -17,13 +17,11 @@ npm start
 Use this only on a new clone/folder or if `package.json` / `package-lock.json` changes:
 
 ```powershell
-npm install
-npm approve-scripts
-npm run check
+npm run setup
 npm start
 ```
 
-Approve Electron-related scripts when prompted. You should not need to approve them again unless you delete `node_modules` or dependencies change.
+`npm run setup` runs `npm install`, then `npm approve-scripts --all` (approves Electron's install scripts — npm 11+ blocks these until reviewed), then `npm run check`. You should not need to approve scripts again unless you delete `node_modules` or dependencies change. On npm versions that predate `approve-scripts`, that step is skipped automatically and setup continues.
 
 ## Audit
 

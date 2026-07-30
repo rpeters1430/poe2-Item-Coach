@@ -3,7 +3,11 @@
   "version": "2.1.0",
   "description": "PoE2 Gear Coach — polished clipboard overlay with PoE-styled tooltip, comparison engine, and optional AI advice",
   "main": "src/main.js",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
+    "setup": "node scripts/setup.js",
     "start": "electron .",
     "build-win": "electron-builder --win --x64",
     "build-win-portable": "electron-builder --win portable --x64",
