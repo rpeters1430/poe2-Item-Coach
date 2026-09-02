@@ -4,30 +4,39 @@ on:
     tags: ["v*"]
   workflow_dispatch:
 
+concurrency:
+  group: windows-release-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
 jobs:
   build-win:
     runs-on: windows-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "20"
           cache: "npm"
       - run: npm ci
       - run: npm run check
       - run: npm run build-win
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: poe2-gear-coach-windows
           path: dist/*.exe
+          if-no-files-found: error
+          retention-days: 14
       # Tag pushes also publish the installer to a GitHub Release, so a new
       # machine can grab it from the Releases page without Node, git, or
       # cloning the repo at all.
       - if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           files: dist/*.exe
           generate_release_notes: true
