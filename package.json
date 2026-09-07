@@ -21,7 +21,8 @@
     "test:mobalytics": "node scripts/test-mobalytics.js",
     "test:monk": "node scripts/test-monk-quarterstaff.js",
     "test:recommendation": "node scripts/test-recommendation-engine.js",
-    "fetch-mods": "node scripts/fetch-poe2db.js"
+    "fetch-mods": "node scripts/fetch-poe2db.js",
+    "fetch-uniques": "node scripts/fetch-poe2-uniques.js"
   },
   "build": {
     "appId": "com.poe2.gearcoach",

@@ -107,10 +107,191 @@ function parseItemBlock(chunk, inferSlotFromItemName) {
   return { id, name, baseType, slot, levelReq, attrReqs, implicits, explicits };
 }
 
+// ─── HTTP + disk cache (same pattern as fetch-poe2db.js) ──────────────────────
+
+const https = require("https");
+const fs = require("fs");
+const path = require("path");
+
+const SOURCE_URL = "https://poe2db.tw/us/Unique_item";
+const OUT_FILE = path.resolve(__dirname, "../src/poe2-unique-data.js");
+const CACHE_FILE = path.resolve(__dirname, "../data/poe2db-cache/unique_item.html");
+const RETRY_DELAYS = [5_000, 15_000, 30_000];
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function cachedHtml() {
+  try {
+    if (!fs.existsSync(CACHE_FILE)) return null;
+    if (Date.now() - fs.statSync(CACHE_FILE).mtimeMs > 24 * 3600_000) return null; // 24h TTL
+    return fs.readFileSync(CACHE_FILE, "utf8");
+  } catch { return null; }
+}
+
+function saveCachedHtml(html) {
+  try {
+    fs.mkdirSync(path.dirname(CACHE_FILE), { recursive: true });
+    fs.writeFileSync(CACHE_FILE, html, "utf8");
+  } catch {}
+}
+
+function httpsGet(urlString) {
+  return new Promise((resolve, reject) => {
+    const url = new URL(urlString);
+    const req = https.request({
+      method: "GET", hostname: url.hostname, path: url.pathname + url.search,
+      headers: {
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36",
+        "accept": "text/html,application/xhtml+xml,*/*;q=0.8",
+        "accept-language": "en-US,en;q=0.9",
+        "referer": "https://poe2db.tw/us/",
+      },
+    }, res => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        httpsGet(new URL(res.headers.location, urlString).toString()).then(resolve, reject);
+        return;
+      }
+      let body = ""; res.setEncoding("utf8");
+      res.on("data", c => (body += c));
+      res.on("end", () => resolve({ status: res.statusCode, body }));
+    });
+    req.on("error", reject); req.end();
+  });
+}
+
+async function fetchListingPage() {
+  const cached = cachedHtml();
+  if (cached) {
+    console.log(`[fetch-uniques] Using cached HTML (24h TTL) — skipping network request`);
+    return cached;
+  }
+  let lastStatus = null;
+  for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++) {
+    if (attempt > 0) {
+      const wait = RETRY_DELAYS[attempt - 1];
+      console.log(`[fetch-uniques]   → ${lastStatus} — retrying in ${wait / 1000}s…`);
+      await sleep(wait);
+    }
+    console.log(`[fetch-uniques] GET ${SOURCE_URL}${attempt > 0 ? ` (attempt ${attempt + 1})` : ""}`);
+    const res = await httpsGet(SOURCE_URL);
+    lastStatus = res.status;
+    if (res.status === 503 || res.status === 429) continue;
+    if (res.status !== 200) throw new Error(`Unexpected HTTP ${res.status} from ${SOURCE_URL}`);
+    saveCachedHtml(res.body);
+    return res.body;
+  }
+  throw new Error(`Failed after ${RETRY_DELAYS.length + 1} attempts, last status: ${lastStatus}`);
+}
+
+// ─── File generation ───────────────────────────────────────────────────────────
+
+function formatDataFile(items) {
+  const now = new Date().toISOString();
+  const itemsJson = JSON.stringify(items, null, 2);
+  return `/**
+ * poe2-unique-data.js — PoE2 unique item database
+ *
+ * Loaded as <script> in overlay.html / settings.html (declares POE2_UNIQUE_DATA),
+ * and require()'d in Node.js for tests / the fetch script.
+ *
+ * Fully generated from poe2db.tw — do not hand-edit. Run \`npm run fetch-uniques\`
+ * to refresh after a league update adds/removes/rebalances uniques.
+ */
+"use strict";
+
+/* eslint-disable no-unused-vars */
+const POE2_UNIQUE_DATA = {
+  version: "1.0.0",
+  fetched: "${now}",
+  source: "poe2db.tw/us/Unique_item",
+  items: ${itemsJson}
+};
+
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = { POE2_UNIQUE_DATA };
+}
+`;
+}
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
+
+function getInferSlotFromItemName() {
+  const vm = require("vm");
+  const mainCode = fs.readFileSync(path.join(__dirname, "../src/main.js"), "utf8");
+  const match = mainCode.match(/function\s+inferSlotFromItemName\s*\([\s\S]*?\n}/);
+  if (!match) throw new Error("Could not find inferSlotFromItemName in src/main.js");
+  const sandbox = {};
+  vm.createContext(sandbox);
+  vm.runInContext(match[0], sandbox);
+  return sandbox.inferSlotFromItemName;
+}
+
+async function main() {
+  console.log(`[fetch-uniques] Starting unique-item refresh — ${new Date().toISOString()}`);
+
+  const html = await fetchListingPage();
+  const inferSlotFromItemName = getInferSlotFromItemName();
+  const blocks = splitItemBlocks(html);
+  console.log(`[fetch-uniques] Found ${blocks.length} item blocks`);
+
+  const items = [];
+  const nullSlotNames = [];
+  let skippedCultivated = 0;
+  for (const block of blocks) {
+    const item = parseItemBlock(block, inferSlotFromItemName);
+    if (!item) { skippedCultivated++; continue; }
+    items.push(item);
+    if (!item.slot) nullSlotNames.push(`${item.name} (${item.baseType})`);
+  }
+  if (skippedCultivated) {
+    // Expected: ~48, all "Cultivated Uniques" tab entries — verified 2026-09-07
+    // that every one of those names also has a full standard-tab entry
+    // elsewhere on the page, so this is not data loss. See the comment on the
+    // "Cultivated Uniques tab markup is intentionally skipped" test case in
+    // test-fetch-poe2-uniques.js for the full explanation.
+    console.log(`[fetch-uniques] Skipped ${skippedCultivated} blocks with no recognizable standard item markup (expected: Cultivated Uniques tab duplicates)`);
+  }
+
+  if (items.length < 400) {
+    console.error(`[fetch-uniques] ERROR: only parsed ${items.length} items, expected 400+. Aborting without writing — poe2db.tw's markup may have changed.`);
+    process.exit(1);
+  }
+
+  console.log(`[fetch-uniques] Parsed ${items.length} items`);
+  if (nullSlotNames.length) {
+    console.log(`[fetch-uniques] ${nullSlotNames.length} items have no coach slot (expected for jewels/tablets/relics — verify any surprises):`);
+    nullSlotNames.forEach(n => console.log(`[fetch-uniques]   - ${n}`));
+  }
+
+  const output = formatDataFile(items);
+  fs.writeFileSync(OUT_FILE, output, "utf8");
+
+  // Verify the freshly written file is valid and loadable before keeping it.
+  try {
+    delete require.cache[require.resolve(OUT_FILE)];
+    const written = require(OUT_FILE);
+    const count = written.POE2_UNIQUE_DATA?.items?.length || 0;
+    console.log(`[fetch-uniques] ✓ Wrote ${OUT_FILE} (${count} items)`);
+  } catch (err) {
+    console.error(`[fetch-uniques] ERROR: ${OUT_FILE} invalid after write: ${err.message}`);
+    process.exit(1);
+  }
+
+  console.log("\n[fetch-uniques] Done. Re-run anytime: npm run fetch-uniques");
+}
+
 module.exports = {
   stripHtml,
   extractRanges,
   parseRequirements,
   splitItemBlocks,
   parseItemBlock,
+  formatDataFile,
 };
+
+if (require.main === module) {
+  main().catch(err => {
+    console.error(`[fetch-uniques] Fatal: ${err.message}`);
+    process.exit(1);
+  });
+}
