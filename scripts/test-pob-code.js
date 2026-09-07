@@ -12,8 +12,11 @@ const paddedExport = exportCode + "A".repeat(Math.max(0, 500 - exportCode.length
 // Real exports are long; padding after a compressed stream is ignored by inflateRaw.
 const detected = PobCode.detectInput(paddedExport);
 assert.equal(detected.type, "export");
-assert.equal(PobCode.detectInput("https://pobb.in/abc123").type, "pobb");
-assert.equal(PobCode.detectInput("abc123").type, "pobb");
+const detectedUrl = PobCode.detectInput("https://pobb.in/abc123");
+assert.equal(detectedUrl.type, "pobb");
+assert.equal(detectedUrl.url, "https://pobb.in/abc123");
+assert.equal(detectedUrl.rawUrl, "https://pobb.in/abc123/raw");
+assert.equal(PobCode.detectInput("abc123").rawUrl, "https://pobb.in/abc123/raw");
 assert.equal(PobCode.detectInput("not valid"), null);
 assert.match(PobCode.decode(paddedExport).xml, /Storm Wave/);
 

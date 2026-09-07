@@ -6,15 +6,20 @@ function detectInput(input) {
   const raw = String(input || "").trim();
   if (!raw) return null;
   const found = raw.match(/https?:\/\/pobb\.in\/([^\s/?#)]+)(?:[^\s)]*)?/i);
-  if (found) return { type: "pobb", url: `https://pobb.in/${found[1]}`, id: found[1] };
+  if (found) return pobbInput(found[1]);
   const compact = raw.replace(/\s+/g, "");
   if (compact.length >= 80 && /^[A-Za-z0-9+/_-]+=*$/.test(compact)) {
     return { type: "export", exportCode: compact };
   }
   if (/^[A-Za-z0-9_-]{6,120}$/.test(raw)) {
-    return { type: "pobb", url: `https://pobb.in/${raw}`, id: raw };
+    return pobbInput(raw);
   }
   return null;
+}
+
+function pobbInput(id) {
+  const url = `https://pobb.in/${id}`;
+  return { type: "pobb", url, rawUrl: `${url}/raw`, id };
 }
 
 function decode(exportCode) {

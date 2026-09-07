@@ -278,6 +278,9 @@
       <button class="nav-item" data-tab="trade-search"><span class="nav-icon">🔍</span>Trade Search</button>
       <button class="nav-item" data-tab="ai"><span class="nav-icon">✦</span>AI Coach</button>
 
+      <div class="nav-section">0.5.5 Event</div>
+      <button class="nav-item" data-tab="forbidden-rites"><span class="nav-icon">🔥</span>Forbidden Rites 0.5.5</button>
+
       <div class="nav-section">App</div>
       <button class="nav-item" data-tab="session"><span class="nav-icon">💾</span>Session</button>
     </nav>
@@ -309,12 +312,20 @@
       <!-- ── Mobalytics ─────────────────────────────────────────────────── -->
       <div class="tab-pane" id="tab-mobalytics">
         <div class="pane-header">
-          <h2>Import Mobalytics guide</h2>
-          <p>Paste the guide URL together with the creator's guide text. The importer keeps creator instructions, stage labels, skills, gear priorities, and stat weights as build-specific evidence.</p>
+          <h2>Import Mobalytics guide or community build</h2>
+          <p>Import directly from a Mobalytics URL (community build or curated guide) to extract progression stages, skills, and gear targets from the build planner, or paste copied guide text.</p>
         </div>
         <div class="import-card">
-          <h3>Paste guide text</h3>
-          <p>Include the variant/stage buttons, skills, equipment sections, and written progression notes for best results.</p>
+          <h3>Build URL</h3>
+          <p>Supports community builds (<code>mobalytics.gg/poe-2/profile/.../builds/...</code>) and curated guides (<code>mobalytics.gg/poe-2/builds/...</code>).</p>
+          <div class="url-row">
+            <input id="mobalyticsUrlInput" type="text" placeholder="https://mobalytics.gg/poe-2/profile/.../builds/... or https://mobalytics.gg/poe-2/builds/..." spellcheck="false" />
+            <button class="btn primary" id="importMobalyticsUrlBtn">Import URL</button>
+          </div>
+        </div>
+        <div class="import-card" style="margin-top: 14px;">
+          <h3>Or paste guide text</h3>
+          <p>Include the variant/stage buttons, skills, equipment sections, and written progression notes for manual import.</p>
           <div class="btn-row">
             <button class="btn" id="sampleMobalyticsBtn">Load sample (Ice Shot Deadeye)</button>
             <button class="btn primary" id="importMobalyticsBtn">Import guide text</button>
@@ -347,16 +358,27 @@
           <p>Set your current level, attributes, and which build stage you're on. These are used for requirement checks and score weighting.</p>
         </div>
 
-        <div class="profile-sel">
+        <div class="profile-sel" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
           <label>Build profile <select id="buildSelect"></select></label>
           <label>Build stage   <select id="stageSelect"></select></label>
           <label>Gear slot     <select id="slotSelect"></select></label>
+          <label>Active League
+            <select id="characterLeagueSelect">
+              <option value="poe2/Forbidden Rites" selected>Forbidden Rites (0.5.5 Event)</option>
+              <option value="poe2/Forbidden Rites Hardcore">Forbidden Rites Hardcore</option>
+              <option value="poe2/Forbidden Rites Solo Self-Found">Forbidden Rites SSF</option>
+              <option value="poe2/Forbidden Rites Hardcore Solo Self-Found">Forbidden Rites HC SSF</option>
+              <option value="poe2/Standard">Standard</option>
+              <option value="poe2/Hardcore">Hardcore</option>
+            </select>
+          </label>
           <label>Campaign progress
             <select id="actSelect">
-              <option value="auto">Auto (follow stage weights)</option>
-              <option value="act1">Acts 1–2 (early campaign)</option>
-              <option value="act2plus">Acts 3+ / Cruel (prioritize resists)</option>
-              <option value="maps">Maps (cap resists + scale damage)</option>
+              <option value="auto">Auto (adapts by player level: Act 1 / Act 2 / Acts 3+ / Maps)</option>
+              <option value="act1">Act 1 (levels 1–15: mobility, flat damage, attributes)</option>
+              <option value="act2">Act 2 (levels 16–25: flat damage, life, ~25% resists)</option>
+              <option value="act3plus">Acts 3+ / Cruel (levels 26–64: building resists to ~50–65%)</option>
+              <option value="maps">Maps / Endgame (levels 65+: 75% capped resists mandatory)</option>
             </select>
           </label>
         </div>
@@ -476,6 +498,10 @@
             </label>
             <label>League
               <select id="trade-league">
+                <option value="poe2/Forbidden Rites" selected>Forbidden Rites (0.5.5 Event)</option>
+                <option value="poe2/Forbidden Rites Hardcore">Forbidden Rites Hardcore</option>
+                <option value="poe2/Forbidden Rites Solo Self-Found">Forbidden Rites SSF</option>
+                <option value="poe2/Forbidden Rites Hardcore Solo Self-Found">Forbidden Rites HC SSF</option>
                 <option value="poe2/Standard">Standard</option>
                 <option value="poe2/Hardcore">Hardcore</option>
               </select>
@@ -596,6 +622,55 @@
         </div>
       </div>
 
+      <!-- ── Forbidden Rites 0.5.5 Event Reference ────────────────────── -->
+      <div class="tab-pane" id="tab-forbidden-rites">
+        <div class="pane-header">
+          <h2>🔥 0.5.5 Forbidden Rites League Guide & Cheat Sheet</h2>
+          <p>Key mechanics, items, and crafting changes in update 0.5.5 (September 4, 2026).</p>
+        </div>
+
+        <div class="import-card" style="border-left: 3px solid var(--poe-gold-bright);">
+          <h3 style="color:var(--poe-gold-bright);">🔮 17 New Soul Cores (Trial of Chaos)</h3>
+          <p>Soul Cores have dual socket bonuses depending on where they are socketed:</p>
+          <ul style="margin: 0 0 10px 18px; font-size: 12px; line-height: 1.6; color: var(--text);">
+            <li><strong>⚔️ Weapons:</strong> Grant flat damage, percentage conversions, attack/cast speeds, ailment chance, or critical multi.</li>
+            <li><strong>🛡️ Armour Pieces:</strong> Grant massive flat elemental/chaos resistances, defensive recovery, armour/evasion/ES scaling, or Spirit.</li>
+            <li><strong>Vendor 3-to-1 Reforging:</strong> Sell 3 Soul Cores of the same tier to any vendor to receive 1 random Soul Core of the next higher tier (up to T4).</li>
+            <li><strong>Desecration Extraction:</strong> Unsocket and retrieve your Soul Cores from gear without destroying your base items.</li>
+          </ul>
+        </div>
+
+        <div class="import-card" style="border-left: 3px solid #ff7849;">
+          <h3 style="color:#ff7849;">⚖️ Trial of Chaos Overhaul (30 Rooms)</h3>
+          <p>The Trial of Chaos has been re-architected into a 30-room gauntlet:</p>
+          <ul style="margin: 0 0 10px 18px; font-size: 12px; line-height: 1.6; color: var(--text);">
+            <li><strong>Curated Rewards:</strong> Trial encounters now reward <em>only</em> high-value currency and Soul Cores (no junk gear loot).</li>
+            <li><strong>Inscribed Ultimatums:</strong> Wager items require specific item deposits (e.g., Chaos/Divine orbs or specific Cores) to double or upgrade rewards.</li>
+            <li><strong>Stacking Modifiers:</strong> Each floor room adds escalating monster buffs or hazard affixes. Ensure your defensive layers and recovery can withstand attrition.</li>
+          </ul>
+        </div>
+
+        <div class="import-card" style="border-left: 3px solid #78d49a;">
+          <h3 style="color:#78d49a;">📜 Ritual & Azmeri Wisps Overhaul</h3>
+          <p>Ritual mechanics in maps have been expanded for tablet stacking:</p>
+          <ul style="margin: 0 0 10px 18px; font-size: 12px; line-height: 1.6; color: var(--text);">
+            <li><strong>Multi-Tablet Map Device Stacking:</strong> You can now place multiple Ritual / Precursor Tablets into the Map Device at once. Their modifiers stack!</li>
+            <li><strong>Azmeri Wisps Density:</strong> Ritual altars attract and spawn dense Azmeri Wisps, empowering enclosed monsters and drastically multiplying Tribute gained.</li>
+            <li><strong>Sacred Blooms:</strong> High-tribute stacked rituals can spawn Sacred Blooms for special boss access and endgame crafting catalysts.</li>
+            <li><strong>Royal Lenience:</strong> Cheaper deferrals and bonus favour rerolls allow targeting high-tier uniques and socketable items.</li>
+          </ul>
+        </div>
+
+        <div class="import-card" style="border-left: 3px solid #477cff;">
+          <h3 style="color:var(--accent);">🔨 Runes of Aldur & Core Additions</h3>
+          <ul style="margin: 0 0 10px 18px; font-size: 12px; line-height: 1.6; color: var(--text);">
+            <li><strong>Runes of Aldur in Core:</strong> Previously league-limited runes are now part of the core world drop table for Runesmithing.</li>
+            <li><strong>Spirit Resource:</strong> Keep an eye on Spirit modifiers on body armour and amulets — critical for running persistent buffs, auras, and summons.</li>
+            <li><strong>Coach Overlay Automation:</strong> Copying any Soul Core, Rune, Ritual Tablet, Waystone, or Ultimatum in-game automatically brings up dedicated 0.5.5 coaching notes and hazard audits!</li>
+          </ul>
+        </div>
+      </div>
+
     </div><!-- /.content-area -->
   </div><!-- /.settings-body -->
 </div><!-- /.settings-root -->
@@ -604,6 +679,7 @@
 <script src="parser.js"></script>
 <script src="poe2-mod-data.js"></script>
 <script src="build-knowledge.js"></script>
+<script src="recommendation-engine.js"></script>
 <script src="app.js"></script>
 
 <!-- Settings controller -->
@@ -633,8 +709,10 @@ function collectSession() {
   if (typeof buildSessionData === "function") return buildSessionData();
   const buildKey = document.getElementById("buildSelect")?.value;
   const profile  = (typeof BUILD_PROFILES !== "undefined" && BUILD_PROFILES[buildKey]) || null;
+  const league   = document.getElementById("characterLeagueSelect")?.value || document.getElementById("trade-league")?.value || "poe2/Forbidden Rites";
   const data = {
-    version: 10,
+    version: 11,
+    league,
     buildKey,
     startWithWindows: document.getElementById("startupCheckbox")?.checked || false,
     slot:        document.getElementById("slotSelect")?.value,
@@ -647,6 +725,7 @@ function collectSession() {
     fullGearText:       document.getElementById("fullGearText")?.value || "",
     currentItem:        document.getElementById("currentItem")?.value  || "",
     newItem:            document.getElementById("newItem")?.value      || "",
+    mobalyticsUrlInput: document.getElementById("mobalyticsUrlInput")?.value || "",
     mobalyticsGuideText:document.getElementById("mobalyticsGuideText")?.value || "",
     pobbInput:          document.getElementById("pobbInput")?.value    || "",
     pobbBuild: window.currentPobbBuild || null,
@@ -686,6 +765,15 @@ window.poe2Coach.loadSession().then(saved => {
   try {
     localStorage.setItem("poe2GearCoachSession", JSON.stringify(saved));
     if (typeof loadSession === "function") loadSession();
+    if (saved.league) {
+      const charL = document.getElementById("characterLeagueSelect");
+      const tradeL = document.getElementById("trade-league");
+      if (charL) charL.value = saved.league;
+      if (tradeL) tradeL.value = saved.league;
+    }
+    if (saved.mobalyticsUrlInput && document.getElementById("mobalyticsUrlInput")) {
+      document.getElementById("mobalyticsUrlInput").value = saved.mobalyticsUrlInput;
+    }
     if (saved.pobbInput) document.getElementById("pobbInput").value = saved.pobbInput;
     if (saved.pobbBuild) window.currentPobbBuild = saved.pobbBuild;
     if (typeof saved.startWithWindows === "boolean") {
@@ -693,6 +781,20 @@ window.poe2Coach.loadSession().then(saved => {
     }
   } catch(_) {}
 });
+
+// Synchronize characterLeagueSelect and trade-league
+const charL = document.getElementById("characterLeagueSelect");
+const tradeL = document.getElementById("trade-league");
+if (charL && tradeL) {
+  charL.addEventListener("change", () => {
+    tradeL.value = charL.value;
+    window.poe2Coach.saveSession(collectSession());
+  });
+  tradeL.addEventListener("change", () => {
+    charL.value = tradeL.value;
+    window.poe2Coach.saveSession(collectSession());
+  });
+}
 
 // ── AI Coach ──────────────────────────────────────────────────────────────────
 const aiEls = {

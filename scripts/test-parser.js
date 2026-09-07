@@ -22,6 +22,16 @@ const cases = [
   { label: "Rare amulet",               text: "Item Class: Amulets\nRarity: Rare\nBright Talisman\nLapis Amulet\n--------\n+22 to Intelligence\n", expect: "amulet" },
   { label: "Rare body armour",          text: "Item Class: Body Armours\nRarity: Rare\nSilk Robe\n--------\n+55 to maximum Life\n", expect: "body" },
   { label: "Rare bow",                  text: "Item Class: Bows\nRarity: Rare\nCrossbow\n--------\nAdds 5 to 10 Physical Damage to Attacks\n", expect: "weapon" },
+  // PoE2 0.5.5 update cases
+  { label: "Soul Core (0.5.5 Trial of Chaos)", text: "Item Class: Soul Cores\nRarity: Normal\nSoul Core of Citaqualotl\n--------\nItem Level: 68\n--------\nWeapon: 30% increased Elemental Damage with Attacks\nArmour: +15% to all Elemental Resistances\n--------\n", expect: "soul_core" },
+  { label: "Rune",                      text: "Item Class: Runes\nRarity: Normal\nIron Rune\n--------\nItem Level: 20\n--------\nWeapon: Adds 5 to 10 Physical Damage to Attacks\nArmour: +25 to maximum Life\n", expect: "rune" },
+  { label: "Ritual Tablet (0.5.5)",     text: "Item Class: Tablets\nRarity: Magic\nRitual Tablet of the Wildwood\n--------\nItem Level: 75\n--------\nContains 1 Ritual Encounter\nRituals in Area yield 25% increased Tribute\n--------\n", expect: "tablet" },
+  { label: "Waystone Map",              text: "Item Class: Waystones\nRarity: Rare\nBramble Valley Waystone (Tier 12)\n--------\nWaystone Tier: 12\nItem Level: 79\n--------\nMonsters deal 40% extra Damage as Fire\nPlayers have 20% less Area of Effect\n--------\n", expect: "waystone" },
+  { label: "Inscribed Ultimatum (0.5.5)", text: "Item Class: Inscribed Ultimatum\nRarity: Normal\nInscribed Ultimatum\n--------\nItem Level: 75\n--------\nRequires: 10 Chaos Orbs\nReward: 20 Chaos Orbs\n--------\n", expect: "ultimatum" },
+  { label: "Rare Jewel",                text: "Item Class: Jewels\nRarity: Rare\nCrimson Jewel\n--------\nItem Level: 65\n--------\n12% increased Physical Damage\n+14% to Cold Resistance\n", expect: "jewel" },
+  { label: "Relic (Trial of Sekhema)",  text: "Item Class: Relics\nRarity: Magic\nUrn Relic\n--------\nItem Level: 50\n--------\n+30 to Maximum Resolve\n", expect: "relic" },
+  { label: "Uncut Skill Gem",           text: "Item Class: Uncut Skill Gems\nRarity: Currency\nUncut Skill Gem (Level 14)\n--------\nCreates a Skill Gem or levels an existing gem to Level 14\n", expect: "uncut_skill" },
+  { label: "Uncut Support Gem",         text: "Item Class: Uncut Support Gems\nRarity: Currency\nUncut Support Gem (Level 3)\n--------\nCreates a Support Gem\n", expect: "uncut_support" },
 ];
 
 let failed = 0;

@@ -1,10 +1,33 @@
 const SCORE_KEYS = ["damage", "defense", "attributes", "resistance", "mobility", "synergy"];
 
 const BUILD_PROFILES = {
+  quarterstaffMonk: {
+    name: "Quarterstaff Monk Leveling",
+    imported: false,
+    slots: ["weapon", "helmet", "body", "gloves", "boots", "ring", "amulet", "belt"],
+    focus: { quarterstaff: true, monk: true, melee: true, attack: true, bow: false, quiver: false, crossbow: false },
+    baseWeights: {
+      damage: 1.15,
+      defense: 1.0,
+      attributes: 1.05,
+      resistance: 1.0,
+      mobility: 1.2,
+      synergy: 1.25,
+    },
+    stages: {
+      act1_2: { label: "Act 1-2 Bridge (1-21)", damage: 1.1, defense: 0.9, attributes: 1.2, resistance: 0.8, mobility: 1.25, synergy: 1.1 },
+      act2_swap: { label: "Storm Wave Swap (22-41)", damage: 1.2, defense: 1.0, attributes: 1.1, resistance: 1.0, mobility: 1.15, synergy: 1.3 },
+      endgame: { label: "Endgame", damage: 1.25, defense: 1.25, attributes: 0.8, resistance: 1.2, mobility: 1.0, synergy: 1.45 },
+    },
+    statRules: defaultQuarterstaffRules(),
+    slotRules: defaultQuarterstaffSlotRules(),
+    importedStages: [],
+  },
   frostCrossbow: {
     name: "Frost Crossbow / Bow Leveling",
     imported: false,
     slots: ["weapon", "quiver", "helmet", "body", "gloves", "boots", "ring", "amulet", "belt"],
+    focus: { bow: true, quiver: true, attack: true, cold: true },
     baseWeights: {
       damage: 1.0,
       defense: 1.0,
@@ -26,6 +49,7 @@ const BUILD_PROFILES = {
     name: "Generic Attack Build",
     imported: false,
     slots: ["weapon", "offhand", "helmet", "body", "gloves", "boots", "ring", "amulet", "belt"],
+    focus: { attack: true, melee: true },
     baseWeights: { damage: 1, defense: 1, attributes: 1, resistance: 1, mobility: 1, synergy: 1 },
     stages: {
       leveling: { label: "Leveling / Campaign", damage: 1.0, defense: 0.9, attributes: 1.25, resistance: 0.9, mobility: 1.2, synergy: 1.0 },
@@ -132,29 +156,31 @@ For gloves and rings, flat damage to attacks is very useful while leveling.
 Upgrade flasks around levels 10, 16, 23, 30, 40, 50 and 60.
 Later, look for bow damage, projectile damage, cold damage to attacks, attack speed, critical stats, life and resistances.`;
 
-const buildSelect = document.querySelector("#buildSelect");
-const slotSelect = document.querySelector("#slotSelect");
-const stageSelect = document.querySelector("#stageSelect");
-const currentItem = document.querySelector("#currentItem");
-const newItem = document.querySelector("#newItem");
-const results = document.querySelector("#results");
-const playerLevelInput = document.querySelector("#playerLevel");
-const playerStrInput = document.querySelector("#playerStr");
-const playerDexInput = document.querySelector("#playerDex");
-const playerIntInput = document.querySelector("#playerInt");
-const userPreferencesInput = document.querySelector("#userPreferences");
-const fullGearText = document.querySelector("#fullGearText");
-const healthResults = document.querySelector("#healthResults");
-const equipmentFields = document.querySelector("#equipmentFields");
-const buildFileInput = document.querySelector("#buildFileInput");
-const buildFolderInput = document.querySelector("#buildFolderInput");
-const importSummary = document.querySelector("#importSummary");
-const mobalyticsGuideText = document.querySelector("#mobalyticsGuideText");
-const mobalyticsSummary = document.querySelector("#mobalyticsSummary");
-const pobbInput = document.querySelector("#pobbInput");
-const pobbSummary = document.querySelector("#pobbSummary");
-const stageDetails = document.querySelector("#stageDetails");
-const exportStatus = document.querySelector("#exportStatus");
+const qs = sel => (typeof document !== "undefined" ? document.querySelector(sel) : null);
+const buildSelect = qs("#buildSelect");
+const slotSelect = qs("#slotSelect");
+const stageSelect = qs("#stageSelect");
+const currentItem = qs("#currentItem");
+const newItem = qs("#newItem");
+const results = qs("#results");
+const playerLevelInput = qs("#playerLevel");
+const playerStrInput = qs("#playerStr");
+const playerDexInput = qs("#playerDex");
+const playerIntInput = qs("#playerInt");
+const userPreferencesInput = qs("#userPreferences");
+const fullGearText = qs("#fullGearText");
+const healthResults = qs("#healthResults");
+const equipmentFields = qs("#equipmentFields");
+const buildFileInput = qs("#buildFileInput");
+const buildFolderInput = qs("#buildFolderInput");
+const importSummary = qs("#importSummary");
+const mobalyticsUrlInput = qs("#mobalyticsUrlInput");
+const mobalyticsGuideText = qs("#mobalyticsGuideText");
+const mobalyticsSummary = qs("#mobalyticsSummary");
+const pobbInput = qs("#pobbInput");
+const pobbSummary = qs("#pobbSummary");
+const stageDetails = qs("#stageDetails");
+const exportStatus = qs("#exportStatus");
 
 function defaultFrostRules() {
   return [
@@ -205,6 +231,40 @@ function defaultSlotRules() {
   };
 }
 
+function defaultQuarterstaffRules() {
+  return [
+    { match: /adds .* damage to attacks|physical damage to attacks|increased physical damage|melee physical damage/i, category: "damage", points: 14, label: "physical damage", note: "Flat attack damage scales Quarterstaff base hits." },
+    { match: /lightning damage to attacks|adds .* lightning damage/i, category: "synergy", points: 16, label: "lightning damage", note: "Lightning damage synergizes with Monk shock and skill combos." },
+    { match: /cold damage to attacks|adds .* cold damage/i, category: "synergy", points: 14, label: "cold damage", note: "Cold damage provides freeze and elemental strike synergy." },
+    { match: /fire damage to attacks|adds .* fire damage/i, category: "synergy", points: 10, label: "fire damage", note: "Elemental attack damage adds to overall melee DPS." },
+    { match: /attack speed/i, category: "damage", points: 15, label: "attack speed", note: "High attack speed is vital for Quarterstaff combo flow and responsiveness." },
+    { match: /accuracy rating|accuracy/i, category: "damage", points: 13, label: "accuracy rating", note: "Accuracy rating ensures attacks hit and prevents damage loss from misses." },
+    { match: /critical hit chance|critical strike chance|critical damage bonus|critical multiplier/i, category: "damage", points: 13, label: "critical stats", note: "Scales Quarterstaff critical strikes." },
+    { match: /maximum life/i, category: "defense", points: 11, label: "maximum life", note: "Melee characters need strong life pools for close-range survival." },
+    { match: /evasion rating/i, category: "defense", points: 10, label: "evasion rating", note: "Primary defense for Monk / Dexterity bases." },
+    { match: /energy shield/i, category: "defense", points: 8, label: "energy shield", note: "Secondary defense for Monk (Dex/Int hybrid)." },
+    { match: /fire resistance|cold resistance|lightning resistance|chaos resistance/i, category: "resistance", points: 8, label: "elemental resistance", note: "Helps cap your elemental resistances." },
+    { match: /all elemental resistances|all resistances/i, category: "resistance", points: 16, label: "all elemental resistances", note: "Efficiently caps resistances across slots." },
+    { match: /strength|dexterity|intelligence/i, category: "attributes", points: 8, label: "attributes", note: "Dexterity and Intelligence for Monk gems, Strength for life/gear requirements." },
+    { match: /movement speed/i, category: "mobility", points: 18, label: "movement speed", note: "Essential for engaging and repositioning in melee combat." },
+    { match: /bow skills|projectile skills|quiver|crossbow/i, category: "synergy", points: -12, label: "ranged/bow stats", note: "Useless for a Quarterstaff melee Monk." },
+    { match: /spell damage|minion damage/i, category: "synergy", points: -8, label: "spell/minion damage", note: "Off-plan for an attack-based Monk." },
+  ];
+}
+
+function defaultQuarterstaffSlotRules() {
+  return {
+    weapon: { damage: 1.6, synergy: 1.5, defense: 0.2, resistance: 0.2, mobility: 0.1 },
+    boots: { mobility: 1.85, defense: 1.1, resistance: 1.1, attributes: 1.0, damage: 0.4 },
+    gloves: { damage: 1.35, synergy: 1.3, defense: 0.9, resistance: 0.9, attributes: 1.0 },
+    helmet: { defense: 1.15, resistance: 1.15, attributes: 1.15, synergy: 0.7 },
+    body: { defense: 1.45, resistance: 1.0, attributes: 0.8, damage: 0.3 },
+    ring: { resistance: 1.3, attributes: 1.25, damage: 1.0, synergy: 1.0 },
+    amulet: { attributes: 1.35, damage: 1.05, synergy: 1.05, resistance: 1.0 },
+    belt: { defense: 1.3, resistance: 1.15, attributes: 0.9 },
+  };
+}
+
 function init() {
   renderBuildOptions();
   updateSlotsAndStages();
@@ -213,6 +273,13 @@ function init() {
   stageSelect.addEventListener("change", () => { renderStageDetails(); if (hasEquipmentEntries()) analyzeBuildHealth(); });
   buildFileInput.addEventListener("change", handleBuildImport);
   buildFolderInput?.addEventListener("change", handleBuildImport);
+  document.querySelector("#importMobalyticsUrlBtn")?.addEventListener("click", () => handleMobalyticsImport({ fromUrl: true }));
+  mobalyticsUrlInput?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleMobalyticsImport({ fromUrl: true });
+    }
+  });
   document.querySelector("#importMobalyticsBtn").addEventListener("click", handleMobalyticsImport);
   document.querySelector("#importPobbBtn")?.addEventListener("click", handlePobbImport);
   document.querySelector("#sampleMobalyticsBtn").addEventListener("click", () => {
@@ -315,27 +382,128 @@ async function handleBuildImport(event) {
 }
 
 async function handleMobalyticsImport(opts = {}) {
+  const urlVal = (mobalyticsUrlInput?.value || "").trim();
   let text = (mobalyticsGuideText?.value || "").trim();
-  if (!text) {
-    mobalyticsSummary.innerHTML = `<strong>Paste guide text first.</strong><br><span>Paste copied Mobalytics page text, or at least the build URL and key gear notes.</span>`;
-    return;
+
+  let targetUrl = opts.url || "";
+  if (opts.fromUrl) {
+    targetUrl = urlVal;
+  } else if (!targetUrl) {
+    const urlMatch = text.match(/^https?:\/\/(?:www\.)?mobalytics\.gg\/\S+$/i);
+    if (urlMatch) {
+      targetUrl = urlMatch[0];
+    } else if (!text && urlVal) {
+      targetUrl = urlVal;
+    }
   }
 
-  const urlOnly = text.match(/^https?:\/\/(?:www\.)?mobalytics\.gg\/poe-2\/builds\/\S+$/i);
-  if (urlOnly && window.poe2Coach?.importMobalytics) {
-    mobalyticsSummary.innerHTML = `<strong>Fetching public guide text...</strong><br><span>Reading creator notes, skills, and progression sections.</span>`;
-    const fetched = await window.poe2Coach.importMobalytics(text);
-    if (!fetched?.ok) {
-      mobalyticsSummary.innerHTML = `<strong>Could not read the guide automatically.</strong><br><span>${escapeHtml(fetched?.error || "Paste the creator's page text together with the URL.")}</span>`;
+  // URL import path
+  if (targetUrl) {
+    if (!window.poe2Coach?.importMobalytics) {
+      mobalyticsSummary.innerHTML = `<strong>Mobalytics importer is not available.</strong><br><span>Restart the app and ensure preload.js is loaded.</span>`;
       return;
     }
-    text = fetched.text;
-    mobalyticsGuideText.value = text;
+
+    const urlBtn = document.querySelector("#importMobalyticsUrlBtn");
+    const textBtn = document.querySelector("#importMobalyticsBtn");
+    if (urlBtn) { urlBtn.disabled = true; urlBtn.textContent = "Importing..."; }
+    if (textBtn) { textBtn.disabled = true; textBtn.textContent = "Importing..."; }
+
+    mobalyticsSummary.innerHTML = `<strong>Fetching Mobalytics build...</strong><br><span>Querying build variants, gear targets, and creator notes...</span>`;
+
+    try {
+      const fetched = await window.poe2Coach.importMobalytics(targetUrl);
+      if (!fetched?.ok) {
+        mobalyticsSummary.innerHTML = `<strong>Could not import Mobalytics build.</strong><br><span>${escapeHtml(fetched?.error || "Check the URL and try again, or paste copied guide text.")}</span>`;
+        return;
+      }
+
+      if (mobalyticsUrlInput && fetched.url) mobalyticsUrlInput.value = fetched.url;
+      if (mobalyticsGuideText && fetched.text) mobalyticsGuideText.value = fetched.text;
+
+      if (Array.isArray(fetched.variants) && fetched.variants.length > 0) {
+        const stages = fetched.variants.map((v, i) => normalizeBuildFile(v, `${v.name || `Variant ${i + 1}`}.build`));
+        stages.forEach(st => {
+          st.creatorInstructions = fetched.creatorInstructions || [];
+          st.notes = fetched.notes || {};
+          st.source = "mobalytics";
+          st.url = fetched.url;
+        });
+
+        stages.sort((a, b) =>
+          a.minLevel - b.minLevel ||
+          a.maxLevel - b.maxLevel ||
+          (a.passiveCount || 0) - (b.passiveCount || 0) ||
+          a.name.localeCompare(b.name)
+        );
+
+        const focus = inferBuildFocus(`${fetched.name} ${buildFocusText(stages)} ${(fetched.creatorInstructions || []).join(" ")}`);
+        const priorities = extractMobalyticsPriorities(fetched.text || "", focus);
+
+        // Supplement stage inventory with priority notes if any slots lack items
+        const allowedSlots = new Set(getAllowedSlotsForFocus(focus));
+        for (const stage of stages) {
+          stage.focus = focus;
+          stage.priorityNotes = priorities.notes;
+          stage.prioritySlots = priorities.bySlot;
+          const existingSlots = new Set(stage.inventory.map(i => i.slot));
+          const missingFallbacks = buildPriorityTargetsFromMobalytics(priorities, focus)
+            .filter(p => allowedSlots.has(p.slot) && !existingSlots.has(p.slot));
+          stage.inventory.push(...missingFallbacks);
+          stage.inventory = stage.inventory.filter(item => allowedSlots.has(item.slot) || ["flask", "charm"].includes(item.slot));
+        }
+
+        const parsed = {
+          name: fetched.name || "Mobalytics Build",
+          author: fetched.author || "Mobalytics",
+          stages,
+          priorities,
+          skills: stages.flatMap(s => s.skills),
+          focus,
+          creatorInstructions: fetched.creatorInstructions || [],
+          notes: fetched.notes || {},
+          url: fetched.url,
+          isDirectExport: true,
+        };
+
+        const importedProfile = createMobalyticsProfile(parsed);
+        const guideAscendancy = parsed.stages?.[0]?.ascendancy;
+        const mismatchWarning = window.currentPobbBuild
+          ? buildIdentityMismatchWarning({ source: "mobalytics", mobalytics: { stages: [{ ascendancy: guideAscendancy }] } }, window.currentPobbBuild.stats)
+          : "";
+
+        BUILD_PROFILES.mobalyticsBuild = importedProfile;
+        renderBuildOptions();
+        buildSelect.value = "mobalyticsBuild";
+        updateSlotsAndStages();
+        selectStageForPlayerLevel(Number(playerLevelInput.value) || 1);
+        if (opts?.skipSave !== true) {
+          saveSession();
+        }
+        mobalyticsSummary.innerHTML = renderMismatchBanner(mismatchWarning) + renderMobalyticsSummary(importedProfile, parsed);
+        return;
+      }
+
+      // If no variants were returned, fall back to parsing the synthesized guide text
+      text = fetched.text || "";
+    } catch (err) {
+      mobalyticsSummary.innerHTML = `<strong>Import error.</strong><br><span>${escapeHtml(err.message)}</span>`;
+      return;
+    } finally {
+      if (urlBtn) { urlBtn.disabled = false; urlBtn.textContent = "Import URL"; }
+      if (textBtn) { textBtn.disabled = false; textBtn.textContent = "Import guide text"; }
+    }
+  }
+
+  // Fallback / manual text paste path
+  if (!text) {
+    mobalyticsSummary.innerHTML = `<strong>Enter a Mobalytics URL or paste guide text first.</strong><br><span>Supports mobalytics.gg/poe-2/profile/.../builds/... or mobalytics.gg/poe-2/builds/...</span>`;
+    return;
   }
 
   const parsed = normalizeMobalyticsGuideText(text);
   if (!parsed.stages.length) {
-    mobalyticsSummary.innerHTML = `<strong>Could not find stages.</strong><br><span>Try copying more of the guide text, especially the variant buttons like lvl 1-14, lvl 15-23, etc.</span>`;
+    mobalyticsSummary.innerHTML = `<strong>Could not find stages.</strong><br><span>Try copying more of the guide text, especially the variant buttons like lvl 1-14, lvl 15-23, or Act 1, Act 2, etc.</span>`;
     return;
   }
 
@@ -348,6 +516,7 @@ async function handleMobalyticsImport(opts = {}) {
   renderBuildOptions();
   buildSelect.value = "mobalyticsBuild";
   updateSlotsAndStages();
+  selectStageForPlayerLevel(Number(playerLevelInput.value) || 1);
   if (opts?.skipSave !== true) {
     saveSession();
   }
@@ -427,25 +596,70 @@ async function handlePobbImport() {
 function refreshImportedProfileFromCharacter(build) {
   const profile = getProfile();
   if (!profile?.imported) return;
-  const liveFocus = inferBuildFocus(`${build?.name || ""} ${(build?.gems || []).join(" ")} ${(build?.keystones || []).join(" ")}`);
-  profile.focus = { ...profile.focus, ...Object.fromEntries(Object.entries(liveFocus).filter(([, value]) => value)) };
+  const gearText = (build?.gear || []).map(g => `${g.slot} ${g.name}`).join(" ");
+  const liveFocus = inferBuildFocus(`${build?.name || ""} ${gearText} ${(build?.gems || []).join(" ")} ${(build?.keystones || []).join(" ")}`);
+  profile.focus = { ...profile.focus, ...liveFocus };
+  if (liveFocus.quarterstaff) {
+    profile.focus.bow = false;
+    profile.focus.quiver = false;
+    profile.focus.crossbow = false;
+  }
+  if (liveFocus.unarmed) {
+    profile.focus.bow = false;
+    profile.focus.quiver = false;
+    profile.focus.crossbow = false;
+  }
+  profile.slots = getAllowedSlotsForFocus(profile.focus);
   profile.slotRules = slotRulesForFocus(profile.focus);
   profile.statRules = profile.source === "mobalytics" && profile.mobalytics
     ? buildMobalyticsRules(profile.mobalytics, build)
     : buildImportedRules(profile.importedStages || [], build, profile.focus);
+
+  const allowedSlots = new Set(profile.slots);
+  for (const st of profile.importedStages || []) {
+    st.inventory = (st.inventory || []).filter(item => allowedSlots.has(item.slot) || ["flask", "charm"].includes(item.slot));
+    if (st.prioritySlots) {
+      if (!profile.focus.bow) delete st.prioritySlots.quiver;
+      if (profile.focus.quarterstaff) delete st.prioritySlots.offhand;
+    }
+  }
+  updateSlotsAndStages();
 }
 
 function buildIdentityMismatchWarning(profile, pobStats) {
   if (!profile || profile.source !== "mobalytics") return "";
-  const guideAscendancy = String(profile.mobalytics?.stages?.[0]?.ascendancy || "").trim();
+  const rawGuideAscendancy = String(profile.mobalytics?.stages?.[0]?.ascendancy || "").trim();
+  const guideAscendancy = cleanAscendancyName(rawGuideAscendancy);
   if (!guideAscendancy || /^unknown$/i.test(guideAscendancy)) return "";
-  const pobAscendancy = String(pobStats?.ascendancy || "").trim();
+  const rawPobAscendancy = String(pobStats?.ascendancy || "").trim();
+  const pobAscendancy = /^(?:none|unknown|null)$/i.test(rawPobAscendancy) ? "" : cleanAscendancyName(rawPobAscendancy);
   const pobClassName = String(pobStats?.className || "").trim();
   const candidates = [pobAscendancy, pobClassName].filter(Boolean);
   if (!candidates.length) return "";
-  const matches = candidates.some(value => value.toLowerCase() === guideAscendancy.toLowerCase());
+  const matches = pobAscendancy
+    ? pobAscendancy.toLowerCase() === guideAscendancy.toLowerCase()
+    : baseClassForAscendancy(guideAscendancy, rawGuideAscendancy).toLowerCase() === pobClassName.toLowerCase();
   if (matches) return "";
   return `This character is ${escapeHtml(candidates.join(" / "))}, but the currently loaded Mobalytics guide is for ${escapeHtml(guideAscendancy)}. The guide's creator instructions and gear priorities may be for a different build — re-import the matching Mobalytics guide, or switch the Build dropdown to Generic Attack Build until you do.`;
+}
+
+function baseClassForAscendancy(ascendancy, rawId = "") {
+  const internalBase = String(rawId).match(/^(Ranger|Monk|Warrior|Mercenary|Sorceress|Witch|Huntress|Shadow|Duelist|Templar|Druid)\d+$/i)?.[1];
+  if (internalBase) return internalBase;
+  const byAscendancy = {
+    deadeye: "Ranger", pathfinder: "Ranger",
+    invoker: "Monk", "acolyte of chayula": "Monk",
+    titan: "Warrior", warbringer: "Warrior",
+    witchhunter: "Mercenary", "gemling legionnaire": "Mercenary", tactician: "Mercenary",
+    stormweaver: "Sorceress", chronomancer: "Sorceress",
+    "blood mage": "Witch", infernalist: "Witch",
+    amazon: "Huntress", survivalist: "Huntress",
+    assassin: "Shadow", trickster: "Shadow",
+    slayer: "Duelist", gladiator: "Duelist",
+    inquisitor: "Templar", hierophant: "Templar",
+    shaman: "Druid", animist: "Druid",
+  };
+  return byAscendancy[String(ascendancy || "").toLowerCase()] || String(ascendancy || "");
 }
 
 function renderMismatchBanner(message) {
@@ -563,7 +777,7 @@ function normalizeMobalyticsGuideText(text) {
   const ascendancyMatch = clean.match(/\b(Deadeye|Pathfinder|Ranger|Witchhunter|Mercenary|Sorceress|Stormweaver|Infernalist|Monk|Invoker|Acolyte|Warrior|Titan|Warbringer)\b/i);
   const stageRanges = extractMobalyticsStages(clean);
   const focus = inferBuildFocus(clean);
-  const priorities = extractMobalyticsPriorities(clean);
+  const priorities = extractMobalyticsPriorities(clean, focus);
   const skills = extractMobalyticsSkills(clean);
   const creatorInstructions = extractCreatorInstructions(clean);
 
@@ -575,7 +789,7 @@ function normalizeMobalyticsGuideText(text) {
     minLevel: range.min,
     maxLevel: range.max,
     label: range.label,
-    inventory: buildPriorityTargetsFromMobalytics(priorities),
+    inventory: buildPriorityTargetsFromMobalytics(priorities, focus),
     skills,
     passiveCount: 0,
     focus,
@@ -638,7 +852,7 @@ function extractMobalyticsSkills(text) {
     "Lightning Arrow", "Explosive Shot", "Gas Arrow", "Magnetic Salvo", "Rain of Arrows", "Escape Shot",
     "Permafrost Bolts", "Fragmentation Rounds", "Frozen Shot", "Load Permafrost Bolts",
     "Storm Wave", "Falling Thunder", "Killing Palm", "Conductive Runes", "Hollow Focus",
-    "Herald of Thunder", "Quarterstaff Strike", "Charged Staff", "Rend", "Tempest Bell",
+    "Herald of Thunder", "Quarterstaff Strike", "Charged Staff", "Rend", "Tempest Bell", "Siphoning Strike", "Vaulting Impact",
     "Devour", "Whirling Assault", "Herald of Ash", "Herald of Ice", "Flicker Strike"
   ];
   const found = [];
@@ -660,22 +874,35 @@ function extractCreatorInstructions(text) {
   return Array.from(new Set(lines)).slice(0, 80);
 }
 
-function extractMobalyticsPriorities(text) {
+function extractMobalyticsPriorities(text, buildFocus = null) {
   const lower = text.toLowerCase();
-  const focus = inferBuildFocus(text);
+  const focus = buildFocus || inferBuildFocus(text);
   const bySlot = { weapon: [], offhand: [], quiver: [], helmet: [], body: [], gloves: [], boots: [], ring: [], amulet: [], belt: [], flask: [] };
   const notes = [];
   const add = (slot, note) => {
+    // If the build does not use quiver (e.g. quarterstaff, unarmed, melee), NEVER add notes to quiver!
+    if (slot === "quiver" && !focus.bow) return;
+    // If unarmed, do not add notes to weapon or offhand or quiver!
+    if (focus.unarmed && (slot === "weapon" || slot === "offhand" || slot === "quiver")) return;
+    // If quarterstaff or two-handed, do not add notes to offhand or quiver!
+    if (focus.quarterstaff && (slot === "offhand" || slot === "quiver")) return;
     if (!bySlot[slot].includes(note)) bySlot[slot].push(note);
     if (!notes.includes(note)) notes.push(note);
   };
 
   if (/flat damage|added damage|damage to attacks/.test(lower)) {
-    if (!focus.unarmed) add("weapon", "Flat attack damage is a high-value leveling stat.");
+    if (!focus.unarmed) add("weapon", focus.quarterstaff ? "Flat physical/elemental attack damage is a high-value quarterstaff leveling stat." : "Flat attack damage is a high-value leveling stat.");
     add("ring", "Flat damage on rings is useful while leveling.");
     add("gloves", "Flat damage to attacks on gloves is useful while leveling.");
   }
-  if (/bow damage|projectile damage|bow skills|projectile/.test(lower)) {
+  if (focus.quarterstaff) {
+    add("weapon", "Quarterstaff flat physical/elemental damage and attack speed set your melee damage ceiling.");
+    if (/critical|crit/.test(lower)) add("weapon", "Critical strike stats scale Quarterstaff burst damage.");
+    if (/lightning|shock/.test(lower)) add("weapon", "Added lightning damage synergizes with Monk lightning combos.");
+    if (/cold|ice|freeze/.test(lower)) add("weapon", "Added cold damage synergizes with Monk freeze / shatter strikes.");
+    add("gloves", "Attack speed, accuracy, and flat damage on gloves improve Quarterstaff responsiveness.");
+  }
+  if (focus.bow && /bow damage|projectile damage|bow skills|projectile/.test(lower)) {
     add("weapon", "Bow/projectile damage fits the guide damage plan.");
     add("quiver", "Projectile or bow-skill damage is a strong quiver stat.");
   }
@@ -690,12 +917,12 @@ function extractMobalyticsPriorities(text) {
     add("ring", "Lightning or elemental attack scaling may be useful when defenses are covered.");
   }
   if (/attack speed|reload speed/.test(lower)) {
-    add("weapon", "Attack speed is a strong damage and feel stat.");
+    if (!focus.unarmed) add("weapon", "Attack speed is a strong damage and feel stat.");
     add("gloves", "Attack speed on gloves is valuable.");
-    add("quiver", "Attack speed is valuable if available.");
+    if (focus.bow) add("quiver", "Attack speed is valuable if available.");
   }
   if (/movement speed|move speed/.test(lower)) {
-    add("boots", "Movement speed is a priority on boots.");
+    add("boots", "Movement speed is a priority on boots (aim for 15–20%+).");
   }
   if (/life|maximum life/.test(lower)) {
     ["helmet", "body", "gloves", "boots", "belt", "ring", "amulet"].forEach(slot => add(slot, "Life is a strong general defensive stat."));
@@ -706,26 +933,30 @@ function extractMobalyticsPriorities(text) {
   if (/attribute|strength|dexterity|intelligence|str|dex|int/.test(lower)) {
     ["helmet", "belt", "amulet", "ring"].forEach(slot => add(slot, "Use this slot to fix Str/Dex/Int requirements if needed."));
   }
+  if (/accuracy|hit chance/.test(lower) || focus.attack) {
+    ["gloves", "helmet", "ring", "amulet"].forEach(slot => add(slot, "Accuracy rating improves hit chance consistency."));
+  }
   if (/flask/.test(lower)) {
     add("flask", "Keep flasks upgraded as level breakpoints unlock stronger bases.");
   }
   if (/critical|crit/.test(lower)) {
-    add("weapon", "Crit can matter later if the build scales it.");
-    add("quiver", "Crit stats may matter later if the guide scales them.");
+    if (!focus.unarmed) add("weapon", "Crit can matter later if the build scales it.");
+    if (focus.bow) add("quiver", "Crit stats may matter later if the guide scales them.");
   }
 
   if (!notes.length) {
-    add("weapon", "Look for damage that matches the guide main skill.");
-    add("boots", "Look for movement speed.");
+    if (!focus.unarmed) add("weapon", focus.quarterstaff ? "Look for flat damage and attack speed on quarterstaff." : "Look for damage that matches the guide main skill.");
+    add("boots", "Look for movement speed (15–20%+).");
     add("helmet", "Look for life, resistance, or needed attributes.");
   }
 
   return { notes, bySlot };
 }
 
-function buildPriorityTargetsFromMobalytics(priorities) {
+function buildPriorityTargetsFromMobalytics(priorities, focus = null) {
+  const allowed = focus ? new Set(getAllowedSlotsForFocus(focus)) : null;
   return Object.entries(priorities.bySlot)
-    .filter(([, notes]) => notes.length)
+    .filter(([slot, notes]) => notes.length && (!allowed || allowed.has(slot)))
     .map(([slot, notes]) => ({
       id: `mobalytics-${slot}`,
       slot,
@@ -742,11 +973,7 @@ function createMobalyticsProfile(parsed) {
   profile.source = "mobalytics";
   profile.mobalytics = parsed;
   profile.statRules = buildMobalyticsRules(parsed, window.currentPobbBuild);
-  let defaultSlots = BUILD_PROFILES.genericAttack.slots;
-  if (parsed.focus?.bow) defaultSlots = [...defaultSlots.filter(slot => slot !== "offhand"), "quiver"];
-  if (parsed.focus?.unarmed) defaultSlots = defaultSlots.filter(slot => !["weapon", "offhand", "quiver"].includes(slot));
-  profile.slots = Array.from(new Set([...defaultSlots, ...profile.slots])).filter(slot => !["flask", "charm", "other"].includes(slot));
-  if (parsed.focus?.unarmed) profile.slots = profile.slots.filter(slot => !["weapon", "offhand", "quiver"].includes(slot));
+  profile.slots = getAllowedSlotsForFocus(parsed.focus);
   return profile;
 }
 
@@ -769,12 +996,15 @@ function buildMobalyticsRules(parsed, pobBuild = null) {
 function renderMobalyticsSummary(profile, parsed) {
   const stages = profile.importedStages || [];
   const priorityTags = (parsed.priorities?.notes || []).slice(0, 8).map(note => `<span class="tag">${escapeHtml(shortPriority(note))}</span>`).join(" ");
+  const sourceDesc = parsed.isDirectExport
+    ? `${stages.length} stage(s) imported directly from Mobalytics build planner. Creator: ${escapeHtml(parsed.author || "Mobalytics")}.`
+    : `${stages.length} stage(s) created from guide text. Author/source: ${escapeHtml(parsed.author || "Mobalytics")}.`;
   return `
     <div class="summary-grid">
-      <div><strong>${escapeHtml(profile.name)}</strong><br><span>${stages.length} stage(s) created from pasted guide text. Author/source: ${escapeHtml(parsed.author || "Mobalytics")}.</span></div>
+      <div><strong>${escapeHtml(profile.name)}</strong><br><span>${sourceDesc}</span></div>
       <div>${priorityTags || '<span class="tag">No priority tags detected</span>'}</div>
     </div>
-    <div class="stage-chips">${stages.map(stage => `<span>${escapeHtml(stage.label)} · ${stage.skills.length} skills · ${stage.inventory.length} priority targets</span>`).join("")}</div>
+    <div class="stage-chips">${stages.map(stage => `<span>${escapeHtml(stage.label)} · ${stage.skills?.length || 0} skills · ${stage.inventory?.length || 0} items/targets</span>`).join("")}</div>
   `;
 }
 
@@ -796,14 +1026,14 @@ function cleanStageLabel(name) {
   if (text.includes(" - ")) {
     text = text.split(" - ")[0].trim();
   }
-  text = text.replace(/\b([Ll]eveli)n\b/g, "$1ng").replace(/\b([Ll]eveli)N\b/g, "$1NG");
+  text = text.replace(/\b([Ll]eveli)n(?=[\s\-_]|$)/g, "$1ng").replace(/\b([Ll]eveli)N(?=[\s\-_]|$)/g, "$1NG");
   return text;
 }
 
 function normalizeGuideNameText(text) {
   return String(text || "")
     .replace(/\.build$/i, "")
-    .replace(/\b([Ll]eveli)n\b/g, "$1ng")
+    .replace(/\b([Ll]eveli)n(?=[\s\-_]|$)/g, "$1ng")
     .replace(/\b([Dd]eade|[Dd]eadey)\b/g, "Deadeye")
     .replace(/\s+/g, " ")
     .trim();
@@ -811,7 +1041,7 @@ function normalizeGuideNameText(text) {
 
 function stripStagePrefixFromName(text) {
   return normalizeGuideNameText(text)
-    .replace(/^(?:early|live gear|uber endgame|crit hybrid|non[-\s]?crit\s+(?:midgame|hybrid swap)|midgame|hybrid swap)\s*[-–—]\s*/i, "")
+    .replace(/^(?:early|live gear|uber endgame|crit hybrid|non[-\s]?crit\s+(?:midgame|hybrid swap)|midgame|hybrid swap|act\s*\d+|interludes?|mapping|maps|end[-\s]?game)\s*[-–—]\s*/i, "")
     .replace(/^(?:lvl|level)\s*\d+\s*(?:[-–—]\s*\d+|\+)?\s*[-–—]\s*/i, "")
     .trim();
 }
@@ -826,6 +1056,23 @@ function inferVariantRange(name, data = null) {
   if (/non[-\s]?crit.*hybrid swap|hybrid swap/.test(lower)) return { min: 85, max: 89, label: "non-crit Hybrid swap" };
   if (/non[-\s]?crit.*midgame|midgame/.test(lower)) return { min: 77, max: 84, label: "non-crit Midgame" };
   if (/^early\b/.test(lower)) return { min: 1, max: 76, label: "Early" };
+
+  // Acts and PoE2 progression stages
+  const actMatch = lower.match(/\bact\s*([1-4])\b/);
+  if (actMatch) {
+    const act = Number(actMatch[1]);
+    const actRanges = {
+      1: { min: 1, max: 15, label: "Act 1 (1-15)" },
+      2: { min: 16, max: 28, label: "Act 2 (16-28)" },
+      3: { min: 29, max: 42, label: "Act 3 (29-42)" },
+      4: { min: 43, max: 55, label: "Act 4 (43-55)" },
+    };
+    return actRanges[act];
+  }
+  if (/\binterludes?\b/.test(lower)) return { min: 56, max: 64, label: "Interludes (56-64)" };
+  if (/\b(?:mapping|maps)\b/.test(lower)) return { min: 65, max: 84, label: "Mapping (65-84)" };
+  if (/\b(?:end[-\s]?game|endgame)\b/.test(lower)) return { min: 85, max: 100, label: "Endgame (85-100)" };
+
   return null;
 }
 
@@ -865,7 +1112,7 @@ function normalizeBuildFile(data, fileName) {
     fileName,
     name,
     author: data.author || "Unknown",
-    ascendancy: data.ascendancy || "Unknown",
+    ascendancy: cleanAscendancyName(data.ascendancy) || data.ascendancy || "Unknown",
     minLevel: range.min,
     maxLevel: range.max,
     label: range.label || cleanStageLabel(name),
@@ -958,14 +1205,17 @@ function extractLevelRange(name, data, fileName = "") {
 }
 
 function normalizeInventorySlot(slot) {
-  const text = String(slot.additional_text || "").replace(/^\s+|\s+$/g, "");
-  const name = text.split(/\r?\n/).find(Boolean) || slot.inventory_id || "Guide item";
+  const text = String(slot.additional_text || slot.unique_name || slot.name || slot.base_item_name || "").replace(/^\s+|\s+$/g, "");
+  const name = slot.unique_name || slot.name || slot.base_item_name || text.split(/\r?\n/).find(Boolean) || slot.inventory_id || "Guide item";
   return {
     id: slot.inventory_id || "UnknownSlot",
     slot: mapInventoryIdToSlot(slot.inventory_id || "", text, name),
     text,
     name,
+    uniqueName: slot.unique_name || "",
+    isUnique: Boolean(slot.unique_name),
     levelInterval: slot.level_interval || [1, 100],
+    raw: slot,
   };
 }
 
@@ -983,9 +1233,10 @@ function mapInventoryIdToSlot(id, text = "", name = "") {
 
   // Prefer actual Weapon/Offhand IDs before reading modifier text
   if (value.includes("weapon")) return "weapon";
-  if (value.includes("offhand")) return "quiver";
+  if (value.includes("offhand")) return /quiver/.test(itemText) ? "quiver" : "offhand";
 
   if (/quiver/.test(itemText)) return "quiver";
+  if (/shield|focus/.test(itemText)) return "offhand";
   if (value.includes("helm")) return "helmet";
   if (value.includes("body")) return "body";
   if (value.includes("glove")) return "gloves";
@@ -1018,20 +1269,87 @@ function cleanGemName(id) {
     .trim() || id;
 }
 
-function inferBuildFocus(text) {
-  const lower = text.toLowerCase();
-  return {
-    cold: /ice|cold|frost|freeze|chill/.test(lower),
-    lightning: /lightning|shock/.test(lower),
-    bow: /bow|quiver|arrow|shot|projectile/.test(lower),
-    crossbow: /crossbow|bolt|reload/.test(lower),
-    attack: /attack|bow|shot|projectile|arrow|crossbow/.test(lower),
-    minion: /minion|skeletal|zombie|skeleton/.test(lower),
-    spell: /spell|cast|sorcer|wizard/.test(lower),
-    melee: /melee|quarterstaff|spear|unarmed|palm|strike|bell/.test(lower),
-    unarmed: /unarmed|hollow palm|hollow focus|way of the stonefist/.test(lower),
-    quarterstaff: /quarterstaff|storm wave|falling thunder|tempest bell|charged staff/.test(lower),
+function cleanAscendancyName(id) {
+  if (!id) return "Unknown";
+  const map = {
+    "Ranger1": "Deadeye",
+    "Ranger2": "Pathfinder",
+    "Monk1": "Invoker",
+    "Monk2": "Acolyte of Chayula",
+    "Warrior1": "Titan",
+    "Warrior2": "Warbringer",
+    "Mercenary1": "Witchhunter",
+    "Mercenary2": "Gemling Legionnaire",
+    "Mercenary3": "Tactician",
+    "Sorceress1": "Stormweaver",
+    "Sorceress2": "Chronomancer",
+    "Witch1": "Blood Mage",
+    "Witch2": "Infernalist",
+    "Huntress1": "Amazon",
+    "Huntress2": "Survivalist",
+    "Shadow1": "Assassin",
+    "Shadow2": "Trickster",
+    "Duelist1": "Slayer",
+    "Duelist2": "Gladiator",
+    "Templar1": "Inquisitor",
+    "Templar2": "Hierophant",
+    "Druid1": "Shaman",
+    "Druid2": "Animist",
   };
+  return map[id] || id;
+}
+
+function inferBuildFocus(text, options = {}) {
+  const lower = String(text || "").toLowerCase();
+
+  const isQuarterstaff = /\b(quarterstaff|quarterstaves|charged staff|storm wave|falling thunder|tempest bell|siphoning strike|whirling assault|flicker strike|rend)\b/i.test(lower) ||
+    /quarterstaff strike/i.test(lower) ||
+    Boolean(options.isQuarterstaff);
+
+  const isUnarmed = /\b(unarmed|hollow palm|hollow focus|way of the stonefist|martial artist)\b/i.test(lower) ||
+    Boolean(options.isUnarmed);
+
+  const isCrossbow = !isQuarterstaff && !isUnarmed && /\b(crossbows?|bolts?|power siphoning|rapid fire)\b/i.test(lower);
+
+  // Bow requires specific bow terms, not generic "projectile" or substring "shot"
+  const hasExplicitBow = /\b(bows?|quivers?|arrows?|ice shot|tornado shot|lightning arrow|toxic rain|split shot|barrage|snipe|rain of arrows)\b/i.test(lower);
+  const isBow = !isQuarterstaff && !isUnarmed && hasExplicitBow;
+
+  const isMonk = /\b(monk|invoker|acolyte of chayula)\b/i.test(lower) || isQuarterstaff || isUnarmed;
+
+  const isMelee = isQuarterstaff || isUnarmed || /\b(melee|spear|strike|cleave|slam|boneshatter|sunder|ground slam)\b/i.test(lower);
+
+  return {
+    cold: /\b(ice|cold|frost|freeze|chill)\b/i.test(lower),
+    lightning: /\b(lightning|shock|electrocute|conductive)\b/i.test(lower),
+    fire: /\b(fire|ignite|burn|flame|pyro|infernal|sun|flamethrower)\b/i.test(lower),
+    chaos: /\b(chaos|poison|wither|decay|void|forbidden)\b/i.test(lower),
+    physical: /\b(physical|bleed|puncture|lacerate|rupture)\b/i.test(lower),
+    bow: Boolean(isBow),
+    quiver: Boolean(isBow),
+    crossbow: Boolean(isCrossbow),
+    attack: Boolean(isBow || isCrossbow || isMelee || /\battack\b/i.test(lower)),
+    minion: /\b(minion|skeletal|zombie|skeleton|golem|spectre)\b/i.test(lower),
+    spell: !isQuarterstaff && !isUnarmed && /\b(spell|cast|sorcer|wizard)\b/i.test(lower),
+    melee: Boolean(isMelee),
+    unarmed: Boolean(isUnarmed),
+    quarterstaff: Boolean(isQuarterstaff),
+    monk: Boolean(isMonk),
+    spirit: /\b(spirit|reservation|aura)\b/i.test(lower),
+  };
+}
+
+function getAllowedSlotsForFocus(focus) {
+  if (focus?.unarmed) {
+    return ["helmet", "body", "gloves", "boots", "ring", "amulet", "belt"];
+  }
+  if (focus?.quarterstaff || focus?.crossbow) {
+    return ["weapon", "helmet", "body", "gloves", "boots", "ring", "amulet", "belt"];
+  }
+  if (focus?.bow) {
+    return ["weapon", "quiver", "helmet", "body", "gloves", "boots", "ring", "amulet", "belt"];
+  }
+  return ["weapon", "offhand", "helmet", "body", "gloves", "boots", "ring", "amulet", "belt"];
 }
 
 function buildFocusText(stages) {
@@ -1040,6 +1358,8 @@ function buildFocusText(stages) {
 
 function createImportedProfile(stages) {
   const profileName = commonBuildName(stages);
+  const focus = inferBuildFocus(buildFocusText(stages));
+  const allowedSlots = getAllowedSlotsForFocus(focus);
   const allSlots = Array.from(new Set(stages.flatMap(stage => stage.inventory.map(item => item.slot)).filter(slot => slot !== "other")));
   const stageEntries = Object.fromEntries(stages.map((stage, index) => {
     const key = `stage_${index}`;
@@ -1049,12 +1369,11 @@ function createImportedProfile(stages) {
       ...weightsForStage(stage),
     }];
   }));
-  const focus = inferBuildFocus(buildFocusText(stages));
   return {
     name: profileName,
     imported: true,
     focus,
-    slots: allSlots.length ? allSlots : BUILD_PROFILES.genericAttack.slots,
+    slots: allSlots.length ? allSlots.filter(s => allowedSlots.includes(s)) : allowedSlots,
     baseWeights: BUILD_PROFILES.genericAttack.baseWeights,
     stages: stageEntries,
     statRules: buildImportedRules(stages, window.currentPobbBuild, focus),
@@ -1074,6 +1393,15 @@ function slotRulesForFocus(focus) {
     rules.gloves  = { ...rules.gloves,  damage: 0.6,  synergy: 1.35 };
     rules.ring    = { ...rules.ring,    synergy: 1.35 };
     rules.amulet  = { ...rules.amulet,  synergy: 1.3 };
+  } else if (focus?.quarterstaff) {
+    return defaultQuarterstaffSlotRules();
+  } else if (focus?.unarmed) {
+    rules.weapon  = { damage: 0, synergy: 0, defense: 0, resistance: 0, mobility: 0 };
+    rules.offhand = { damage: 0, synergy: 0, defense: 0, resistance: 0, mobility: 0 };
+    rules.quiver  = { damage: 0, synergy: 0, defense: 0, resistance: 0, mobility: 0 };
+    rules.gloves  = { damage: 1.45, synergy: 1.45, defense: 1.0, resistance: 0.9, attributes: 1.2 };
+    rules.ring    = { resistance: 1.2, attributes: 1.4, damage: 1.2, synergy: 1.2 };
+    rules.amulet  = { attributes: 1.5, damage: 1.2, synergy: 1.2, resistance: 1.0 };
   }
   return rules;
 }
@@ -1150,11 +1478,38 @@ function buildImportedRules(stages, pobBuild = null, precomputedFocus = null) {
     });
   }
 
+  // Universal PoE2 Spirit resource rule and Gear Sockets
+  rules.unshift(
+    { match: /\+\d+\s+to\s+spirit|%\s+increased\s+spirit|\bspirit\b/i, category: "synergy", points: 14, label: "Spirit", note: "Spirit is vital in PoE2 to run persistent buffs, auras, and minion reservations." },
+    { match: /has\s+\d+\s+socket|socketed\s+gems|socketed\s+runes|socketed\s+soul\s+cores/i, category: "synergy", points: 12, label: "gear sockets", note: "Allows socketing powerful Soul Cores and Runes." }
+  );
+
   if (focus.cold) {
     rules.unshift({ match: /cold damage to attacks|adds .* cold damage|cold damage/i, category: "synergy", points: 17, note: "The imported build appears to use Ice/cold scaling, so cold damage is highly relevant." });
   }
   if (focus.lightning) {
     rules.unshift({ match: /lightning damage to attacks|adds .* lightning damage|lightning damage|elemental damage with attacks/i, category: "synergy", points: 17, note: "The imported build uses lightning skills or mechanics, so lightning/elemental attack scaling is highly relevant." });
+  }
+  if (focus.fire) {
+    rules.unshift({ match: /fire damage to attacks|adds .* fire damage|fire damage|elemental damage with attacks|fire penetration|ignite/i, category: "synergy", points: 17, note: "The imported build utilizes Fire scaling, so fire/elemental damage is highly relevant." });
+  }
+  if (focus.chaos) {
+    rules.unshift({ match: /chaos damage|adds .* chaos damage|poison|wither|chaos penetration/i, category: "synergy", points: 18, note: "The imported build utilizes Chaos/Poison scaling (Forbidden Rites theme), so chaos modifiers are top priority." });
+  }
+  if (focus.physical) {
+    rules.unshift({ match: /physical damage|adds .* physical damage|bleed|puncture/i, category: "damage", points: 15, note: "The imported build scales Physical/Bleed damage." });
+  }
+  if (focus.quarterstaff) {
+    rules.unshift(
+      { match: /quarterstaff|melee damage|damage with staves|attack speed|adds .* damage to attacks|melee physical damage/i, category: "synergy", points: 18, label: "quarterstaff melee damage", note: "Quarterstaff Monk scales attack speed, flat added damage, and melee/staff damage." },
+      { match: /bow skills|projectile skills|arrows?|quivers?/i, category: "synergy", points: -15, label: "bow / quiver stats", note: "⚠️ Quarterstaff Monk does not use bows, arrows, or quivers." }
+    );
+  }
+  if (focus.unarmed) {
+    rules.unshift(
+      { match: /unarmed|melee damage|attack speed|adds .* damage to attacks|melee physical damage/i, category: "synergy", points: 18, label: "unarmed damage", note: "Unarmed builds scale attack speed, flat added damage, and melee multipliers without weapon requirements." },
+      { match: /bow skills|projectile skills|arrows?|quivers?|quarterstaff|staff|staves|weapon damage/i, category: "synergy", points: -15, label: "weapon / quiver stats", note: "⚠️ Unarmed builds do not equip weapons or quivers." }
+    );
   }
   if (focus.bow || focus.crossbow) {
     rules.unshift({ match: /projectile skills|projectile damage|bow skills|crossbow skills|quiver/i, category: "synergy", points: 14, note: "The imported build appears projectile/bow focused." });
@@ -1201,10 +1556,14 @@ function renderImportSummary(profile, failures) {
 
 function summarizeFocus(stages) {
   const combined = stages.reduce((acc, stage) => {
-    Object.entries(stage.focus).forEach(([key, value]) => { if (value) acc.add(key); });
+    Object.entries(stage.focus || {}).forEach(([key, value]) => { if (value) acc.add(key); });
     return acc;
   }, new Set());
-  const labelMap = { cold: "Cold/Ice", lightning: "Lightning", bow: "Bow", crossbow: "Crossbow", attack: "Attack", spell: "Spell", minion: "Minion", melee: "Melee", unarmed: "Unarmed", quarterstaff: "Quarterstaff" };
+  const labelMap = {
+    cold: "Cold/Ice", lightning: "Lightning", fire: "Fire", chaos: "Chaos (0.5.5)", physical: "Physical",
+    bow: "Bow", crossbow: "Crossbow", attack: "Attack", spell: "Spell", minion: "Minion", melee: "Melee",
+    unarmed: "Unarmed", quarterstaff: "Quarterstaff", spirit: "Spirit"
+  };
   return Array.from(combined).map(key => labelMap[key] || key);
 }
 
@@ -1269,11 +1628,24 @@ function loadGuideTargetForSlot() {
 }
 
 function convertGuideItemToPasteText(item) {
-  const classMap = { weapon: "Bows", quiver: "Quivers", helmet: "Helmets", body: "Body Armours", gloves: "Gloves", boots: "Boots", amulet: "Amulets", ring: "Rings", belt: "Belts", flask: "Flasks", charm: "Charms" };
+  const profile = typeof getProfile === "function" ? getProfile() : null;
+  const focus = profile?.focus || inferBuildFocus(profile?.name || "");
+  const textCheck = `${item.name || ""} ${item.text || ""}`.toLowerCase();
+
+  let weaponClass = "Weapons";
+  if (focus.quarterstaff || /quarterstaff/.test(textCheck)) weaponClass = "Quarterstaves";
+  else if (/staff|staves/.test(textCheck)) weaponClass = "Staves";
+  else if (focus.crossbow || /crossbow/.test(textCheck)) weaponClass = "Crossbows";
+  else if (focus.bow || /bow|quiver/.test(textCheck)) weaponClass = "Bows";
+  else if (/wand/.test(textCheck)) weaponClass = "Wands";
+  else if (/sceptre|scepter/.test(textCheck)) weaponClass = "Sceptres";
+
+  const classMap = { weapon: weaponClass, quiver: "Quivers", helmet: "Helmets", body: "Body Armours", gloves: "Gloves", boots: "Boots", amulet: "Amulets", ring: "Rings", belt: "Belts", flask: "Flasks", charm: "Charms", offhand: "Shields" };
   const slotLabel = classMap[item.slot] || label(item.slot);
+  const rarity = item.isUnique || item.uniqueName ? "Unique" : "Rare";
   const lines = item.text.split(/\r?\n/).map(line => line.replace(/^\d+\.\s*/, "")).filter(Boolean);
   const name = lines.shift() || item.name;
-  return `Item Class: ${slotLabel}\nRarity: Rare\n${name}\n--------\n${lines.join("\n")}`;
+  return `Item Class: ${slotLabel}\nRarity: ${rarity}\n${name}\n--------\n${lines.join("\n")}`;
 }
 
 function parseItem(text) {
@@ -1490,9 +1862,23 @@ function scoreItem(item, profile, slot, stageKey) {
           base = Math.max(base, 15);
           note = "Accuracy rating (highly valued for Precise Technique).";
         }
+        const currentHitChance = Number(window.currentPobbBuild?.stats?.hitChance);
+        if (Number.isFinite(currentHitChance) && /accuracy rating/i.test(line)) {
+          if (currentHitChance <= 70) {
+            base = Math.max(base, 18);
+            note = `Accuracy rating (CRITICAL: current hit chance is only ${currentHitChance}%).`;
+          } else if (currentHitChance <= 80) {
+            base = Math.max(base, 14);
+            note = `Accuracy rating (important: current hit chance is ${currentHitChance}%).`;
+          } else if (currentHitChance >= 95) {
+            base = Math.round(base * 0.25);
+            note = `Accuracy rating (low value: hit chance is already ${currentHitChance}%).`;
+          }
+        }
         const slotMultiplier = slotWeights[rule.category] ?? 1;
         const stageMultiplier = stageWeights[rule.category] ?? profile.baseWeights[rule.category] ?? 1;
-        const points = Math.round(base * slotMultiplier * stageMultiplier);
+        const actMult = typeof actContextMult === "function" ? actContextMult(rule.category, getPlayerLevel()) : 1;
+        const points = Math.round(base * slotMultiplier * stageMultiplier * actMult);
         scores[rule.category] += points;
         hits.push({ line, category: rule.category, points, note });
         if (points < 0) warnings.push(rule.note);
@@ -1791,90 +2177,233 @@ function aggregateGearTotals(items) {
 }
 
 function getActContext() {
-  return document.getElementById("actSelect")?.value || "auto";
+  return (typeof document !== "undefined" ? document.getElementById("actSelect")?.value : null) || "auto";
+}
+
+const ACT_CONTEXT_WEIGHTS = {
+  act1:     { resistance: 0.5,  attributes: 1.4, mobility: 1.4, defense: 0.8, damage: 1.25 },
+  act2:     { resistance: 0.75, attributes: 1.2, mobility: 1.3, defense: 0.9, damage: 1.25 },
+  act2plus: { resistance: 1.3,  defense: 1.2,  attributes: 0.9, damage: 1.1 },
+  act3plus: { resistance: 1.3,  defense: 1.2,  attributes: 0.9, damage: 1.1 },
+  maps:     { damage: 1.2,      synergy: 1.25, resistance: 1.4, defense: 1.25, attributes: 0.7 },
+};
+
+function getEffectiveActContext(playerLevel = 1) {
+  const raw = getActContext();
+  if (raw !== "auto") {
+    if (raw === "act2plus") return "act3plus";
+    if (ACT_CONTEXT_WEIGHTS[raw]) return raw;
+  }
+  const lvl = Number(playerLevel) || getPlayerLevel() || 1;
+  if (lvl <= 15) return "act1";
+  if (lvl <= 25) return "act2";
+  if (lvl <= 64) return "act3plus";
+  return "maps";
+}
+
+function actContextMult(category, playerLevel = 1) {
+  const effectiveAct = getEffectiveActContext(playerLevel);
+  const w = ACT_CONTEXT_WEIGHTS[effectiveAct] || {};
+  return w[category] ?? 1.0;
+}
+
+function getLevelResistTarget(playerLevel = 1) {
+  const lvl = Number(playerLevel) || 1;
+  if (lvl <= 15) return { target: 15, minAcceptable: 0, criticalThreshold: -30, stageName: "Act 1", isEndgame: false };
+  if (lvl <= 25) return { target: 25, minAcceptable: 0, criticalThreshold: -20, stageName: "Act 2", isEndgame: false };
+  if (lvl <= 40) return { target: 45, minAcceptable: 20, criticalThreshold: -10, stageName: "Act 3", isEndgame: false };
+  if (lvl <= 64) return { target: 65, minAcceptable: 40, criticalThreshold: 0, stageName: "Cruel / Late Campaign", isEndgame: false };
+  return { target: 75, minAcceptable: 60, criticalThreshold: 0, stageName: "Maps / Endgame", isEndgame: true };
 }
 
 function buildNeededStats({ rows, equippedRows = [], futureRows = [], gearTotals, requirementProblems, profile, stageKey, playerLevel, playerAttrs }) {
   const needs = [];
-  const stage = profile.stages?.[stageKey];
-  const minLevel = stage?.data?.minLevel || 1;
-  const maxLevel = stage?.data?.maxLevel || 100;
-  const actCtx = getActContext();
-  const isEarly = maxLevel <= 23 && actCtx === "auto";
-  const isMid = (minLevel >= 24 && maxLevel <= 59) || actCtx === "act2plus";
-  const isLate = minLevel >= 60 || actCtx === "maps";
+  const effectiveAct = getEffectiveActContext(playerLevel);
+  const isEarly = effectiveAct === "act1" || effectiveAct === "act2" || playerLevel <= 25;
+  const isMid = effectiveAct === "act3plus" || (playerLevel >= 26 && playerLevel <= 64);
+  const isLate = effectiveAct === "maps" || playerLevel >= 65;
 
   const allPastedAreFuture = rows.some(row => row.entry) && futureRows.length > 0 && equippedRows.length === 0;
   if (allPastedAreFuture && playerLevel <= 1 && playerAttrs.str === 0 && playerAttrs.dex === 0 && playerAttrs.int === 0) {
     needs.push("Player level/attributes look unset. Enter your real level and Str/Dex/Int before trusting requirement warnings.");
   }
 
-  const missingAttrs = rows.flatMap(row => row.attrProblem?.missing || []);
-  const byAttr = {};
-  for (const miss of missingAttrs) byAttr[miss.key] = Math.max(byAttr[miss.key] || 0, miss.shortBy);
-  for (const [key, shortBy] of Object.entries(byAttr)) {
-    const name = { str: "Strength", dex: "Dexterity", int: "Intelligence" }[key];
-    needs.push(`+${shortBy} ${name} needed to equip one or more pasted/future items. Best places to fix it: amulet, rings, helmet, or belt.`);
+  // Differentiate immediate attribute requirements (current gear or near-level items <= playerLevel + 5)
+  // from distant future gear (e.g. req level 70 while player is level 16)
+  const nearOrEquippedMissing = [];
+  const distantFutureMissing = [];
+  for (const row of rows) {
+    if (!row.attrProblem?.missing?.length) continue;
+    const itemReqLevel = Number(row.entry?.scored.item.requiredLevel || 0);
+    const isNear = itemReqLevel <= playerLevel + 5;
+    for (const miss of row.attrProblem.missing) {
+      if (isNear) {
+        nearOrEquippedMissing.push(miss);
+      } else {
+        distantFutureMissing.push(miss);
+      }
+    }
   }
 
-  if (futureRows.some(row => row.levelProblem)) needs.push(`Some pasted items are above player level ${playerLevel}. They are now treated as future upgrades and are not counted in gear totals.`);
-  if (equippedRows.length && gearTotals.movementSpeed <= 0) needs.push("Movement speed boots should be a top priority; they make leveling feel much better.");
-  if (equippedRows.length && !isEarly) {
+  const byAttr = {};
+  for (const miss of nearOrEquippedMissing) byAttr[miss.key] = Math.max(byAttr[miss.key] || 0, miss.shortBy);
+  for (const [key, shortBy] of Object.entries(byAttr)) {
+    const name = { str: "Strength", dex: "Dexterity", int: "Intelligence" }[key];
+    needs.push(`+${shortBy} ${name} needed to equip your current/near-level gear. Best places to fix it: amulet, rings, helmet, or belt.`);
+  }
+  if (!nearOrEquippedMissing.length && distantFutureMissing.length && isEarly) {
+    needs.push("Some distant future gear targets need higher attributes eventually, but don't divert your early leveling build to fix them yet.");
+  }
+
+  if (futureRows.some(row => row.levelProblem)) {
+    needs.push(`Some pasted items are above player level ${playerLevel}. They are treated as future upgrades and not counted in current gear totals.`);
+  }
+
+  // Hit chance / Accuracy check
+  const hitChance = Number(window.currentPobbBuild?.stats?.hitChance);
+  if (Number.isFinite(hitChance) && hitChance > 0) {
+    if (hitChance <= 75) {
+      needs.unshift(`CRITICAL: Hit chance is only ${hitChance}% (over ${100 - hitChance}% of your attacks miss!). Prioritize Accuracy Rating on gloves, rings, helmet, or the passive tree immediately.`);
+    } else if (hitChance < 88) {
+      needs.push(`Hit chance is ${hitChance}%. Adding Accuracy Rating on gloves or jewelry will give a noticeable DPS boost by reducing misses.`);
+    }
+  }
+
+  if (equippedRows.length) {
+    if (gearTotals.movementSpeed <= 0) {
+      needs.push("Movement speed boots should be a top priority; they make leveling feel much better.");
+    } else if (gearTotals.movementSpeed < 15) {
+      needs.push(`Boots only have ${gearTotals.movementSpeed}% movement speed. 10% is better than before, but upgrading to 15–20%+ will make campaign navigation much faster.`);
+    }
+  }
+
+  // Level-scaled resistance check
+  if (equippedRows.length) {
+    const targetInfo = getLevelResistTarget(playerLevel);
     const finalRes = window.currentPobbBuild?.stats?.resistances || null;
     const lowRes = [];
     if (finalRes && Object.keys(finalRes).length) {
-      if (Number(finalRes.fire) < 75) lowRes.push("Fire");
-      if (Number(finalRes.cold) < 75) lowRes.push("Cold");
-      if (Number(finalRes.lightning) < 75) lowRes.push("Lightning");
+      if (Number(finalRes.fire) < targetInfo.target) lowRes.push("Fire");
+      if (Number(finalRes.cold) < targetInfo.target) lowRes.push("Cold");
+      if (Number(finalRes.lightning) < targetInfo.target) lowRes.push("Lightning");
     } else {
-      if (gearTotals.fireRes + gearTotals.allRes < 25) lowRes.push("Fire");
-      if (gearTotals.coldRes + gearTotals.allRes < 25) lowRes.push("Cold");
-      if (gearTotals.lightningRes + gearTotals.allRes < 25) lowRes.push("Lightning");
+      const minRes = isEarly ? 0 : isMid ? 30 : 60;
+      if (gearTotals.fireRes + gearTotals.allRes < minRes) lowRes.push("Fire");
+      if (gearTotals.coldRes + gearTotals.allRes < minRes) lowRes.push("Cold");
+      if (gearTotals.lightningRes + gearTotals.allRes < minRes) lowRes.push("Lightning");
     }
-    if (lowRes.length) needs.push(`Add more ${lowRes.join("/")} resistance on armor or jewelry. Do not use weapon/quiver slots to solve every defensive problem.`);
+    if (lowRes.length) {
+      if (isLate) {
+        needs.push(`Cap ${lowRes.join("/")} resistance to 75% on armor or jewelry. In endgame maps, capping resistances is mandatory for survival.`);
+      } else if (isEarly) {
+        const severeNeg = lowRes.filter(name => {
+          const val = finalRes ? Number(finalRes[name.toLowerCase()]) : (gearTotals[`${name.toLowerCase()}Res`] + gearTotals.allRes);
+          return val < 0;
+        });
+        if (severeNeg.length) {
+          needs.push(`${severeNeg.join("/")} resistance is negative. Look for a modest resist roll on rings/belt for Act 2, but prioritize weapon flat damage and life.`);
+        }
+      } else {
+        needs.push(`Look for ${lowRes.join("/")} resistance on armor or jewelry to reach ~${targetInfo.target}% for ${targetInfo.stageName}.`);
+      }
+    }
   }
-  if (equippedRows.length && (gearTotals.life || 0) < (isEarly ? 20 : isLate ? 120 : 60)) needs.push("Look for more +maximum Life on armor, belt, rings, and amulet.");
-  const isBowBuild = /frost|bow|ice shot|crossbow|projectile/i.test(profile.name);
-  if (equippedRows.length && gearTotals.addedColdAvg + gearTotals.addedPhysicalAvg < (isEarly ? 4 : isLate ? 18 : 9)) {
-    needs.push(isBowBuild
-      ? "Add more flat cold damage to attacks on weapon, quiver, rings, or gloves. Cold is the primary damage type for Ice Shot."
-      : "Add more flat physical/cold damage to attacks on weapon, rings, gloves, or quiver.");
+
+  if (equippedRows.length && (gearTotals.life || 0) < (isEarly ? 20 : isLate ? 120 : 60)) {
+    needs.push("Look for more +maximum Life on armor, belt, rings, and amulet.");
   }
-  if (equippedRows.length && (isMid || isLate)) {
-    if (gearTotals.attackSpeed <= 0) needs.push("Start looking for attack speed, especially on gloves/weapon/quiver if available.");
-    if (gearTotals.bowSkillDamage + gearTotals.projectileDamage <= 0) needs.push("Bow skill damage or projectile damage would improve build synergy.");
+
+  const focus = profile.focus || inferBuildFocus(profile.name);
+  if (focus.quarterstaff) {
+    const weaponRow = rows.find(r => r.slot === "weapon" && r.entry);
+    const weaponScore = weaponRow?.entry?.scored?.totalScore ?? 0;
+    if (weaponScore > 0 && weaponScore < 50) {
+      needs.push(`Quarterstaff score is only +${weaponScore}. The weapon is one of the weaker functional parts of your setup—if a better staff drops with flat damage and attack speed, that could be a huge upgrade.`);
+    }
   }
+
+  const totalFlatDamage = (gearTotals.addedColdAvg || 0) + (gearTotals.addedPhysicalAvg || 0) + (gearTotals.addedLightningAvg || 0) + (gearTotals.addedFireAvg || 0);
+  if (equippedRows.length && totalFlatDamage < (isEarly ? 4 : isLate ? 18 : 9)) {
+    if (focus.quarterstaff) {
+      needs.push("Add more flat physical, lightning, or cold damage to attacks on your quarterstaff, rings, or gloves.");
+    } else if (focus.bow) {
+      needs.push("Add more flat elemental or physical damage to attacks on weapon, quiver, rings, or gloves.");
+    } else if (focus.unarmed) {
+      needs.push("Add more flat damage to attacks on rings, amulet, and gloves.");
+    } else {
+      needs.push("Add more flat physical or elemental damage to attacks on weapon, rings, or gloves.");
+    }
+  }
+
+  if (equippedRows.length) {
+    if (gearTotals.attackSpeed <= 0) {
+      const speedSlots = focus.bow ? "gloves, weapon, or quiver" : focus.quarterstaff ? "quarterstaff and gloves" : focus.unarmed ? "gloves" : "weapon and gloves";
+      needs.push(`Look for attack speed on ${speedSlots} to improve attack responsiveness.`);
+    }
+    if ((isMid || isLate) && focus.bow && (gearTotals.bowSkillDamage + gearTotals.projectileDamage <= 0)) {
+      needs.push("Bow skill damage or projectile damage would improve build synergy.");
+    }
+  }
+
   if (!needs.length) needs.push("No urgent stat gap detected. Your next upgrade can focus on replacing the lowest-scoring slot.");
   return [...new Set(needs)].slice(0, 8);
 }
 
-function buildShoppingList(profile, stageKey, rows) {
+function buildShoppingList(profile, stageKey, rows, playerLevel = 1) {
   const stageData = profile.stages?.[stageKey]?.data;
   const guide = stageData?.prioritySlots || {};
-  const isBowBuild = /frost|bow|ice shot|crossbow|projectile/i.test(profile.name);
+  const focus = profile.focus || inferBuildFocus(profile.name);
+  const isBowBuild = focus.bow || /frost|bow|ice shot|projectile/i.test(profile.name);
+  const isQuarterstaff = focus.quarterstaff || /quarterstaff|monk/i.test(profile.name);
   const nonCrit = isNonCritStageContext(profile, stageKey);
-  const defaults = isBowBuild ? {
-    weapon: nonCrit ? ["Flat physical/cold damage to attacks", "+Level to Projectile Skills", "Attack speed", "Bow/projectile damage"] : ["+Level to Projectile Skills", "Cold damage to attacks", "Critical damage bonus", "Attack speed"],
-    quiver: nonCrit ? ["Flat cold/physical damage to attacks", "+Level to Projectile Skills", "Attack speed", "Life or resistance"] : ["+Level to Projectile Skills", "Cold damage to attacks", "Attack speed", "Life or resistance"],
-    helmet: ["Life", "Resistance", "Attributes if gems/items are blocked"],
-    body: ["Life", "Strong defensive base", "Resistance"],
-    gloves: ["Flat cold damage to attacks", "Attack speed", "Life or resistance"],
-    boots: ["Movement speed", "Life", "Resistance"],
-    ring: ["Flat cold or lightning damage to attacks", "Resistance", "Attributes"],
-    amulet: ["+Level to Projectile Skills", "Attributes", "Resistance"],
-    belt: ["Life", "Resistance", "Strength if needed"],
-  } : {
-    weapon: ["Flat physical damage to attacks", "Attack speed", "Increased damage"],
-    quiver: ["Flat physical/elemental damage to attacks", "Attack speed", "Life or resistance"],
-    helmet: ["Life", "Resistance", "Attributes if gems/items are blocked"],
-    body: ["Life", "Strong defensive base", "Resistance"],
-    gloves: ["Attack speed", "Flat damage to attacks", "Life or resistance"],
-    boots: ["Movement speed", "Life", "Resistance"],
-    ring: ["Flat damage to attacks", "Resistance", "Attributes"],
-    amulet: ["Attributes", "Life/resistance", "Damage stats if requirements are solved"],
-    belt: ["Life", "Resistance", "Strength/attributes if needed"],
-  };
-  const slots = rows.map(row => row.slot).filter(slot => defaults[slot] || guide[slot]);
+  const lvl = Number(playerLevel) || getPlayerLevel() || 1;
+  const isEarly = lvl <= 25;
+  const hitChance = Number(window.currentPobbBuild?.stats?.hitChance);
+  const needsAccuracy = Number.isFinite(hitChance) && hitChance < 88;
+
+  let defaults;
+  if (isQuarterstaff) {
+    defaults = {
+      weapon: ["Flat physical / lightning / fire damage to attacks", "Attack speed", "+% Melee or staff damage", ...(needsAccuracy ? ["Accuracy rating"] : ["Critical damage bonus"])],
+      helmet: isEarly ? ["Life", "Attributes (Dex/Str/Int)", ...(needsAccuracy ? ["Accuracy rating"] : ["Light resistance"])] : ["Life", "Resistance", "Attributes", "Accuracy rating"],
+      body: isEarly ? ["Life", "Armour / Evasion / ES base", "Light resistance"] : ["Life", "High defense base", "Resistance"],
+      gloves: ["Attack speed", ...(needsAccuracy ? ["Accuracy rating"] : []), "Flat damage to attacks", "Life or resistance"],
+      boots: ["Movement speed (15–20%+)", "Life", "Resistance"],
+      ring: isEarly ? [ ...(needsAccuracy ? ["Accuracy rating"] : []), "Flat damage to attacks", "Life", "Modest resistance", "Attributes"] : ["Accuracy rating", "Flat damage to attacks", "Resistance", "Life"],
+      amulet: isEarly ? ["Attributes for skills (Dex/Str/Int)", "Life", "Flat damage to attacks", "Accuracy rating"] : ["Attributes", "+Level to Melee / Strike Skills", "Life", "Resistance"],
+      belt: isEarly ? ["Life", "Strength / attributes", "Modest resistance"] : ["Life", "Resistance", "Strength"],
+    };
+  } else if (isBowBuild) {
+    defaults = {
+      weapon: nonCrit ? ["Flat physical/cold damage to attacks", "+Level to Projectile Skills", "Attack speed", "Bow/projectile damage"] : ["+Level to Projectile Skills", "Cold damage to attacks", "Critical damage bonus", "Attack speed"],
+      quiver: nonCrit ? ["Flat cold/physical damage to attacks", "+Level to Projectile Skills", "Attack speed", "Life or resistance"] : ["+Level to Projectile Skills", "Cold damage to attacks", "Attack speed", "Life or resistance"],
+      helmet: isEarly ? ["Life", "Attributes if needed", "Light resistance"] : ["Life", "Resistance", "Attributes if gems/items are blocked"],
+      body: isEarly ? ["Life", "Strong defensive base", "Light resistance"] : ["Life", "Strong defensive base", "Resistance"],
+      gloves: ["Flat cold damage to attacks", "Attack speed", "Life or resistance"],
+      boots: ["Movement speed (top leveling priority)", "Life", "Resistance"],
+      ring: isEarly ? ["Flat cold/lightning damage to attacks", "Life", "Attributes", "Modest resistance"] : ["Flat cold or lightning damage to attacks", "Resistance", "Attributes"],
+      amulet: isEarly ? ["Attributes for skills", "+Level to Projectile Skills", "Flat damage", "Life"] : ["+Level to Projectile Skills", "Attributes", "Resistance"],
+      belt: isEarly ? ["Life", "Strength if needed", "Modest resistance"] : ["Life", "Resistance", "Strength if needed"],
+    };
+  } else {
+    defaults = {
+      weapon: ["Flat physical damage to attacks", "Attack speed", "Increased damage"],
+      helmet: isEarly ? ["Life", "Attributes if needed", "Light resistance"] : ["Life", "Resistance", "Attributes if gems/items are blocked"],
+      body: isEarly ? ["Life", "Defensive base", "Light resistance"] : ["Life", "Strong defensive base", "Resistance"],
+      gloves: ["Attack speed", "Flat damage to attacks", "Life or resistance"],
+      boots: ["Movement speed (top leveling priority)", "Life", "Resistance"],
+      ring: isEarly ? ["Flat damage to attacks", "Life", "Attributes", "Modest resistance"] : ["Flat damage to attacks", "Resistance", "Attributes"],
+      amulet: isEarly ? ["Attributes for skills", "Flat damage", "Life"] : ["Attributes", "Life/resistance", "Damage stats if requirements are solved"],
+      belt: isEarly ? ["Life", "Strength/attributes", "Modest resistance"] : ["Life", "Resistance", "Strength/attributes if needed"],
+    };
+    if (focus.bow) {
+      defaults.quiver = ["Flat physical/elemental damage to attacks", "Attack speed", "Life or resistance"];
+    }
+  }
+
+  const allowedSlots = new Set(getAllowedSlotsForFocus(focus));
+  const rawSlots = rows.map(row => row.slot).filter(slot => allowedSlots.has(slot) && (defaults[slot] || guide[slot]));
+  const slots = [...new Set(rawSlots)];
   return slots.map(slot => {
     let items = mergeShoppingTerms([...(guide[slot] || []), ...(defaults[slot] || [])]);
     if (nonCrit) items = items.filter(item => !/critical|crit/i.test(item));
@@ -1952,7 +2481,10 @@ function buildExportText(report) {
   lines.push("");
   if (resistanceGaps.length) {
     lines.push("Resistance gaps from pobb.in final stats:");
-    resistanceGaps.forEach(gap => lines.push(`- ${gap.name}: ${gap.value}% (${gap.priority}); needs +${gap.toZero} to reach 0%, +${gap.toFifty} to reach 50%, +${gap.toCap} to reach 75%.`));
+    resistanceGaps.forEach(gap => {
+      const targetNote = gap.target !== null && gap.toTarget > 0 ? `needs +${gap.toTarget}% to reach level target (${gap.target}%), ` : (gap.target !== null ? `meets target (${gap.target}%), ` : "");
+      lines.push(`- ${gap.name}: ${gap.value}% (${gap.priority}); ${targetNote}+${gap.toCap}% to reach 75% cap.`);
+    });
     lines.push("");
   }
   if (fixSlots.length) {
@@ -2031,8 +2563,9 @@ function buildSessionData() {
     userPreferences,
   }) || null;
   return {
-    version: 31,
+    version: 32,
     buildKey: buildSelect.value,
+    league: document.getElementById("trade-league")?.value || "poe2/Forbidden Rites",
     startWithWindows: document.getElementById("startupCheckbox")?.checked || false,
     actContext: document.getElementById("actSelect")?.value || "auto",
     slot: slotSelect.value,
@@ -2045,6 +2578,7 @@ function buildSessionData() {
     fullGearText: getCleanFullGearTextForSession(),
     currentItem: currentItem.value,
     newItem: newItem.value,
+    mobalyticsUrlInput: mobalyticsUrlInput?.value || "",
     mobalyticsGuideText: mobalyticsGuideText.value,
     pobbInput: pobbInput?.value || "",
     pobbBuild: window.currentPobbBuild || null,
@@ -2100,12 +2634,17 @@ function loadSession() {
     return;
   }
   const data = JSON.parse(raw);
+  if (data.league && document.getElementById("trade-league")) {
+    document.getElementById("trade-league").value = data.league;
+  }
   if (typeof data.startWithWindows === "boolean" && document.getElementById("startupCheckbox")) {
     document.getElementById("startupCheckbox").checked = data.startWithWindows;
   }
+  if (data.mobalyticsUrlInput && mobalyticsUrlInput) {
+    mobalyticsUrlInput.value = data.mobalyticsUrlInput;
+  }
   if (data.mobalyticsGuideText) {
     mobalyticsGuideText.value = data.mobalyticsGuideText;
-    handleMobalyticsImport({ skipSave: true });
   }
   if (data.pobbInput && pobbInput) pobbInput.value = data.pobbInput;
   if (data.pobbBuild) { window.currentPobbBuild = data.pobbBuild; if (pobbSummary) pobbSummary.innerHTML = renderPobbSummary(data.pobbBuild); }
@@ -2117,8 +2656,13 @@ function loadSession() {
         BUILD_PROFILES.importedBuild = profile;
       } else if (data.buildKey === "mobalyticsBuild") {
         BUILD_PROFILES.mobalyticsBuild = profile;
+        if (mobalyticsSummary && profile.mobalytics) {
+          mobalyticsSummary.innerHTML = renderMobalyticsSummary(profile, profile.mobalytics);
+        }
       }
     }
+  } else if (data.mobalyticsGuideText) {
+    handleMobalyticsImport({ skipSave: true });
   }
 
   if (data.buildKey && BUILD_PROFILES[data.buildKey]) buildSelect.value = data.buildKey;
@@ -2367,40 +2911,89 @@ function analyzeBuildHealth() {
     });
   const gearTotals = aggregateGearTotals(equippedRows.map(row => row.entry));
   const neededStats = buildNeededStats({ rows, equippedRows, futureRows, gearTotals, requirementProblems, profile, stageKey, playerLevel, playerAttrs });
-  const shoppingList = buildShoppingList(profile, stageKey, rows);
-  const resistanceGaps = buildResistanceGapReport(window.currentPobbBuild);
-  const fixSlots = buildFixSlotsReport(window.currentPobbBuild, rows);
-  const pobbWarnings = pobbWarningsForReport(window.currentPobbBuild);
+  const shoppingList = buildShoppingList(profile, stageKey, rows, playerLevel);
+  const resistanceGaps = buildResistanceGapReport(window.currentPobbBuild, playerLevel);
+  const fixSlots = buildFixSlotsReport(window.currentPobbBuild, rows, playerLevel, profile);
+  const pobbWarnings = pobbWarningsForReport(window.currentPobbBuild, playerLevel);
   const nextSteps = [...pobbWarnings.slice(0, 2), ...buildNextSteps(rows, equippedRows, futureRows, requirementProblems, missing, profile, stageKey, playerLevel, playerAttrs)].slice(0, 6);
 
-  window.lastHealthReport = { profile, stage, playerLevel, playerAttrs, rows, equippedRows, futureRows, missing, levelProblems, attributeProblems, requirementProblems, pobbWarnings, weak, buildEnablingNotes, nextSteps, neededStats, gearTotals, resistanceGaps, fixSlots, shoppingList, count: items.length, equippedCount: equippedRows.length, futureCount: futureRows.length };
+  // Authoritative Recommendation Engine 4-Decisions pipeline & 5-dimension evaluation
+  const recEngine = typeof RecommendationEngine !== "undefined"
+    ? RecommendationEngine
+    : (typeof require === "function" ? require("./recommendation-engine.js") : null);
+
+  const decisions = recEngine?.generateNextDecisions?.({
+    pobBuild: window.currentPobbBuild,
+    profile,
+    activeStage: profile?.stages?.[stageKey]?.data,
+    playerLevel,
+    playerAttrs,
+    equippedRows,
+  }) || null;
+
+  if (recEngine && decisions) {
+    for (const row of rows) {
+      if (row.entry?.scored?.item) {
+        row.dimensions = recEngine.evaluateItemDimensions(row.entry.scored.item, row.slot, decisions.context);
+      }
+    }
+  }
+
+  window.lastHealthReport = { profile, stage, playerLevel, playerAttrs, rows, equippedRows, futureRows, missing, levelProblems, attributeProblems, requirementProblems, pobbWarnings, weak, buildEnablingNotes, nextSteps, neededStats, gearTotals, resistanceGaps, fixSlots, shoppingList, decisions, count: items.length, equippedCount: equippedRows.length, futureCount: futureRows.length };
 
   healthResults.classList.remove("hidden");
   healthResults.innerHTML = renderHealthReport(window.lastHealthReport);
 }
 
-function healthAdviceForSlot(slot, scored) {
+function healthAdviceForSlot(slot, scored, profile = null) {
   const defScore = scored.scores.defense || 0;
   const resScore = scored.scores.resistance || 0;
   const dmgScore = (scored.scores.damage || 0) + (scored.scores.synergy || 0);
   const mobScore = scored.scores.mobility || 0;
+  const totalScore = scored.total ?? scored.totalScore ?? 0;
+  const focus = profile?.focus || inferBuildFocus(profile?.name || "");
+
+  // Zero-score slot handling
+  if (totalScore <= 0) {
+    if (slot === "amulet") return "Zero score amulet — this is an empty/dead slot opportunity! Equip even a basic magic or rare amulet to gain +Life, needed attributes (Dex/Str/Int), or a resistance.";
+    if (slot === "belt") return "Zero score belt — an easy defensive upgrade! Equip any basic belt with +Life, Strength, and resistances to immediately pad your survivability.";
+    if (slot === "ring") return "Zero score ring — equip a rare or magic ring with flat attack damage, life, or resistances to fix stat gaps.";
+    return `Zero-score ${label(slot)} — equip any basic magic or rare item with life, attributes, or resistances to instantly upgrade this slot.`;
+  }
 
   if (slot === "ring") return "Rings can carry 2 resistance mods + flat damage + attributes — the best slot for fixing multiple gaps at once.";
   if (slot === "belt") return "Belts carry life + resistance + strength simultaneously. A strong belt addresses 3 stat gaps in one upgrade.";
   if (slot === "boots") {
-    if (mobScore <= 0) return "No movement speed detected — this is a priority. Boots can hold movement speed + life + resistance all at once.";
+    if (mobScore <= 0) return "No movement speed detected — this is a top priority. Boots can hold movement speed + life + resistance all at once.";
+    const itemRaw = scored?.item?.raw || scored?.item?.text || scored?.raw || "";
+    const msMatch = String(itemRaw).match(/(\d+)%\s+increased\s+Movement\s+Speed/i);
+    const ms = msMatch ? parseInt(msMatch[1], 10) : 0;
+    if (ms > 0 && ms <= 10) return "10% movement speed is better than before, but upgrading to 15–20%+ will make campaign navigation much faster. Look for boots with higher speed, life, and resists.";
     if (resScore <= 0) return "Good mobility. Look for resistance on boots too — they can carry 2 resistances + movement speed.";
-    return "Solid boots. Upgrade when you find one with higher movement speed or more life.";
+    return "Solid boots. Upgrade when you find one with 15–20%+ movement speed or more life.";
   }
   if (slot === "amulet") return resScore <= 0 ? "Amulets can fix attributes and add resistance — look for attributes + 1–2 resists." : "Good amulet. Upgrade path: higher attributes or capped resistance.";
   if (slot === "body" && defScore <= 0 && resScore <= 0) return "Body armour is a primary defensive slot — should carry life + 2 elemental resistances.";
   if (slot === "helmet" && defScore <= 0 && resScore <= 0) return "Helmet should provide life + at least one resistance. It is also a good attribute-fix slot.";
-  if (["weapon", "quiver"].includes(slot) && dmgScore < 15) return "Upgrade for flat cold/physical damage, attack speed, or projectile/bow scaling. Weapon and quiver set your damage ceiling.";
+  if (slot === "weapon") {
+    if (focus.quarterstaff && totalScore < 50) {
+      return `Quarterstaff score is only +${totalScore} — the weapon is one of the weaker functional parts of your setup. If a better staff drops with meaningful flat physical/elemental damage and attack speed, that could be a huge upgrade.`;
+    }
+    if (dmgScore < 15) {
+      return focus.bow
+        ? "Upgrade weapon for flat cold/physical damage, attack speed, or bow scaling."
+        : "Upgrade weapon for flat damage, attack speed, or melee scaling.";
+    }
+  }
+  if (slot === "quiver" && dmgScore < 15) return "Upgrade quiver for flat cold/physical damage, attack speed, or projectile scaling. Quiver sets your damage ceiling alongside your bow.";
   if (slot === "gloves" && dmgScore < 15) return "Gloves can carry flat attack damage + attack speed — offense and resistance fixes in one slot.";
 
   const issues = [];
   if (defScore <= 0 && ["helmet", "body", "gloves", "boots", "belt"].includes(slot)) issues.push("look for life/defense");
-  if (resScore <= 0 && !["weapon", "quiver"].includes(slot)) issues.push("add resistance to free weapon/quiver for pure damage");
+  if (resScore <= 0 && !["weapon", "quiver"].includes(slot)) {
+    const freeTarget = focus.quarterstaff ? "quarterstaff" : focus.bow ? "weapon and quiver" : "weapon";
+    issues.push(`add resistance to free ${freeTarget} for pure damage`);
+  }
   return issues.length ? `Improve: ${issues.join("; ")}.` : "Looks usable for now — replace only when a clear upgrade appears.";
 }
 
@@ -2408,17 +3001,57 @@ function buildNextSteps(rows, equippedRows = [], futureRows = [], requirementPro
   const steps = [];
   const stageData = profile.stages?.[stageKey]?.data;
   const prioritySlots = stageData?.prioritySlots || {};
-  const actCtx = getActContext();
-  const isResistPriority = actCtx === "act2plus" || actCtx === "maps";
+  const effectiveAct = getEffectiveActContext(playerLevel);
+  const isEndgame = effectiveAct === "maps" || playerLevel >= 65;
+  const isActEarly = effectiveAct === "act1" || effectiveAct === "act2" || playerLevel <= 25;
+  const focus = profile?.focus || inferBuildFocus(profile?.name || "");
+
+  const hitChance = Number(window.currentPobbBuild?.stats?.hitChance);
+  if (Number.isFinite(hitChance) && hitChance > 0 && hitChance <= 75) {
+    steps.push(`Hit chance at ${hitChance}% is a serious problem (over ${100 - hitChance}% of your attacks miss!). Prioritize Accuracy Rating on gloves, rings, helmet, or passive tree—this hurts your damage more than raw weapon stats.`);
+  }
+
   if (futureRows.length && equippedRows.length === 0 && playerLevel <= 1 && playerAttrs.str === 0 && playerAttrs.dex === 0 && playerAttrs.int === 0) {
     steps.push("Enter your real player level and Str/Dex/Int, then refresh. The current report is treating every pasted item as future gear.");
   }
-  if (requirementProblems.length) steps.push("Fix level or attribute requirements before treating those items as real upgrades.");
-  if (isResistPriority) {
-    const actLabel = actCtx === "maps" ? "maps" : "Acts 3+/Cruel";
-    steps.push(`${actLabel}: elemental resistance caps (75%) are the top survival priority now. Fix resists on rings, belt, and armor before chasing damage.`);
+  if (requirementProblems.length) {
+    const hasNearReq = rows.some(r => r.reqProblem && Number(r.entry?.scored.item.requiredLevel || 0) <= playerLevel + 5);
+    if (hasNearReq) {
+      steps.push("Fix level or attribute requirements on current/near-level items before treating them as usable upgrades.");
+    }
   }
+
+  // Monk Level 22 milestone check
+  if (playerLevel >= 18 && playerLevel <= 21 && (focus.quarterstaff || /monk/i.test(profile.name))) {
+    steps.push(`Level 22 Transition ahead: You are only ${22 - playerLevel} level(s) away from unlocking Storm Wave and Siphoning Strike. Keep current gear stable and avoid major respecs until that milestone.`);
+  }
+
+  if (isEndgame) {
+    steps.push("Maps / Endgame: Elemental resistance caps (75%) are the top survival priority. Cap resists on rings, belt, and armor before chasing marginal damage.");
+  } else if (isActEarly) {
+    const weaponName = focus.quarterstaff ? "quarterstaff flat damage" : focus.unarmed ? "unarmed flat damage" : "weapon flat damage";
+    steps.push(`Act ${playerLevel <= 15 ? "1" : "2"} leveling: prioritize ${weaponName}, attack/cast speed, movement speed boots, and life. Resistances only need to be modestly positive (~20–25%).`);
+  } else {
+    steps.push(`Campaign progress (Level ${playerLevel}): begin building elemental resistances towards ~45–60% on jewelry/armor while keeping weapon damage scaling.`);
+  }
+
   const activeRows = equippedRows.length ? equippedRows : rows.filter(row => row.entry && !row.reqProblem);
+
+  // Check for zero-score slots
+  const zeroScoreRows = activeRows.filter(row => row.entry && row.score !== null && row.score <= 0);
+  if (zeroScoreRows.length) {
+    const zeroSlots = zeroScoreRows.map(r => label(r.slot)).join(", ");
+    steps.push(`Equip basic upgrades in zero-score slot(s) (${zeroSlots}). Even basic magic/rare items with Life, attributes, or a resist will immediately boost survivability.`);
+  }
+
+  // Quarterstaff bottleneck check
+  if (focus.quarterstaff) {
+    const weaponRow = activeRows.find(r => r.slot === "weapon" && r.entry);
+    if (weaponRow && weaponRow.score !== null && weaponRow.score < 50) {
+      steps.push(`Your quarterstaff score is only +${weaponRow.score}—it is one of the weaker functional parts of your setup. If a better staff drops with meaningful flat damage / attack speed, that could be a huge upgrade.`);
+    }
+  }
+
   const boot = activeRows.find(row => row.slot === "boots" && row.entry && (row.entry.scored.scores.mobility || 0) <= 0);
   if (boot) steps.push(prioritySlots.boots?.[0] || "Find boots with movement speed first; it is one of the biggest leveling quality-of-life upgrades.");
   const hasAttributeRequirementProblem = (requirementProblems || []).some(text => /Strength|Dexterity|Intelligence/i.test(text));
@@ -2426,11 +3059,14 @@ function buildNextSteps(rows, equippedRows = [], futureRows = [], requirementPro
   const attrWeak = activeRows.find(row => row.entry && (row.entry.scored.scores.attributes || 0) <= 0 && ["ring", "amulet", "helmet"].includes(row.slot));
   if (attrWeak && (hasAttributeRequirementProblem || attrsLookUnset)) steps.push("Use jewelry or helmet slots to fix Str/Dex/Int problems before replacing good damage gear.");
   const resistWeak = activeRows.find(row => row.entry && (row.entry.scored.scores.resistance || 0) <= 0 && !["weapon", "quiver"].includes(row.slot));
-  if (resistWeak) steps.push("Add resistances on armor/jewelry slots so weapon and quiver can stay focused on damage.");
+  if (resistWeak && !isActEarly) {
+    const weaponLabel = focus.quarterstaff ? "quarterstaff" : focus.bow ? "weapon and quiver" : "weapon";
+    steps.push(`Add resistances on armor/jewelry slots so ${weaponLabel} can stay focused on damage.`);
+  }
   const damageWeak = activeRows.find(row => row.entry && ["weapon", "quiver", "gloves"].includes(row.slot) && (row.entry.scored.scores.damage + row.entry.scored.scores.synergy) < 18);
-  if (damageWeak) {
+  if (damageWeak && (!focus.quarterstaff || damageWeak.slot !== "weapon")) {
     const guideNote = prioritySlots[damageWeak.slot]?.[0];
-    const isBowBuild2 = /frost|bow|ice shot|crossbow|projectile/i.test(profile.name);
+    const isBowBuild2 = focus.bow || /frost|bow|ice shot|crossbow|projectile/i.test(profile.name);
     const nonCrit = isNonCritStageContext(profile, stageKey);
     const damageUpgradeHint = isBowBuild2
       ? (nonCrit
@@ -2442,13 +3078,14 @@ function buildNextSteps(rows, equippedRows = [], futureRows = [], requirementPro
   const guidePriority = Object.entries(prioritySlots).find(([slot, notes]) => notes.length && activeRows.some(row => row.slot === slot && row.entry && row.score !== null && row.score < 18));
   if (guidePriority) steps.push(`${label(guidePriority[0])}: ${guidePriority[1][0]}`);
   if (missing.length) steps.push("Paste the missing slots so the weakest-slot ranking is more accurate.");
-  return steps.slice(0, 5);
+  return [...new Set(steps)].slice(0, 6);
 }
 
 
-function buildResistanceGapReport(build) {
+function buildResistanceGapReport(build, playerLevel = 1) {
   const stats = build?.stats || {};
   const res = stats.resistances || {};
+  const targetInfo = getLevelResistTarget(playerLevel);
   const names = [
     ["Fire", res.fire],
     ["Cold", res.cold],
@@ -2459,60 +3096,163 @@ function buildResistanceGapReport(build) {
   for (const [name, value] of names) {
     const n = Number(value);
     if (!Number.isFinite(n)) continue;
+    const isChaos = name === "Chaos";
     const toZero = Math.max(0, 0 - n);
     const toFifty = Math.max(0, 50 - n);
     const toCap = Math.max(0, 75 - n);
-    let priority = "OK for now";
-    if (n < 0) priority = "Urgent";
-    else if (n < 25) priority = "Low";
-    else if (n < 50) priority = "Improve soon";
-    rows.push({ name, value: n, toZero, toFifty, toCap, priority });
+    const toTarget = Math.max(0, targetInfo.target - n);
+    let priority = "OK";
+    let cls = "";
+
+    if (isChaos) {
+      if (targetInfo.isEndgame) {
+        if (n < -20) { priority = "Low (Endgame)"; cls = "warn"; }
+        else if (n < 0) { priority = "Improve later"; cls = ""; }
+        else if (n >= 75) { priority = "Capped ✓"; cls = "capped"; }
+        else { priority = "Good ✓"; cls = "capped"; }
+      } else {
+        if (n >= targetInfo.target) { priority = "Great bonus ✓"; cls = "capped"; }
+        else if (n >= 0) { priority = "Bonus ✓"; cls = "capped"; }
+        else { priority = "Normal for campaign"; cls = ""; }
+      }
+    } else {
+      if (targetInfo.isEndgame) {
+        if (n < 0) { priority = "Critical"; cls = "urgent"; }
+        else if (n < targetInfo.minAcceptable) { priority = "Urgent"; cls = "urgent"; }
+        else if (n < 75) { priority = "Needs cap"; cls = "warn"; }
+        else { priority = "Capped ✓"; cls = "capped"; }
+      } else {
+        if (n < targetInfo.criticalThreshold) {
+          priority = "Very Low";
+          cls = "urgent";
+        } else if (n < targetInfo.minAcceptable) {
+          priority = "Low";
+          cls = "warn";
+        } else if (n < targetInfo.target) {
+          priority = `OK for ${targetInfo.stageName}`;
+          cls = "";
+        } else if (n >= 75) {
+          priority = "Capped ✓";
+          cls = "capped";
+        } else {
+          priority = `Good for ${targetInfo.stageName} ✓`;
+          cls = "capped";
+        }
+      }
+    }
+
+    rows.push({
+      name,
+      value: n,
+      target: isChaos && !targetInfo.isEndgame ? null : targetInfo.target,
+      toZero,
+      toFifty,
+      toTarget: isChaos && !targetInfo.isEndgame ? 0 : toTarget,
+      toCap,
+      priority,
+      cls,
+      isChaos,
+    });
   }
   return rows.sort((a, b) => a.value - b.value);
 }
 
-function renderResistanceGaps(gaps) {
+function renderResistanceGaps(gaps, playerLevel = 1) {
   if (!gaps || !gaps.length) return `<p class="subtitle small">No final resistance data imported yet. Import a pobb.in build to see resistance gaps.</p>`;
+  const targetInfo = getLevelResistTarget(playerLevel);
   const rows = gaps.map(gap => {
-    const cls = gap.value < 0 ? "urgent" : gap.value < 25 ? "warn" : gap.value >= 75 ? "capped" : "";
-    const badge = gap.value < 0 ? "Critical" : gap.value < 25 ? "Low" : gap.value < 50 ? "Improve soon" : gap.value < 75 ? "Getting close" : "Capped ✓";
+    const cls = gap.cls || (gap.value < 0 ? "urgent" : gap.value < 25 ? "warn" : gap.value >= 75 ? "capped" : "");
+    const badge = gap.priority;
+    const targetCell = gap.isChaos && !targetInfo.isEndgame
+      ? `<span class="res-muted">—</span>`
+      : (gap.toTarget > 0 ? `+${gap.toTarget}%` : '<span class="res-capped">✓</span>');
+    const capCell = gap.toCap > 0 ? `+${gap.toCap}%` : '<span class="res-capped">✓</span>';
+    const stageTargetDisplay = gap.isChaos && !targetInfo.isEndgame ? "—" : `${gap.target}%`;
     return `<tr class="res-row-${cls}">
       <td class="res-name">${escapeHtml(gap.name)}</td>
       <td class="res-val ${cls}">${gap.value}%</td>
-      <td>${gap.toZero > 0 ? `+${gap.toZero}` : "—"}</td>
-      <td>${gap.toFifty > 0 ? `+${gap.toFifty}` : "—"}</td>
-      <td>${gap.toCap > 0 ? `+${gap.toCap}` : '<span class="res-capped">✓</span>'}</td>
+      <td>${stageTargetDisplay}</td>
+      <td>${targetCell}</td>
+      <td>${capCell}</td>
       <td><span class="res-priority ${cls}">${escapeHtml(badge)}</span></td>
     </tr>`;
   }).join("");
-  return `<table class="resist-table">
-    <thead><tr><th>Resistance</th><th>Current</th><th>To 0%</th><th>To 50%</th><th>To 75%</th><th>Priority</th></tr></thead>
-    <tbody>${rows}</tbody>
-  </table>`;
+  return `
+    <p class="mini-note" style="margin-bottom: 8px;">
+      Level ${playerLevel} (${targetInfo.stageName}) elemental resist target: <strong>${targetInfo.target}%</strong>.
+      ${targetInfo.isEndgame ? "In endgame maps, 75% cap is critical for survival." : "75% cap is only required in endgame maps (lvl 65+); during the campaign, meeting the stage target is sufficient."}
+    </p>
+    <table class="resist-table">
+      <thead><tr><th>Resistance</th><th>Current</th><th>Stage Target</th><th>To Target</th><th>To 75% Cap</th><th>Status</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
 }
 
-function buildFixSlotsReport(build, rows) {
-  const gaps = buildResistanceGapReport(build).filter(gap => gap.name !== "Chaos" && gap.value < 75);
-  if (!gaps.length) return [];
-  const urgentGaps = gaps.filter(gap => gap.value < 0);
-  const lowGaps = gaps.filter(gap => gap.value < 50 && gap.value >= 0);
-  const uncapped = gaps.filter(gap => gap.value >= 50);
+function buildFixSlotsReport(build, rows, playerLevel = 1, profile = null) {
+  const targetInfo = getLevelResistTarget(playerLevel);
+  const gaps = buildResistanceGapReport(build, playerLevel).filter(gap => !gap.isChaos && gap.value < (targetInfo.isEndgame ? 75 : targetInfo.target));
+  const hasRingRows = rows.filter(row => row.slot === "ring" && row.entry).length;
+  const isEarly = playerLevel <= 25;
+  const focus = profile?.focus || inferBuildFocus(profile?.name || "");
+  const weaponLabel = focus.quarterstaff ? "Quarterstaff" : focus.unarmed ? "Gloves & Jewelry" : focus.bow ? "Weapon & Quiver" : "Weapon";
+  const weaponTarget = focus.quarterstaff ? "quarterstaff" : focus.unarmed ? "unarmed scaling" : focus.bow ? "weapon and quiver" : "weapon";
+
+  if (!gaps.length) {
+    if (isEarly) {
+      return [
+        `Elemental resistances comfortably meet or exceed the ${targetInfo.stageName} target (${targetInfo.target}%).`,
+        `${weaponLabel}: keep focus on flat added damage and attack speed.`,
+        "Boots: prioritize movement speed (10–20%+) to move through zones much faster.",
+        "Armor / Helm / Belt / Gloves: look for maximum life and attributes to equip better gems.",
+      ];
+    }
+    return [
+      `Elemental resistances meet your ${targetInfo.stageName} target (${targetInfo.target}%).`,
+      "Work on chaos resistance and maximum life on jewelry and armor.",
+      `Keep ${weaponTarget} focused on pure damage scaling.`,
+    ];
+  }
+
+  const urgentGaps = gaps.filter(gap => gap.value < targetInfo.criticalThreshold);
+  const lowGaps = gaps.filter(gap => gap.value < targetInfo.minAcceptable);
+  const uncapped = gaps.filter(gap => gap.value >= targetInfo.minAcceptable);
   const main = (urgentGaps.length ? urgentGaps : lowGaps.length ? lowGaps : uncapped).slice(0, 3).map(gap => gap.name);
   const secondary = gaps.filter(gap => !main.includes(gap.name)).map(gap => gap.name);
   const resText = main.join(main.length > 1 ? " and " : "");
   const ringResText = gaps.map(gap => gap.name).join("/");
-  const hasRingRows = rows.filter(row => row.slot === "ring" && row.entry).length;
-  const isCleanup = !urgentGaps.length && !lowGaps.length;
-  const suggestions = [
-    isCleanup
-      ? `${resText} resistance ${main.length > 1 ? "are" : "is"} uncapped cleanup, not an emergency. Add it when convenient while keeping damage and life.`
-      : `${resText} resistance ${main.length > 1 ? "are" : "is"} the main survival gap. Fix ${main.length > 1 ? "them" : "it"} before chasing small damage upgrades.`,
-    `${hasRingRows > 1 ? "Ring 1 / Ring 2" : "Rings"}: best quick place to add ${ringResText} resistance without touching weapon damage.`,
-    `Belt: look for life plus ${main.join(" or ")} resistance.`,
-    "Body Armor / Helmet / Gloves: good defensive slots for life and resistances.",
-    "Keep weapon and quiver mostly damage-focused unless a replacement also fixes resists without losing much damage.",
-  ];
-  if (secondary.length) suggestions.splice(1, 0, `${secondary.join("/")} resistance also needs improvement, but it is less urgent than ${resText}.`);
+
+  const suggestions = [];
+  if (targetInfo.isEndgame) {
+    suggestions.push(
+      urgentGaps.length || lowGaps.length
+        ? `${resText} resistance ${main.length > 1 ? "are" : "is"} the main survival gap in maps. Fix ${main.length > 1 ? "them" : "it"} before chasing small damage upgrades.`
+        : `${resText} resistance ${main.length > 1 ? "are" : "is"} close to cap (${targetInfo.target}%). Add benchcrafts or small upgrades when convenient.`
+    );
+  } else if (urgentGaps.length) {
+    suggestions.push(
+      `${resText} resistance is critically low (${urgentGaps.map(g => `${g.name} ${g.value}%`).join(", ")}). Pick up a resistance ring or craft small resist so bosses don't one-shot you.`
+    );
+  } else {
+    suggestions.push(
+      `${resText} resistance is slightly below your ${targetInfo.stageName} target (${targetInfo.target}%). Keep an eye out for a ring or craft when convenient, but do not sacrifice ${weaponTarget} damage.`
+    );
+  }
+
+  if (secondary.length) {
+    suggestions.push(`${secondary.join("/")} resistance also needs improvement eventually, but is less urgent than ${resText}.`);
+  }
+
+  suggestions.push(`${hasRingRows > 1 ? "Ring 1 / Ring 2" : "Rings"}: best slot to pick up ${ringResText} resistance without touching ${weaponTarget} damage.`);
+  if (isEarly) {
+    suggestions.push("Boots: top priority is movement speed (10–20%+), with life or resists as a secondary bonus.");
+    suggestions.push("Belt: look for life and Strength/attributes.");
+    suggestions.push(`${weaponLabel}: keep 100% focused on flat damage and attack speed.`);
+  } else {
+    suggestions.push(`Belt: look for life plus ${main.join(" or ")} resistance.`);
+    suggestions.push("Body Armor / Helmet / Gloves: good defensive slots for life and resistances.");
+    suggestions.push(`Keep ${weaponTarget} mostly damage-focused unless a replacement also fixes resists without losing much damage.`);
+  }
+
   return suggestions;
 }
 
@@ -2531,7 +3271,61 @@ function splitUpgradesToBuckets(steps) {
   return { survival, damage };
 }
 
-function renderHealthReport({ profile, stage, playerLevel, playerAttrs, rows, missing, levelProblems, attributeProblems, requirementProblems, pobbWarnings = [], weak, buildEnablingNotes = [], nextSteps, neededStats = [], gearTotals = {}, resistanceGaps = [], fixSlots = [], shoppingList = [], count, equippedCount = 0, futureCount = 0 }) {
+function renderFourDecisionsCard(decisions) {
+  if (!decisions) return "";
+  const q1 = decisions.q1_currentBuildAndStage;
+  const q2 = decisions.q2_topProblems || [];
+  const q3 = decisions.q3_slotFixes || [];
+  const q4 = decisions.q4_ignoreRightNow || [];
+
+  const q2Html = q2.length
+    ? q2.map(p => {
+        const badgeCls = p.urgency === "critical" ? "urgent" : p.urgency === "high" ? "warn" : "capped";
+        return `<li style="margin-bottom: 6px;">
+          <span class="res-priority ${badgeCls}" style="margin-right: 6px; font-size: 10px; padding: 2px 6px;">${escapeHtml(p.urgency.toUpperCase())}</span>
+          <strong>${escapeHtml(p.title)}:</strong> ${escapeHtml(p.detail)}
+        </li>`;
+      }).join("")
+    : "<li>No urgent problems detected for your current stage.</li>";
+
+  const q3Html = q3.length
+    ? q3.map(s => {
+        return `<li style="margin-bottom: 6px;">
+          <strong>${escapeHtml(s.displayName)}:</strong> ${escapeHtml(s.recommendation)}
+        </li>`;
+      }).join("")
+    : "<li>No specific slot replacement needed right now.</li>";
+
+  const q4Html = q4.length
+    ? q4.map(item => `<li style="margin-bottom: 6px; color: #a0a0a0;">${escapeHtml(item)}</li>`).join("")
+    : "<li>No special ignores for this stage.</li>";
+
+  return `
+    <article class="panel health-card four-decisions-card" style="margin-top: 16px; border: 1px solid var(--accent, #78a6ff); background: rgba(120, 166, 255, 0.05); padding: 14px 16px;">
+      <h3 style="color: var(--accent, #78a6ff); margin-bottom: 12px; font-size: 15px;">🧭 Coach's 4 Next Decisions</h3>
+      <div style="display: flex; flex-direction: column; gap: 14px;">
+        <div class="decision-block">
+          <div style="font-weight: 700; color: var(--poe-gold, #af8c54); margin-bottom: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">1. What build & stage am I actually on?</div>
+          <div style="font-size: 13px; line-height: 1.45;">${escapeHtml(q1.summary)} <span class="tag" style="background: rgba(200,162,97,0.15); border: 1px solid var(--poe-border);">${escapeHtml(q1.weapon)}</span> <span class="tag" style="background: rgba(120,166,255,0.15); border: 1px solid rgba(120,166,255,0.4);">${escapeHtml(q1.stage)}</span></div>
+        </div>
+        <div class="decision-block">
+          <div style="font-weight: 700; color: var(--bad, #ff8b8b); margin-bottom: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">2. What are my 2–3 biggest current problems?</div>
+          <ul style="margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.45;">${q2Html}</ul>
+        </div>
+        <div class="decision-block">
+          <div style="font-weight: 700; color: var(--good, #78d49a); margin-bottom: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">3. Which equipped slots can realistically fix those problems?</div>
+          <ul style="margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.45;">${q3Html}</ul>
+        </div>
+        <div class="decision-block">
+          <div style="font-weight: 700; color: #a0a0a0; margin-bottom: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">4. What should I ignore right now?</div>
+          <ul style="margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.45;">${q4Html}</ul>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function renderHealthReport({ profile, stage, playerLevel, playerAttrs, rows, missing, levelProblems, attributeProblems, requirementProblems, pobbWarnings = [], weak, buildEnablingNotes = [], nextSteps, neededStats = [], gearTotals = {}, resistanceGaps = [], fixSlots = [], shoppingList = [], decisions = null, count, equippedCount = 0, futureCount = 0 }) {
   const stageLabel = stage?.label || stageSelect.value;
   const rowHtml = rows.map(row => {
     const name = row.entry?.scored.item.name || "—";
@@ -2539,14 +3333,18 @@ function renderHealthReport({ profile, stage, playerLevel, playerAttrs, rows, mi
     const req = summarizeRequirements(row.entry?.scored.item);
     const guide = row.guideTarget?.name || "—";
     const rowClass = row.reqProblem ? " class=\"requirement-warning\"" : "";
-    return `<tr${rowClass}><td>${escapeHtml(row.displaySlot || label(row.slot))}</td><td>${escapeHtml(name)}</td><td>${escapeHtml(score)}</td><td>${escapeHtml(req)}</td><td>${escapeHtml(guide)}</td></tr>`;
+    const dim = row.dimensions;
+    const urgencyBadge = dim ? `<span class="tag ${dim.replaceUrgency === 'Immediate Fix' ? 'urgent' : dim.replaceUrgency === 'Upgrade Priority' ? 'warn' : 'capped'}" style="margin-left:4px; font-size:10px;">${escapeHtml(dim.replaceUrgency)}</span>` : "";
+    const fitBadge = dim && dim.stageFit !== "Acceptable" ? `<span class="tag" style="margin-left:4px; font-size:10px;">${escapeHtml(dim.stageFit)} Fit</span>` : "";
+    return `<tr${rowClass}><td>${escapeHtml(row.displaySlot || label(row.slot))}</td><td>${escapeHtml(name)}</td><td>${escapeHtml(score)}${urgencyBadge}${fitBadge}</td><td>${escapeHtml(req)}</td><td>${escapeHtml(guide)}</td></tr>`;
   }).join("");
 
   return `
     <div class="muted-box"><strong>Build health report</strong><br>${count} item(s) parsed — ${equippedCount} counted as currently equippable, ${futureCount} treated as future/blocked. Build: ${escapeHtml(profile.name)}. Stage: ${escapeHtml(stageLabel)}. Player level: ${playerLevel}. Attributes: ${playerAttrs.str} Str / ${playerAttrs.dex} Dex / ${playerAttrs.int} Int.</div>
+    ${renderFourDecisionsCard(decisions)}
     ${window.currentPobbBuild ? `<article class="panel health-card" style="margin-top: 16px;"><h3>pobb.in current build</h3>${renderPobbMiniCard(window.currentPobbBuild)}</article>` : ""}
     ${buildEnablingNotes.length ? `<article class="panel health-card" style="margin-top: 16px;"><h3>Build-enabling gear</h3><p class="mini-note">These items carry a mechanic (granted skill, reservation waiver, status immunity, etc.) instead of a plain stat roll. Don't judge them by raw score alone.</p>${renderList(buildEnablingNotes, "warn", "None detected.")}</article>` : ""}
-    ${resistanceGaps.length ? `<article class="panel health-card" style="margin-top: 16px;"><h3>Resistance gap calculator</h3><p class="mini-note">Based on pobb.in final character stats, not just parsed gear affixes.</p>${renderResistanceGaps(resistanceGaps)}</article>` : ""}
+    ${resistanceGaps.length ? `<article class="panel health-card" style="margin-top: 16px;"><h3>Resistance gap calculator</h3><p class="mini-note">Based on pobb.in final character stats, not just parsed gear affixes.</p>${renderResistanceGaps(resistanceGaps, playerLevel)}</article>` : ""}
     ${fixSlots.length ? `<article class="panel health-card" style="margin-top: 16px;"><h3>Best slots to fix current problem</h3>${renderList(fixSlots, "warn", "No specific slot fix needed.")}</article>` : ""}
     <article class="panel health-card" style="margin-top: 16px;">
       <h3>Gear affix totals</h3>
@@ -2569,14 +3367,23 @@ function renderHealthReport({ profile, stage, playerLevel, playerAttrs, rows, mi
     </div>
     ${(() => {
       const { survival, damage } = splitUpgradesToBuckets(nextSteps);
+      const isEarly = playerLevel <= 25;
+      const isEndgame = playerLevel >= 65;
+      const surviveBadge = isEndgame ? "cap resists first" : isEarly ? "comfort & life" : "vital defense";
+      const damageBadge = isEarly ? "top priority for campaign" : isEndgame ? "after resists improve" : "progression balance";
+      const damageFallback = isEarly
+        ? "Upgrade weapon flat damage and attack speed for faster campaign clearing."
+        : isEndgame
+          ? "Focus on reaching 75% resists first, then return here for damage advice."
+          : "Keep balancing offense and defense as you progress through the acts.";
       return `<div class="upgrade-split-grid" style="margin-top:16px">
         <article class="panel health-card survival-card">
-          <h3>Survival upgrades <span class="upgrade-label-badge survive">do first</span></h3>
+          <h3>Survival upgrades <span class="upgrade-label-badge survive">${escapeHtml(surviveBadge)}</span></h3>
           ${renderList(survival.length ? survival : ["No urgent survival upgrades detected."], "warn", "")}
         </article>
         <article class="panel health-card damage-card">
-          <h3>Damage upgrades <span class="upgrade-label-badge damage">after resists improve</span></h3>
-          ${renderList(damage.length ? damage : ["Focus on survival first, then return here for damage advice."], "warn", "")}
+          <h3>Damage upgrades <span class="upgrade-label-badge damage">${escapeHtml(damageBadge)}</span></h3>
+          ${renderList(damage.length ? damage : [damageFallback], "warn", "")}
         </article>
       </div>`;
     })()}
@@ -2594,17 +3401,40 @@ function renderHealthReport({ profile, stage, playerLevel, playerAttrs, rows, mi
 
 
 
-function pobbWarningsForReport(build) {
-  if (!build || !build.stats) return [];
-  const stats = build.stats || {};
+function pobbWarningsForReport(build, playerLevel = 1) {
+  const stats = build?.stats || {};
   const res = stats.resistances || {};
   const warnings = [];
+  const level = Number(playerLevel || stats.level || 1);
+  const targetInfo = getLevelResistTarget(level);
 
   const addResWarning = (name, value) => {
     const n = Number(value);
     if (!Number.isFinite(n)) return;
-    if (n < 0) warnings.push(`${name} resistance is negative (${n}%). Fix this on rings, belt, helmet, boots, gloves, or body armor before chasing small damage upgrades.`);
-    else if (n < 25) warnings.push(`${name} resistance is low (${n}%). Add more on armor or jewelry when possible.`);
+    if (name === "Chaos") {
+      if (targetInfo.isEndgame && n < -30) {
+        warnings.push(`Chaos resistance is deeply negative (${n}%). In endgame maps, aim for at least 0% to +30% to mitigate sudden chaos hits.`);
+      }
+      // Never warn about negative chaos during campaign leveling
+      return;
+    }
+
+    if (targetInfo.isEndgame) {
+      if (n < 0) {
+        warnings.push(`${name} resistance is negative (${n}%). In maps, this causes lethal incoming damage. Prioritize capping on jewelry or benchcraft.`);
+      } else if (n < targetInfo.minAcceptable) {
+        warnings.push(`${name} resistance is well below 75% cap (${n}%). Upgrade jewelry or armor to improve elemental defense.`);
+      } else if (n < 75) {
+        warnings.push(`${name} resistance is close to cap (${n}%). Finish capping to 75% with a benchcraft or small upgrade.`);
+      }
+    } else {
+      // Leveling / Campaign
+      if (n < targetInfo.criticalThreshold) {
+        warnings.push(`${name} resistance is very low for ${targetInfo.stageName} (${n}%). Pick up a ruby/topaz/sapphire ring or benchcraft to avoid spike damage.`);
+      } else if (n < targetInfo.minAcceptable) {
+        warnings.push(`${name} resistance is below 0% (${n}%). Aim for around ${targetInfo.target}% for ${targetInfo.stageName} comfort when convenient.`);
+      }
+    }
   };
 
   addResWarning("Fire", res.fire);
@@ -2612,15 +3442,22 @@ function pobbWarningsForReport(build) {
   addResWarning("Lightning", res.lightning);
   addResWarning("Chaos", res.chaos);
 
-  const level = Number(stats.level || 0);
   const life = Number(stats.life || 0);
   const ehp = Number(stats.eHP || 0);
-  if (level >= 30 && life > 0 && life < 700) warnings.push(`Life looks low for level ${level} (${life}). Prioritize life on armor, belt, rings, and amulet.`);
-  if (level >= 40 && life > 0 && life < 850) warnings.push(`Life is a little light for level ${level} (${life}). Keep upgrading life on defensive/jewelry slots.`);
-  if (level >= 40 && ehp > 0 && ehp < 1200) warnings.push(`eHP is modest for level ${level} (${ehp}). Fix low resists and add life before focusing only on damage.`);
+  if (level >= 65 && life > 0 && life < 1500) warnings.push(`Life looks low for endgame level ${level} (${life}). Prioritize life on armor, belt, and jewelry.`);
+  else if (level >= 40 && level < 65 && life > 0 && life < 850) warnings.push(`Life is a little light for level ${level} (${life}). Keep upgrading life on defensive/jewelry slots.`);
+  else if (level >= 25 && level < 40 && life > 0 && life < 400) warnings.push(`Life looks low for level ${level} (${life}). Look for +Life rolls on belt and armor.`);
+  else if (level >= 18 && level < 25 && life > 0 && life < 500) warnings.push(`Life at ${life} is okay-ish for level ${level}, but lacks defensive padding for Act 2. Look for +Life on belt, rings, and body armor.`);
+  else if (level >= 15 && level < 18 && life > 0 && life < 200) warnings.push(`Life looks low for level ${level} (${life}). Look for +Life on your belt, rings, or body armor.`);
+
+  if (level >= 50 && ehp > 0 && ehp < 1500) warnings.push(`eHP is modest for level ${level} (${ehp}). Improve resistances and add life before focusing only on damage.`);
 
   const hit = Number(stats.hitChance || 0);
-  if (hit > 0 && hit < 90) warnings.push(`Hit chance is low (${hit}%). Accuracy or level difference may be hurting damage consistency.`);
+  if (hit > 0 && hit <= 75) {
+    warnings.push(`Hit chance is critically low (${hit}%). Over ${100 - hit}% of your attacks miss! Accuracy rating is hurting your damage much more than gear damage rolls.`);
+  } else if (hit > 0 && hit < 90) {
+    warnings.push(`Hit chance is low (${hit}%). Accuracy or level difference may be hurting damage consistency.`);
+  }
 
   const gemsLower = (build.gems || []).join(" ").toLowerCase();
   const looksMinion = /skeleton|skeletal|zombie|spectre|golem|raging spirit|summon|minion/.test(gemsLower);
@@ -2688,4 +3525,25 @@ function label(key) {
   return labels[key] || String(key).charAt(0).toUpperCase() + String(key).slice(1);
 }
 
-init();
+if (typeof window !== "undefined" && typeof document !== "undefined" && document.querySelector && document.querySelector("#buildSelect")) {
+  init();
+}
+
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = {
+    BUILD_PROFILES,
+    inferBuildFocus,
+    getAllowedSlotsForFocus,
+    buildImportedRules,
+    defaultQuarterstaffRules,
+    defaultQuarterstaffSlotRules,
+    convertGuideItemToPasteText,
+    buildNeededStats,
+    buildShoppingList,
+    healthAdviceForSlot,
+    buildNextSteps,
+    buildFixSlotsReport,
+    pobbWarningsForReport,
+    getLevelResistTarget,
+  };
+}

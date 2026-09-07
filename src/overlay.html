@@ -240,6 +240,17 @@
     .verdict-label.bad  { color: var(--bad); }
     .verdict-opinion { font-size: 12px; color: rgba(255,255,255,0.65); margin-top: 3px; line-height: 1.45; }
 
+    /* 5-Dimension evaluation chips */
+    #dimensions-badge-row { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0 2px; }
+    .dim-chip {
+      font-size: 11px; padding: 3px 8px; border-radius: 3px;
+      background: rgba(200,162,97,0.06); border: 1px solid var(--poe-border-dim);
+      color: var(--poe-white); white-space: nowrap; font-family: inherit;
+    }
+    .dim-chip.urgent { background: rgba(255,139,139,0.12); border-color: rgba(255,139,139,0.4); color: var(--bad); }
+    .dim-chip.warn   { background: rgba(255,209,102,0.12); border-color: rgba(255,209,102,0.4); color: var(--warn); }
+    .dim-chip.good   { background: rgba(120,212,154,0.12); border-color: rgba(120,212,154,0.4); color: var(--good); }
+
     /* Score total */
     #score-total {
       background: rgba(200,162,97,0.03);
@@ -553,8 +564,22 @@
         </div>
       </div>
 
+      <!-- 5-Dimension evaluation badges -->
+      <div id="dimensions-badge-row" style="display:none">
+        <span class="dim-chip" id="dim-urgency">Urgency: Serviceable</span>
+        <span class="dim-chip" id="dim-stage-fit">Stage: Good Fit</span>
+        <span class="dim-chip" id="dim-build-fit">Build: Clean</span>
+      </div>
+
       <!-- Resist Warning Banner -->
       <div id="resist-warning-banner" style="display:none; margin: 10px 0; padding: 8px 12px; border-radius: 4px; background: rgba(224, 80, 48, 0.15); border: 1px solid var(--poe-fire); color: #ff8b8b; font-size: 11px; line-height: 1.4;">
+      </div>
+
+      <!-- Special PoE2 0.5.5 Mechanics (Soul Cores, Waystones, Tablets, Ultimatums) -->
+      <div class="pca-section" id="special-item-section" style="display:none">
+        <div class="pca-title" id="special-item-title">Special Item Advice</div>
+        <div id="special-item-content" style="font-size: 12px; line-height: 1.45; padding: 8px 10px; background: rgba(200,162,97,0.06); border: 1px solid var(--poe-border-dim); border-radius: 4px; color: var(--poe-white);">
+        </div>
       </div>
 
       <!-- Score total -->
@@ -641,6 +666,7 @@
 <script src="poe2-mod-data.js"></script>
 <script src="parser.js"></script>
 <script src="build-knowledge.js"></script>
+<script src="recommendation-engine.js"></script>
 <script src="overlay-renderer.js"></script>
 </body>
 </html>

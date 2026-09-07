@@ -5,12 +5,80 @@ All notable changes to this project will be documented in this file.
 ## Unreleased
 
 ### Added
+- **Dedicated Recommendation Engine & Build-Context Filter (`src/recommendation-engine.js`)**:
+  - Solves the collision between character state, build guide stages, and generic slot heuristics by gating all recommendations through an authoritative `BuildContext` filter.
+  - Answers four core questions reliably:
+    1. *What build/stage am I actually on?* (Identifies archetype, weapon style, and stage level).
+    2. *What are my 2–3 biggest current problems?* (Ranks real leveling bottlenecks: hit chance, weapon base/damage, empty slots).
+    3. *Which equipped slots can realistically fix those problems?* (Assigns slot targets without off-archetype pollution).
+    4. *What should I ignore right now?* (Suppresses 75% cap panic, offhand/quiver stats, and premature endgame mechanics).
+  - Replaces the monolithic catch-all score with a **5-Dimension Slot Evaluation Model**:
+    - `buildFit`: Clean / Synergy / Neutral / Contaminated.
+    - `stageFit`: Ideal / Good / Acceptable / Weak / Empty.
+    - `defense`: Survival contribution relative to stage targets.
+    - `damage`: Offensive contribution relative to archetype.
+    - `replaceUrgency`: Immediate Fix / Upgrade Priority / Serviceable / Locked In.
+  - Added dedicated **"Coach's 4 Next Decisions"** card in Settings and real-time dimension chips in the in-game overlay.
+- **PoE2 0.5.5 "The Forbidden Rites" Event League Support**:
+  - Set `poe2/Forbidden Rites` as the default league across the app, overlay, trade search, and poe.ninja pricing.
+  - Added support for all event league variants: `poe2/Forbidden Rites`, `poe2/Forbidden Rites Hardcore`, `poe2/Forbidden Rites Solo Self-Found`, and `poe2/Forbidden Rites Hardcore Solo Self-Found`.
+  - Added real-time league synchronization between Character settings, Trade Search, and `session.json`.
+- **Special 0.5.5 Item Parsing & Slot Classification**:
+  - Added smart slot detection for Soul Cores (`soul_core`), Runes (`rune`), Precursor / Ritual Tablets (`tablet`), Waystones (`waystone`), Inscribed Ultimatums (`ultimatum`), Jewels (`jewel`), and Relics (`relic`).
+  - Added extraction of socket bonuses (`weapon`, `armour`, etc.), `waystoneTier`, and Inscribed Ultimatum wager costs and rewards.
+  - Expanded clipboard item detection (`isPoe2Item`) to recognize `Socketable`, `Augment`, `Waystone Tier:`, `Reward:`, `Charm Slots:`, and `Can be inserted into`.
+- **Specialized Item Coaching Panels**:
+  - **Soul Core Dual-Nature Advisor**: Evaluates weapon socketing (damage scaling) vs armour socketing (resistance capping against current uncapped resists). Details 0.5.5 3-to-1 vendor reforging and Desecration extraction.
+  - **Waystone Hazard Audit**: Real-time danger scan alerting players to lethal map affixes (elemental reflect, physical reflect matched to build damage focus, no life/mana regen, -max resistances).
+  - **Ritual Tablet Stacking Guide**: Explains 0.5.5 multi-tablet map device stacking, Azmeri Wisp density scaling, and Sacred Bloom drops.
+  - **Inscribed Ultimatum Wager Audit**: Highlights wager requirements vs returns and survivability advice for the 30-room Trial of Chaos overhaul.
+  - **Runesmithing Socket Card**: Shows weapon vs armour bonuses for Runes of Aldur and core runes.
+- **Build Focus & Mod Data Expansion**:
+  - Added build focus detection and scoring rules for `fire`, `chaos` (Forbidden Rites theme), `physical`, and `spirit`.
+  - Added `forbiddenRitesChaos` and `infernalistFire` archetype presets.
+  - Added `flat_spirit` tier table (T1–T4).
+- **Settings 0.5.5 Cheat Sheet & Reference**:
+  - Added a dedicated "Forbidden Rites 0.5.5" reference tab in Settings with quick-lookup mechanics guides for 17 new Soul Cores, 30-room Trial of Chaos, and multi-tablet Ritual stacking.
+- **AI Coach 0.5.5 Integration**:
+  - Updated AI coach system prompt and model context with 0.5.5 patch mechanics, Soul Core dual socketing, and Waystone hazard checks.
+- **Mobalytics Community Build Import & Direct URL Fetching**:
+  - Added support for importing community builds directly via URL (e.g. `mobalytics.gg/poe-2/profile/:username/builds/:id`, `mobalytics.gg/poe-2/builds/:id`, and raw UUIDs) as well as curated guides (`mobalytics.gg/poe-2/builds/:slug`).
+  - Implemented GraphQL-based document fetching and variant `.build` JSON extraction directly from Mobalytics' PoE2 API, using Electron's Chromium network stack to safely bypass Cloudflare Turnstile blocks.
+  - Automatically converts all progression variants (e.g. Act 1–4, Interludes, Mapping, Endgame) into distinct, non-overlapping stage profiles with accurate level ranges (1–15, 16–28, 29–42, 43–55, 56–64, 65–84, 85–100).
+  - Normalizes weapon and armour unique items (e.g. Amor Mandragora, Lochtonial Caress) without requiring manual text markup.
+  - Extracts rich-text creator notes, playstyle advice, and gear instructions using Lexical AST extraction, integrating them directly into stage evidence and AI coaching.
+  - Added a dedicated Build URL input row in the Settings Mobalytics tab with Enter key submission and loading indicators, while preserving manual text paste fallback.
 - Added a provenance-aware build knowledge model that combines Mobalytics creator intent, build stages, current PoB character data, and personal coaching priorities.
 - Added direct local import of raw Path of Building export codes, including grouped active skills/supports, notes, passive node ids, attributes, and equipped item affixes.
 - Added public Mobalytics URL fetching with a paste-the-page-text fallback when a guide cannot be read automatically.
 - Added Martial Artist, lightning, quarterstaff, and Hollow Palm focus detection and scoring rules.
 
+- **Level-Adaptive Coaching & Dynamic Progression Scaling**:
+  - Replaced hardcoded 75% endgame resistance cap expectations with progressive level targets (Act 1: 15%, Act 2: 25%, Act 3+: 45%, Cruel / Late Campaign: 65%, Maps: 75%).
+  - Dynamically scales affix evaluation weights by campaign stage (boosting flat weapon damage, mobility, and early life during leveling while tapering high endgame resist bias).
+  - Differentiated immediate attribute requirements (current gear & items within +5 levels) from distant future gear (>+10 levels), preventing low-level players from being spammed with endgame stat demands.
+  - Adapted the resistance gap calculator, slot fix advisor, shopping lists, craft suggestions, urgent needs bar, and AI coach prompt to respect character level and progression stage.
+
 ### Fixed
+- **Quarterstaff Monk & Melee Build Isolation**:
+  - Fixed guide parsing and build health reports mistakenly classifying Quarterstaff Monk builds as bow/projectile builds and recommending quivers, bow skills, and projectile damage.
+  - Hardened `inferBuildFocus` with strict word boundaries to prevent phrases like "Deflect Projectiles" or "one-shot" from falsely setting `bow: true` or `quiver: true`.
+  - Added strict slot isolation (`getAllowedSlotsForFocus`) preventing two-handed Quarterstaff and Unarmed builds from ever showing or generating offhand/quiver targets, shopping cards, or advice.
+  - Fixed `pobSlotToCoachSlot`, `inferSlotFromItemName`, `inferSlotFromPobText`, and `itemClassForSlot` in `main.js` which previously hardcoded `slotOrder[1] = "quiver"` and converted all weapons to `"Bows"`. Quarterstaves and staves now properly map to `"Quarterstaves"` and `"Staves"`.
+  - Fixed `buildFixSlotsReport`, `healthAdviceForSlot`, and `buildNeededStats` hardcoding `"Weapon / Quiver"` across all archetypes. They now use dynamic, build-aware weapon labels.
+- **Accuracy Rating & Low Hit Chance Escalation**:
+  - Elevated low hit chance (e.g. 62% in Act 2) to a critical warning across needed stats, next steps, and pobb warnings, highlighting the severe ~38% attack miss penalty.
+  - Boosted accuracy rating scoring and shopping priority (`accuracyMultiplier(62) = 2.0x`) when hit chance is low (< 80%), while scaling it down when hit chance is already near cap (≥ 95%).
+- **Calibrated Level 20 Gear & Progression Coaching**:
+  - Added Quarterstaff bottleneck advice when staff score is low (+38) to emphasize that flat damage and attack speed drops are huge upgrades.
+  - Calibrated boots movement speed advice to recognize 10% movement speed as a good start while encouraging upgrades to 15–20%+.
+  - Added empty/dead slot detection for zero-score slots (e.g. Amulet, Belt), recommending basic magic/rare items with Life, attributes, or a resistance.
+  - Added Level 22 Monk milestone transition reminder (Storm Wave / Siphoning Strike swap) to keep gear steady and prevent unnecessary early respecs.
+- Fixed critical false alarm banners during early leveling (e.g. at level 16 in Act 2) that falsely claimed lacking 75% capped resistances was "critical" or an emergency.
+- Fixed early campaign builds being warned about negative chaos resistance or having "uncapped resistance cleanup" block damage upgrade advice.
+- Fixed a mod parsing bug in `parser.js` where property lines without numbers (such as `Armour: +15% to all Elemental Resistances` on Soul Cores) were mistakenly discarded as gear property headers.
+- Fixed trade search and poe.ninja price lookups hardcoding `poe2/Standard`, now dynamically querying the user's active event league.
+- Fixed typo-trimmer in `cleanStageLabel` and `normalizeGuideNameText` with `\b([Ll]eveli)n(?=[\s\-_]|$)`.
 - Removed Frost/Ice Shot as the fallback profile for the overlay and imported builds.
 - Fixed raw PoB export codes being mistaken for enormous pobb.in build ids.
 - Fixed the settings page registering two competing pobb.in import handlers.

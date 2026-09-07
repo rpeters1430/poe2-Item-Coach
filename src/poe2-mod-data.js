@@ -13,7 +13,7 @@
 /* eslint-disable no-unused-vars */
 const POE2_MOD_DATA = {
   version: "1.2.0",
-  fetched: "2026-06-26T16:22:07.347Z",
+  fetched: "2026-09-04T23:50:11.549Z",
   source: "poe2db.tw (life verified; other mods calibrated estimates)",
   note: "Run `npm run fetch-mods` to update from poe2db.tw stat pages",
 
@@ -39,12 +39,45 @@ const POE2_MOD_DATA = {
       ],
       metaBonus: 0.20,
     },
+    forbiddenRitesChaos: {
+      label: "Forbidden Rites / Chaos",
+      topMods: [
+        /chaos damage|adds .* chaos damage/i,
+        /wither|poison/i,
+        /chaos resistance/i,
+        /\+\d+ to level of all chaos skills/i,
+      ],
+      metaBonus: 0.25,
+    },
+    infernalistFire: {
+      label: "Infernalist / Fire",
+      topMods: [
+        /fire damage|adds .* fire damage/i,
+        /ignite|burn/i,
+        /\+\d+ to level of all fire skills/i,
+      ],
+      metaBonus: 0.25,
+    },
   },
 
   // ── Mod definitions ───────────────────────────────────────────────────────
   // Tiers are stored best→worst (tier 1 = highest ilvl requirement / best values).
   // Multiplier is computed dynamically from tier position — see tierScoreMultiplier().
   mods: [
+
+    // ── SPIRIT (PoE2 aura / minion resource) ─────────────────────────────
+    {
+      id: "flat_spirit",
+      label: "Spirit",
+      category: "defense",
+      pattern: /^\+(\d+) to Spirit$/i,
+      tiers: [
+        { tier: 1, ilvl: 75, min: 45, max: 60, name: "of the Vision" },
+        { tier: 2, ilvl: 55, min: 30, max: 44, name: "of the Phantom" },
+        { tier: 3, ilvl: 35, min: 20, max: 29, name: "of the Spirit" },
+        { tier: 4, ilvl: 15, min: 10, max: 19, name: "of the Soul" },
+      ],
+    },
 
     // ── LIFE ─────────────────────────────────────────────────────────────
     // VERIFIED from poe2db.tw/us/Life (2026-06-25)

@@ -68,7 +68,54 @@ function defaultSlotRules() {
   };
 }
 
+function defaultQuarterstaffRules() {
+  return [
+    { match: /adds .* damage to attacks|physical damage to attacks|increased physical damage|melee physical damage/i, category: "damage", points: 14, label: "physical damage", note: "Flat attack damage scales Quarterstaff base hits." },
+    { match: /lightning damage to attacks|adds .* lightning damage/i, category: "synergy", points: 16, label: "lightning damage", note: "Lightning damage synergizes with Monk shock and skill combos." },
+    { match: /cold damage to attacks|adds .* cold damage/i, category: "synergy", points: 14, label: "cold damage", note: "Cold damage provides freeze and elemental strike synergy." },
+    { match: /fire damage to attacks|adds .* fire damage/i, category: "synergy", points: 10, label: "fire damage", note: "Elemental attack damage adds to overall melee DPS." },
+    { match: /attack speed/i, category: "damage", points: 15, label: "attack speed", note: "High attack speed is vital for Quarterstaff combo flow and responsiveness." },
+    { match: /accuracy rating|accuracy/i, category: "damage", points: 13, label: "accuracy rating", note: "Accuracy rating ensures attacks hit and prevents damage loss from misses." },
+    { match: /critical hit chance|critical strike chance|critical damage bonus|critical multiplier/i, category: "damage", points: 13, label: "critical stats", note: "Scales Quarterstaff critical strikes." },
+    { match: /maximum life/i, category: "defense", points: 11, label: "maximum life", note: "Melee characters need strong life pools for close-range survival." },
+    { match: /evasion rating/i, category: "defense", points: 10, label: "evasion rating", note: "Primary defense for Monk / Dexterity bases." },
+    { match: /energy shield/i, category: "defense", points: 8, label: "energy shield", note: "Secondary defense for Monk (Dex/Int hybrid)." },
+    { match: /fire resistance|cold resistance|lightning resistance|chaos resistance/i, category: "resistance", points: 8, label: "elemental resistance", note: "Helps cap your elemental resistances." },
+    { match: /all elemental resistances|all resistances/i, category: "resistance", points: 16, label: "all elemental resistances", note: "Efficiently caps resistances across slots." },
+    { match: /strength|dexterity|intelligence/i, category: "attributes", points: 8, label: "attributes", note: "Dexterity and Intelligence for Monk gems, Strength for life/gear requirements." },
+    { match: /movement speed/i, category: "mobility", points: 18, label: "movement speed", note: "Essential for engaging and repositioning in melee combat." },
+    { match: /bow skills|projectile skills|quiver|crossbow/i, category: "synergy", points: -12, label: "ranged/bow stats", note: "Useless for a Quarterstaff melee Monk." },
+    { match: /spell damage|minion damage/i, category: "synergy", points: -8, label: "spell/minion damage", note: "Off-plan for an attack-based Monk." },
+  ];
+}
+
+function defaultQuarterstaffSlotRules() {
+  return {
+    weapon: { damage: 1.6, synergy: 1.5, defense: 0.2, resistance: 0.2, mobility: 0.1 },
+    boots: { mobility: 1.85, defense: 1.1, resistance: 1.1, attributes: 1.0, damage: 0.4 },
+    gloves: { damage: 1.35, synergy: 1.3, defense: 0.9, resistance: 0.9, attributes: 1.0 },
+    helmet: { defense: 1.15, resistance: 1.15, attributes: 1.15, synergy: 0.7 },
+    body: { defense: 1.45, resistance: 1.0, attributes: 0.8, damage: 0.3 },
+    ring: { resistance: 1.3, attributes: 1.25, damage: 1.0, synergy: 1.0 },
+    amulet: { attributes: 1.35, damage: 1.05, synergy: 1.05, resistance: 1.0 },
+    belt: { defense: 1.3, resistance: 1.15, attributes: 0.9 },
+  };
+}
+
 const DEFAULT_PROFILES = {
+  quarterstaffMonk: {
+    name: "Quarterstaff Monk Leveling",
+    slots: ["weapon", "helmet", "body", "gloves", "boots", "ring", "amulet", "belt"],
+    focus: { quarterstaff: true, monk: true, melee: true, attack: true, bow: false, quiver: false, crossbow: false },
+    baseWeights: { damage: 1.15, defense: 1.0, attributes: 1.05, resistance: 1.0, mobility: 1.2, synergy: 1.25 },
+    stages: {
+      act1_2: { label: "Act 1-2 Bridge (1-21)", damage: 1.1, defense: 0.9, attributes: 1.2, resistance: 0.8, mobility: 1.25, synergy: 1.1 },
+      act2_swap: { label: "Storm Wave Swap (22-41)", damage: 1.2, defense: 1.0, attributes: 1.1, resistance: 1.0, mobility: 1.15, synergy: 1.3 },
+      endgame: { label: "Endgame", damage: 1.25, defense: 1.25, attributes: 0.8, resistance: 1.2, mobility: 1.0, synergy: 1.45 },
+    },
+    statRules: defaultQuarterstaffRules(),
+    slotRules: defaultQuarterstaffSlotRules(),
+  },
   frostCrossbow: {
     name:"Frost Crossbow / Bow",
     slots:["weapon","quiver","helmet","body","gloves","boots","ring","amulet","belt"],
@@ -101,41 +148,92 @@ function accuracyMultiplier(hitChance) {
   if (hitChance === null || hitChance === undefined) return 1.0;
   if (hitChance >= 95) return 0.15; // near-zero value
   if (hitChance >= 90) return 0.5;  // medium value
+  if (hitChance <= 70) return 2.0;  // critical: hit chance is terrible, over 30% attacks miss
+  if (hitChance <= 80) return 1.6;  // notable miss rate
   return 1.0;                       // full value
 }
 
-function getResistWarning(scored, resistances) {
+function getResistWarning(scored, resistances, playerLevel = 1) {
   if (!resistances) return null;
+  const lvl = Number(playerLevel) || Number(currentSession.playerLevel) || 1;
   const fire = Number(resistances.fire) || 0;
   const cold = Number(resistances.cold) || 0;
   const lightning = Number(resistances.lightning) || 0;
 
-  const criticals = [];
-  if (fire < 0) criticals.push({ name: "Fire", val: fire });
-  if (lightning < 0) criticals.push({ name: "Lightning", val: lightning });
-  if (cold < 0) criticals.push({ name: "Cold", val: cold });
-
-  if (criticals.length === 0) return null;
-
   const itemText = String(scored.item.raw || "").toLowerCase();
   const helped = [];
-  criticals.forEach(c => {
-    const regex = new RegExp(`\\+?\\d+%\\s*to\\s*(all\\s+elemental|${c.name.toLowerCase()})\\s*resistance`, "i");
-    if (regex.test(itemText)) {
-      helped.push(c.name);
-    }
+  ["Fire", "Lightning", "Cold"].forEach(name => {
+    const regex = new RegExp(`\\+?\\d+%\\s*to\\s*(all\\s+elemental|${name.toLowerCase()})\\s*resistance`, "i");
+    if (regex.test(itemText)) helped.push(name);
   });
 
-  const critStr = criticals.map(c => `${c.name} (${c.val}%)`).join(" and ");
-  if (helped.length === 0) {
-    return `Build warning: ${critStr} are uncapped. This item does not help these resistances — defense is critical right now.`;
-  } else {
-    const remaining = criticals.filter(c => !helped.includes(c.name));
-    if (remaining.length === 0) {
-      return `This item helps reduce your uncapped resistances (${helped.join(", ")}).`;
+  if (lvl >= 65) {
+    // Maps / Endgame: 75% cap is mandatory and critical
+    const uncapped = [];
+    if (fire < 75) uncapped.push({ name: "Fire", val: fire });
+    if (lightning < 75) uncapped.push({ name: "Lightning", val: lightning });
+    if (cold < 75) uncapped.push({ name: "Cold", val: cold });
+    if (uncapped.length === 0) return null;
+
+    const severe = uncapped.filter(c => c.val < 0);
+    const critList = severe.length ? severe : uncapped;
+    const critStr = critList.map(c => `${c.name} (${c.val}%)`).join(" & ");
+
+    if (helped.length === 0) {
+      return `Endgame warning: ${critStr} below 75% map cap. This item does not help resistances — defense is critical for maps.`;
     } else {
-      const remStr = remaining.map(c => `${c.name} (${c.val}%)`).join(" and ");
-      return `This item adds ${helped.join(" & ")} resistance, but ${remStr} still needs fixing.`;
+      const remaining = uncapped.filter(c => !helped.includes(c.name));
+      if (remaining.length === 0) {
+        return `This item helps cap your endgame resistances (${helped.join(", ")}).`;
+      } else {
+        const remStr = remaining.map(c => `${c.name} (${c.val}%)`).join(" & ");
+        return `This item adds ${helped.join(" & ")} resistance, but ${remStr} still below 75% map cap.`;
+      }
+    }
+  } else if (lvl <= 25) {
+    // Early Leveling / Act 1-2 (e.g. Level 16):
+    // 75% is NOT required or critical! Only severe negative resists (< -15%) get a mild note.
+    const severeNegative = [];
+    if (fire < -15) severeNegative.push({ name: "Fire", val: fire });
+    if (lightning < -15) severeNegative.push({ name: "Lightning", val: lightning });
+    if (cold < -15) severeNegative.push({ name: "Cold", val: cold });
+
+    if (severeNegative.length > 0) {
+      const negStr = severeNegative.map(c => `${c.name} (${c.val}%)`).join(" & ");
+      if (helped.length > 0) {
+        return `Act 2 note: Adds ${helped.join(" & ")} resistance, helping patch negative ${negStr}.`;
+      } else {
+        return `Act 2 note: ${negStr} is negative. Look for a resist ring or bench mod, but prioritize weapon flat damage and life.`;
+      }
+    }
+
+    if (helped.length > 0) {
+      return `This item adds ${helped.join(" & ")} resistance (nice bonus for Act 2).`;
+    }
+    return null;
+  } else {
+    // Mid Campaign (Level 26–64, Act 3 to Cruel):
+    const target = lvl <= 40 ? 45 : 65;
+    const belowTarget = [];
+    if (fire < 0) belowTarget.push({ name: "Fire", val: fire });
+    if (lightning < 0) belowTarget.push({ name: "Lightning", val: lightning });
+    if (cold < 0) belowTarget.push({ name: "Cold", val: cold });
+
+    if (belowTarget.length === 0) {
+      if (helped.length > 0) return `This item adds ${helped.join(" & ")} resistance towards your ~${target}% campaign target.`;
+      return null;
+    }
+
+    const str = belowTarget.map(c => `${c.name} (${c.val}%)`).join(" & ");
+    if (helped.length === 0) {
+      return `Campaign note: ${str} is negative. Pick up resistances on rings or belt without sacrificing core weapon damage.`;
+    } else {
+      const remaining = belowTarget.filter(c => !helped.includes(c.name));
+      if (remaining.length === 0) {
+        return `This item helps improve your campaign resistances (${helped.join(", ")}).`;
+      } else {
+        return `This item adds ${helped.join(" & ")} resistance; ${remaining.map(c => c.name).join(" & ")} still negative.`;
+      }
     }
   }
 }
@@ -209,7 +307,168 @@ function scoreItem(item, profile, slot, stageKey) {
   return { item, scores, total:Object.values(scores).reduce((a,b)=>a+b,0), hits, warnings };
 }
 
+function checkWaystoneDanger(item, profile = {}) {
+  const dangers = [];
+  const warnings = [];
+  const mods = (item.mods || []).concat(item.explicits || []);
+  const text = mods.join("\n").toLowerCase();
+  const focus = profile.focus || {};
+
+  // Reflect checks
+  const hasEleReflect = /reflect.*(?:elemental|fire|cold|lightning)|monsters reflect.*elemental/i.test(text);
+  const hasPhysReflect = /reflect.*physical|monsters reflect.*physical/i.test(text);
+
+  if (hasEleReflect) {
+    if (focus.elemental || focus.fire || focus.cold || focus.lightning || profile.name?.toLowerCase().includes("frost")) {
+      dangers.push("⛔ DEADLY: Monsters reflect Elemental Damage (build scales elemental damage)");
+    } else {
+      warnings.push("⚠️ Monsters reflect Elemental Damage");
+    }
+  }
+
+  if (hasPhysReflect) {
+    if (focus.physical) {
+      dangers.push("⛔ DEADLY: Monsters reflect Physical Damage (build scales physical damage)");
+    } else {
+      warnings.push("⚠️ Monsters reflect Physical Damage");
+    }
+  }
+
+  // Recovery / Regen
+  if (/players cannot regenerate life|cannot regenerate mana|no life or mana recovery/i.test(text)) {
+    dangers.push("⛔ DEADLY: Players cannot regenerate Life or Mana");
+  } else if (/reduced (?:life|mana) recovery rate|reduced recovery rate of life/i.test(text)) {
+    warnings.push("⚠️ Reduced Life/Mana Recovery Rate");
+  }
+
+  // Max resistances
+  if (/-(?:\d+)% to maximum (?:all|elemental|player) resistances|maximum player resistances are reduced/i.test(text)) {
+    dangers.push("⛔ LETHAL: Minus to Maximum Player Resistances");
+  }
+
+  // Curses
+  if (/players are cursed with/i.test(text)) {
+    const curseMatch = text.match(/players are cursed with ([a-zA-Z\s]+)/i);
+    warnings.push(`⚠️ Cursed Map: ${curseMatch ? curseMatch[1].trim() : "Curse applied"}`);
+  }
+
+  // Monster crits / added elemental
+  if (/monsters have \+?\d+% (?:increased )?critical strike chance|increased critical damage/i.test(text)) {
+    warnings.push("⚠️ High Monster Crit Chance / Multiplier");
+  }
+  if (/monsters deal \d+% extra (?:damage as )?(?:fire|cold|lightning|chaos)/i.test(text)) {
+    warnings.push("⚠️ Monster Added Elemental/Chaos Damage");
+  }
+
+  return {
+    lethal: dangers.length > 0,
+    dangers,
+    warnings,
+  };
+}
+
+function analyzeSoulCore(item, profile = {}, session = {}) {
+  const socketBonuses = item.socketBonuses || {};
+  const weaponBonus = socketBonuses.weapon || "";
+  const armourBonus = socketBonuses.armour || "";
+  const focus = profile.focus || {};
+  const res = session.resistances || {};
+  const lvl = Number(session.playerLevel) || 1;
+  const isEndgame = lvl >= 65;
+  const target = isEndgame ? 75 : lvl <= 20 ? 25 : lvl <= 35 ? 40 : 55;
+  const underTarget = (Number(res.fire) || 0) < target || (Number(res.cold) || 0) < target || (Number(res.lightning) || 0) < target;
+
+  let weaponFit = "neutral";
+  let armourFit = "neutral";
+  let recTone = "good";
+  let recText = "";
+
+  const wLower = weaponBonus.toLowerCase();
+  const aLower = armourBonus.toLowerCase();
+
+  if ((focus.chaos && wLower.includes("chaos")) ||
+      (focus.fire && wLower.includes("fire")) ||
+      (focus.cold && (wLower.includes("cold") || wLower.includes("freeze"))) ||
+      (focus.lightning && (wLower.includes("lightning") || wLower.includes("shock"))) ||
+      (focus.physical && wLower.includes("physical")) ||
+      wLower.includes("attack speed") || wLower.includes("critical")) {
+    weaponFit = "great";
+  }
+
+  if (aLower.includes("resist") || aLower.includes("armour") || aLower.includes("energy shield") || aLower.includes("evasion") || aLower.includes("life")) {
+    armourFit = underTarget ? "great" : "good";
+  }
+
+  if (weaponFit === "great" && armourFit === "great") {
+    recText = isEndgame
+      ? "Top-tier Soul Core! Excellent scaling for your weapon and solves armour defense/resist needs."
+      : "Great Soul Core! Socket in Weapon for faster clear, or Armour for campaign defenses.";
+  } else if (weaponFit === "great") {
+    recText = "Recommended: Socket in Weapon to scale your primary damage type.";
+  } else if (armourFit === "great") {
+    recText = isEndgame
+      ? "Recommended: Socket in Armour to cap your elemental/chaos resistances for maps."
+      : "Recommended: Socket in Armour for added defensive padding during campaign.";
+  } else {
+    recTone = "warn";
+    recText = "Secondary value for current build. Keep for 3-to-1 vendor reforge (0.5.5) or extract via Desecration.";
+  }
+
+  return {
+    weaponBonus,
+    armourBonus,
+    weaponFit,
+    armourFit,
+    recommendation: recText,
+    verdict: {
+      tone: recTone,
+      label: recTone === "good" ? "Valuable Soul Core" : "Reforge / Crafting Core",
+      opinion: recText,
+    },
+  };
+}
+
 function getVerdict(scored, playerLevel, compDelta) {
+  const item = scored.item;
+  const slot = item.slot;
+
+  if (slot === "uncut_skill" || slot === "uncut_support") {
+    const kind = slot === "uncut_support" ? "support" : "skill";
+    return { tone: "good", label: `Build ${kind} choice`, opinion: `Compare the current PoB setup with the selected Mobalytics stage before engraving this uncut ${kind} gem.` };
+  }
+
+  if (slot === "waystone") {
+    const danger = checkWaystoneDanger(item, activeProfile);
+    if (danger.lethal) {
+      return { tone: "bad", label: "DEADLY WAYSTONE", opinion: danger.dangers[0] + ". Reroll before running!" };
+    }
+    if (danger.warnings.length) {
+      return { tone: "warn", label: "Hazardous Waystone", opinion: danger.warnings[0] + ". Run with caution." };
+    }
+    const t = item.waystoneTier ? `Tier ${item.waystoneTier}` : "Map";
+    return { tone: "good", label: "Safe Waystone", opinion: `${t} Waystone has clean affixes with no lethal modifiers for your build.` };
+  }
+
+  if (slot === "soul_core") {
+    const analysis = analyzeSoulCore(item, activeProfile, currentSession);
+    return analysis.verdict;
+  }
+
+  if (slot === "ultimatum") {
+    if (item.ultimatumReward) {
+      return { tone: "good", label: "Trial of Chaos Wager", opinion: `Reward: ${item.ultimatumReward}. 0.5.5 Trial has 30 rooms (currency & cores only).` };
+    }
+    return { tone: "warn", label: "Inscribed Ultimatum", opinion: "Examine wager risk against potential currency and soul core returns (0.5.5 Trial of Chaos)." };
+  }
+
+  if (slot === "tablet") {
+    return { tone: "good", label: "Stackable Tablet", opinion: "Stack with multiple tablets in the Map Device (0.5.5 Ritual overhaul) to boost altars & wisps." };
+  }
+
+  if (slot === "rune") {
+    return { tone: "good", label: "Runesmithing Rune", opinion: "Use at the Runesmith to craft onto equipment sockets (Runes of Aldur now core in 0.5.5)." };
+  }
+
   const unmet = [];
   if (scored.item.reqLevel && scored.item.reqLevel > playerLevel) unmet.push(`Level ${scored.item.reqLevel} (you are ${playerLevel})`);
   if (scored.item.reqStr && scored.item.reqStr > (currentSession.playerStr || 0)) unmet.push(`Str ${scored.item.reqStr} (you have ${currentSession.playerStr || 0})`);
@@ -217,7 +476,9 @@ function getVerdict(scored, playerLevel, compDelta) {
   if (scored.item.reqInt && scored.item.reqInt > (currentSession.playerInt || 0)) unmet.push(`Int ${scored.item.reqInt} (you have ${currentSession.playerInt || 0})`);
   
   if (unmet.length) {
-    return { tone: "warn", label: "Future item — save for later", opinion: `Unmet requirements: ${unmet.join(", ")}.` };
+    const isFarFuture = scored.item.reqLevel && (scored.item.reqLevel > playerLevel + 10);
+    const label = isFarFuture ? "Future endgame item — stash" : "Future item — save for later";
+    return { tone: "warn", label, opinion: `Unmet requirements: ${unmet.join(", ")}.` };
   }
 
   if (compDelta !== null) {
@@ -304,8 +565,21 @@ function tierBadgeHtml(ti) {
 }
 
 function slotLabel(k) {
-  const m = { body:"Body Armor", quiver:"Quiver", offhand:"Offhand", flask:"Flask", charm:"Charm" };
-  return m[k] || String(k).charAt(0).toUpperCase()+String(k).slice(1);
+  const m = {
+    body: "Body Armor",
+    quiver: "Quiver",
+    offhand: "Offhand",
+    flask: "Flask",
+    charm: "Charm",
+    soul_core: "Soul Core",
+    rune: "Rune",
+    tablet: "Precursor / Ritual Tablet",
+    waystone: "Waystone",
+    ultimatum: "Inscribed Ultimatum",
+    jewel: "Jewel",
+    relic: "Relic",
+  };
+  return m[k] || String(k).charAt(0).toUpperCase() + String(k).slice(1);
 }
 
 // ─── Item tooltip renderer ────────────────────────────────────────────────────
@@ -552,12 +826,67 @@ function buildStatDelta(newItem, equippedItem) {
   return rows.slice(0, 10);
 }
 
+function uncutGemLevel(item) {
+  const text = `${item?.names?.join(" ") || ""}\n${item?.raw || ""}`;
+  return Number(text.match(/(?:Level|Tier)\s*[:(]?\s*(\d+)/i)?.[1] || 0) || null;
+}
+
+function gemCoachPlan(item, profile, stageKey, pobBuild) {
+  const stage = profile?.stages?.[stageKey];
+  const guide = stage?.data || stage || {};
+  const guideSkills = Array.isArray(guide.skills) ? guide.skills : [];
+  const currentGroups = Array.isArray(pobBuild?.skillGroups) ? pobBuild.skillGroups : [];
+  const currentActive = new Set(currentGroups.map(group => String(group.name || "").toLowerCase()));
+  const currentSupports = new Set(currentGroups.flatMap(group => group.supports || []).map(name => String(name).toLowerCase()));
+  const type = item?.slot === "uncut_support" ? "support" : "skill";
+  const recommendations = [];
+
+  if (type === "support") {
+    for (const skill of guideSkills) {
+      for (const support of skill.supports || []) {
+        if (!currentSupports.has(String(support).toLowerCase())) {
+          recommendations.push({ gem: support, forSkill: skill.name, reason: "Recommended by the current Mobalytics stage and not found in the current PoB setup." });
+        }
+      }
+    }
+  } else {
+    for (const skill of guideSkills) {
+      const current = currentGroups.find(group => String(group.name || "").toLowerCase() === String(skill.name || "").toLowerCase());
+      if (!currentActive.has(String(skill.name || "").toLowerCase())) {
+        recommendations.push({ gem: skill.name, forSkill: "New active skill", reason: "Used by the current Mobalytics stage but not found in the current PoB setup." });
+      } else if (uncutGemLevel(item) && Number(current?.level || 0) < uncutGemLevel(item)) {
+        recommendations.push({ gem: skill.name, forSkill: "Upgrade existing gem", reason: `Current PoB gem is level ${current?.level || "unknown"}; this uncut gem is level ${uncutGemLevel(item)}.` });
+      }
+    }
+  }
+
+  return {
+    type,
+    level: uncutGemLevel(item),
+    stageLabel: stage?.label || guide.label || stageKey,
+    currentGroups,
+    recommendations: recommendations.filter((entry, index, all) => all.findIndex(other => other.gem === entry.gem && other.forSkill === entry.forSkill) === index).slice(0, 10),
+    hasMobalytics: profile?.source === "mobalytics" || Boolean(profile?.mobalytics),
+  };
+}
+
+function renderGemCoachHtml(plan) {
+  const current = plan.currentGroups.length
+    ? plan.currentGroups.slice(0, 8).map(group => `<div style="margin:3px 0"><strong>${esc(group.name)}</strong>${group.level ? ` (Lvl ${esc(group.level)})` : ""}${group.supports?.length ? `<br><span style="color:var(--poe-muted)">Supports: ${group.supports.map(esc).join(" · ")}</span>` : ""}</div>`).join("")
+    : `<div style="color:var(--warn)">No current PoB skill setup is loaded.</div>`;
+  const recommended = plan.recommendations.length
+    ? plan.recommendations.map((entry, index) => `<div style="margin:4px 0"><strong style="color:${index === 0 ? "var(--good)" : "var(--poe-gold)"}">${index === 0 ? "Best next choice: " : ""}${esc(entry.gem)}</strong> <span style="color:var(--poe-muted)">→ ${esc(entry.forSkill)}</span><br><span style="font-size:10px">${esc(entry.reason)}</span></div>`).join("")
+    : `<div style="color:var(--warn)">${plan.hasMobalytics ? "No missing gem from this stage was detected; save the uncut gem or upgrade a listed skill when the cutting menu allows it." : "Import and select a Mobalytics build to receive build-specific choices."}</div>`;
+  return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><div><strong style="color:var(--poe-gold)">Current PoB setup</strong>${current}</div><div><strong style="color:var(--poe-gold)">Mobalytics: ${esc(plan.stageLabel)}</strong>${recommended}</div></div><div style="margin-top:7px;color:var(--poe-muted);font-size:10px">Confirm the gem is enabled in the in-game cutting menu; level/tier and attribute limits still apply.</div>`;
+}
+
 // ─── Coach panel renderer ─────────────────────────────────────────────────────
 
 function renderCoach(scored, compDelta, savedItem) {
   const slot     = slotSelect.value;
   const stageKey = stageSelect.value;
   const verdict  = getVerdict(scored, currentSession.playerLevel||1, compDelta);
+  const isSpecialSlot = ["soul_core", "rune", "tablet", "waystone", "ultimatum", "uncut_skill", "uncut_support"].includes(slot);
 
   // Verdict badge
   const badge = document.getElementById("verdict-badge");
@@ -569,24 +898,71 @@ function renderCoach(scored, compDelta, savedItem) {
   vl.className   = `verdict-label ${verdict.tone}`;
   document.getElementById("verdict-opinion").textContent = verdict.opinion;
 
+  // 5-Dimension Evaluation & Archetype Gate
+  const engine = typeof RecommendationEngine !== "undefined" ? RecommendationEngine : null;
+  const dimRow = document.getElementById("dimensions-badge-row");
+  if (engine && scored?.item && !isSpecialSlot) {
+    const context = engine.resolveBuildContext({
+      pobBuild: { stats: { level: currentSession.playerLevel, hitChance: currentSession.hitChance, resistances: currentSession.resistances } },
+      profile: activeProfile,
+      playerLevel: currentSession.playerLevel || 1,
+    });
+
+    if (!context.archetype.allowedSlots.includes(slot)) {
+      badge.className = "verdict-badge bad";
+      vl.textContent = "Off-Archetype Item";
+      vl.className = "verdict-label bad";
+      document.getElementById("verdict-opinion").textContent = `Your build is ${context.archetype.name} (${context.archetype.weaponLabel}). This slot is not used by your build.`;
+    }
+
+    if (dimRow) {
+      const dim = engine.evaluateItemDimensions(scored.item, slot, context);
+      const urgEl = document.getElementById("dim-urgency");
+      const stageEl = document.getElementById("dim-stage-fit");
+      const buildEl = document.getElementById("dim-build-fit");
+
+      if (urgEl) {
+        urgEl.textContent = `Urgency: ${dim.replaceUrgency}`;
+        urgEl.className = `dim-chip ${dim.replaceUrgency === "Immediate Fix" ? "urgent" : dim.replaceUrgency === "Upgrade Priority" ? "warn" : "good"}`;
+      }
+      if (stageEl) {
+        stageEl.textContent = `Stage: ${dim.stageFit} Fit`;
+        stageEl.className = `dim-chip ${dim.stageFit === "Weak" || dim.stageFit === "Empty" ? "warn" : "good"}`;
+      }
+      if (buildEl) {
+        buildEl.textContent = `Build: ${dim.buildFit}`;
+        buildEl.className = `dim-chip ${dim.buildFit === "Contaminated" ? "urgent" : dim.buildFit === "Synergy" ? "good" : ""}`;
+      }
+      dimRow.style.display = "flex";
+    }
+  } else if (dimRow) {
+    dimRow.style.display = "none";
+  }
+
   // Urgent Needs Bar
   const needsDiv = document.getElementById("urgent-needs");
   if (needsDiv && currentSession.resistances) {
     const r = currentSession.resistances;
+    const lvl = Number(currentSession.playerLevel) || 1;
     const fireVal = Number(r.fire) || 0;
     const coldVal = Number(r.cold) || 0;
     const lightVal = Number(r.lightning) || 0;
 
-    const fireGap = 75 - fireVal;
-    const coldGap = 75 - coldVal;
-    const lightGap = 75 - lightVal;
+    const isEndgame = lvl >= 65;
+    const target = isEndgame ? 75 : lvl <= 20 ? 25 : lvl <= 35 ? 40 : 55;
+    const targetLabel = isEndgame ? "to cap" : `to target (${target}%)`;
+
+    const fireGap = target - fireVal;
+    const coldGap = target - coldVal;
+    const lightGap = target - lightVal;
 
     const makeChip = (val, gap, label, emoji, elId) => {
       const el = document.getElementById(elId);
       if (!el) return;
       if (gap > 0) {
-        const color = val < 0 ? "var(--bad)" : "var(--warn)";
-        el.innerHTML = `${emoji} ${label} <span style="color:${color}; font-weight:bold;">+${gap} to cap</span>`;
+        const isUrgent = isEndgame ? val < 50 : val < 0;
+        const color = val < 0 ? "var(--bad)" : isUrgent ? "var(--bad)" : "var(--warn)";
+        el.innerHTML = `${emoji} ${label} <span style="color:${color}; font-weight:bold;">${val}% (+${gap} ${targetLabel})</span>`;
         el.style.display = "";
       } else {
         el.style.display = "none";
@@ -597,8 +973,8 @@ function renderCoach(scored, compDelta, savedItem) {
     makeChip(coldVal, coldGap, "Cold", "❄", "need-cold");
     makeChip(lightVal, lightGap, "Lightning", "⚡", "need-lightning");
 
-    const anyUncapped = fireGap > 0 || coldGap > 0 || lightGap > 0;
-    needsDiv.style.display = anyUncapped ? "flex" : "none";
+    const anyNeeded = fireGap > 0 || coldGap > 0 || lightGap > 0;
+    needsDiv.style.display = anyNeeded ? "flex" : "none";
   } else if (needsDiv) {
     needsDiv.style.display = "none";
   }
@@ -650,7 +1026,9 @@ function renderCoach(scored, compDelta, savedItem) {
 
   // Equipped comparison
   const eqBox = document.getElementById("equipped-compare");
-  if (savedItem) {
+  if (isSpecialSlot) {
+    eqBox.style.display = "none";
+  } else if (savedItem) {
     eqBox.style.display = "";
     document.getElementById("eq-name").textContent = savedItem.item.names[0] || "Equipped item";
     // PoB-style per-stat delta lines
@@ -671,6 +1049,9 @@ function renderCoach(scored, compDelta, savedItem) {
     }
 
     document.getElementById("set-equipped-btn").style.display = "";
+    document.getElementById("set-equipped-btn").textContent = sameItemIdentity(savedItem.item, scored.item)
+      ? "Update equipped item ↑"
+      : "Replace equipped item ↑";
     const eqTradeBtn = document.getElementById("eq-trade-btn");
     if (eqTradeBtn) eqTradeBtn.style.display = "";
   } else {
@@ -680,6 +1061,7 @@ function renderCoach(scored, compDelta, savedItem) {
     const confEl = document.getElementById("eq-confidence");
     if (confEl) confEl.style.display = "none";
     document.getElementById("set-equipped-btn").style.display = "";
+    document.getElementById("set-equipped-btn").textContent = "Set as equipped ↑";
     const eqTradeBtn = document.getElementById("eq-trade-btn");
     if (eqTradeBtn) eqTradeBtn.style.display = "none";
   }
@@ -687,7 +1069,7 @@ function renderCoach(scored, compDelta, savedItem) {
   // Why it won/lost (Gains and Losses delta breakdown)
   const whyWonLostSection = document.getElementById("why-won-lost-section");
   const whyWonLostList = document.getElementById("why-won-lost-list");
-  if (savedItem && whyWonLostSection && whyWonLostList) {
+  if (!isSpecialSlot && savedItem && whyWonLostSection && whyWonLostList) {
     const ruleDeltas = [];
     const rules = activeProfile.statRules || [];
     const savedHits = savedItem.hits || [];
@@ -734,13 +1116,95 @@ function renderCoach(scored, compDelta, savedItem) {
   // Resist Warning Banner
   const banner = document.getElementById("resist-warning-banner");
   if (banner) {
-    const resistWarning = getResistWarning(scored, currentSession.resistances);
-    if (resistWarning) {
+    const resistWarning = getResistWarning(scored, currentSession.resistances, currentSession.playerLevel);
+    if (resistWarning && !isSpecialSlot) {
       banner.textContent = resistWarning;
       banner.style.display = "";
     } else {
       banner.style.display = "none";
     }
+  }
+
+  // Special Item Section (0.5.5 Soul Cores, Runes, Tablets, Waystones, Ultimatums)
+  const specialSection = document.getElementById("special-item-section");
+  const specialTitle   = document.getElementById("special-item-title");
+  const specialContent = document.getElementById("special-item-content");
+
+  if (specialSection && specialTitle && specialContent && isSpecialSlot) {
+    specialSection.style.display = "";
+    if (slot === "uncut_skill" || slot === "uncut_support") {
+      const plan = gemCoachPlan(scored.item, activeProfile, stageKey, savedFullSession?.pobbBuild);
+      const kind = slot === "uncut_support" ? "SUPPORT" : "SKILL";
+      specialTitle.innerHTML = `<span style="color:var(--poe-gold-bright);">💎 UNCUT ${kind} GEM — BUILD CHOICE</span>`;
+      specialContent.innerHTML = renderGemCoachHtml(plan);
+    } else if (slot === "waystone") {
+      const danger = checkWaystoneDanger(scored.item, activeProfile);
+      specialTitle.innerHTML = `<span style="color:${danger.lethal ? "var(--bad)" : danger.warnings.length ? "var(--warn)" : "var(--good)"};">🗺️ WAYSTONE RUN READINESS & HAZARD AUDIT</span>`;
+      let contentHtml = "";
+      if (danger.dangers.length > 0) {
+        contentHtml += `<div style="color:var(--bad); font-weight:600; margin-bottom:4px;">Lethal Hazards Detected:</div>`;
+        danger.dangers.forEach(d => {
+          contentHtml += `<div style="padding:2px 0; color:var(--bad); font-size:11px;">${esc(d)}</div>`;
+        });
+      }
+      if (danger.warnings.length > 0) {
+        contentHtml += `<div style="color:var(--warn); font-weight:600; margin-top:4px; margin-bottom:2px;">Cautions:</div>`;
+        danger.warnings.forEach(w => {
+          contentHtml += `<div style="padding:2px 0; color:var(--warn); font-size:11px;">${esc(w)}</div>`;
+        });
+      }
+      if (!danger.lethal && danger.warnings.length === 0) {
+        contentHtml += `<div style="color:var(--good); font-size:11px;">✓ No lethal reflect, no-regen, or -max-resist modifiers found. Safe to run.</div>`;
+      }
+      if (scored.item.waystoneTier) {
+        contentHtml += `<div style="margin-top:6px; color:var(--poe-muted); font-size:10px;">Waystone Tier: <strong>${esc(scored.item.waystoneTier)}</strong> · Delirium & Ritual Tablet compatible (0.5.5).</div>`;
+      }
+      specialContent.innerHTML = contentHtml;
+    } else if (slot === "soul_core") {
+      const sc = analyzeSoulCore(scored.item, activeProfile, currentSession);
+      specialTitle.innerHTML = `<span style="color:var(--poe-gold-bright);">🔮 SOUL CORE COACHING (0.5.5 TRIAL OF CHAOS)</span>`;
+      let html = `<div style="margin-bottom:6px; font-weight:600; color:${sc.verdict.tone === "good" ? "var(--good)" : "var(--warn)"}; font-size:11.5px;">${esc(sc.recommendation)}</div>`;
+      if (sc.weaponBonus) {
+        html += `<div style="padding:2px 0;"><span style="color:var(--poe-gold); font-weight:600;">⚔️ Weapon:</span> <span>${esc(sc.weaponBonus)}</span></div>`;
+      }
+      if (sc.armourBonus) {
+        html += `<div style="padding:2px 0;"><span style="color:var(--poe-gold); font-weight:600;">🛡️ Armour:</span> <span>${esc(sc.armourBonus)}</span></div>`;
+      }
+      html += `<div style="margin-top:6px; color:var(--poe-muted); font-size:10px;">0.5.5 Overhaul: Trial of Chaos drops cores across all 30 rooms. Vendor 3-to-1 reforging can upgrade tiers up to T4, or extract via Desecration.</div>`;
+      specialContent.innerHTML = html;
+    } else if (slot === "tablet") {
+      specialTitle.innerHTML = `<span style="color:var(--poe-gold-bright);">📜 RITUAL / PRECURSOR TABLET (0.5.5 STACKING)</span>`;
+      let html = `<div style="margin-bottom:4px; color:var(--good); font-weight:600; font-size:11.5px;">Map Device Stackable:</div>`;
+      html += `<div style="color:var(--poe-text); font-size:11px;">In update 0.5.5, multiple Ritual Tablets can be slotted simultaneously into the Map Device to stack Altars, increase Azmeri Wisp density, and access Sacred Blooms.</div>`;
+      if (scored.item.explicits?.length) {
+        html += `<div style="margin-top:6px; color:var(--poe-gold); font-size:10.5px; font-weight:600;">Tablet Effects:</div>`;
+        scored.item.explicits.forEach(e => {
+          html += `<div style="font-size:10.5px; color:var(--poe-muted); padding:1px 0;">↳ ${esc(e)}</div>`;
+        });
+      }
+      specialContent.innerHTML = html;
+    } else if (slot === "ultimatum") {
+      specialTitle.innerHTML = `<span style="color:var(--poe-gold-bright);">⚖️ INSCRIBED ULTIMATUM (0.5.5 TRIAL OF CHAOS)</span>`;
+      let html = "";
+      if (scored.item.ultimatumReq) {
+        html += `<div style="font-size:11.5px;"><span style="color:var(--warn); font-weight:600;">Wager Cost:</span> ${esc(scored.item.ultimatumReq)}</div>`;
+      }
+      if (scored.item.ultimatumReward) {
+        html += `<div style="margin-top:2px; font-size:11.5px;"><span style="color:var(--good); font-weight:600;">Reward:</span> ${esc(scored.item.ultimatumReward)}</div>`;
+      }
+      html += `<div style="margin-top:6px; color:var(--poe-muted); font-size:10px;">0.5.5 Overhaul: Complete up to 30 trial rooms. Exclusively rewards currency and Soul Cores. Ensure build can survive escalating wager modifiers.</div>`;
+      specialContent.innerHTML = html;
+    } else if (slot === "rune") {
+      specialTitle.innerHTML = `<span style="color:var(--poe-gold-bright);">🔨 RUNESMITHING SOCKET ADVICE (0.5.5)</span>`;
+      const sb = scored.item.socketBonuses || {};
+      let html = `<div style="margin-bottom:4px; color:var(--poe-text); font-size:11px;">Socket into equipment at the Runesmith. Runes of Aldur now drop in core tables.</div>`;
+      Object.entries(sb).forEach(([k, v]) => {
+        html += `<div style="padding:1px 0; font-size:11px;"><span style="color:var(--poe-gold); text-transform:capitalize; font-weight:600;">${esc(k)}:</span> ${esc(v)}</div>`;
+      });
+      specialContent.innerHTML = html;
+    }
+  } else if (specialSection) {
+    specialSection.style.display = "none";
   }
 
   // Pros
@@ -818,15 +1282,18 @@ function renderCoach(scored, compDelta, savedItem) {
         }
       }
       if (cp.openSuffixes > 0) {
+        const lvl = Number(currentSession.playerLevel) || 1;
+        const target = lvl >= 65 ? 75 : lvl <= 20 ? 25 : lvl <= 35 ? 40 : 55;
         const resistances = ["fire", "cold", "lightning"].filter(res => {
-          const val = currentSession.resistances ? Number(currentSession.resistances[res]) || 0 : 75;
-          return val < 75;
+          const val = currentSession.resistances ? Number(currentSession.resistances[res]) || 0 : target;
+          return val < target;
         });
         if (resistances.length > 0) {
           const resNames = resistances.map(r => r.charAt(0).toUpperCase() + r.slice(1)).join("/");
-          recs.push(`💡 Benchcraft <strong>${resNames} Resistance</strong> (Suffix) to cap resists.`);
+          const craftGoal = lvl >= 65 ? "to cap resists for maps" : `for Level ${lvl} defenses`;
+          recs.push(`💡 Benchcraft <strong>${resNames} Resistance</strong> (Suffix) ${craftGoal}.`);
         } else {
-          recs.push(`💡 Benchcraft a Suffix (e.g. Attribute, Resistance, or Attack Speed).`);
+          recs.push(`💡 Benchcraft a Suffix (e.g. Added Damage, Attack Speed, Attributes, or Resistance).`);
         }
       }
 
@@ -850,10 +1317,32 @@ function renderCoach(scored, compDelta, savedItem) {
 // ─── Saved gear map ───────────────────────────────────────────────────────────
 
 function splitItems(text) {
-  const norm = String(text||"").replace(/\r\n/g,"\n");
-  const starts = [...norm.matchAll(/^(?:Item Class:|Rarity:\s*(?:Normal|Magic|Rare|Unique|Currency|Gem))/gmi)].map(m=>m.index);
-  if (!starts.length) return [];
-  return starts.map((s,i)=>norm.slice(s,starts[i+1]??norm.length).trim()).filter(chunk => {
+  const lines = String(text || "").replace(/\r/g, "").split("\n");
+  const chunks = [];
+  let current = [];
+  let hasRarity = false;
+  const flush = () => {
+    const chunk = current.join("\n").trim();
+    if (chunk) chunks.push(chunk);
+    current = [];
+    hasRarity = false;
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    const startsWithClass = /^Item Class:/i.test(line);
+    const startsWithRarity = /^Rarity:\s*(?:Normal|Magic|Rare|Unique|Currency|Gem)/i.test(line);
+    if (startsWithClass && current.some(existing => existing.trim())) {
+      flush();
+    } else if (startsWithRarity && hasRarity) {
+      flush();
+    }
+    current.push(rawLine);
+    if (startsWithRarity) hasRarity = true;
+  }
+  flush();
+
+  return chunks.filter(chunk => {
     const parsed = parseItem(chunk);
     return parsed.rarity && parsed.names.length && !/^Unnamed item$/i.test(parsed.names[0]);
   });
@@ -872,16 +1361,43 @@ function buildGearMap(gearText) {
   return map;
 }
 
+function itemIdentity(item) {
+  if (!item) return "";
+  const uniqueId = String(item.raw || "").match(/^Unique ID:\s*(.+)$/im)?.[1]?.trim();
+  if (uniqueId) return `id:${uniqueId.toLowerCase()}`;
+  const name = String(item.names?.[0] || "").trim().toLowerCase();
+  return name ? `name:${name}` : "";
+}
+
+function sameItemIdentity(a, b) {
+  const aIdentity = itemIdentity(a);
+  return Boolean(aIdentity && aIdentity === itemIdentity(b));
+}
+
+function findSavedGearEntry(gearText, slot, copiedItem) {
+  const matches = splitItems(gearText || "")
+    .map(raw => ({ raw, item: parseItem(raw) }))
+    .filter(entry => inferSlot(entry.item) === slot);
+  return matches.find(entry => sameItemIdentity(entry.item, copiedItem)) || matches[0] || null;
+}
+
 function replaceInGearMap(gearText, slot, newText) {
   const parts = splitItems(gearText||"").filter(chunk => {
     const item = parseItem(chunk);
     return item.rarity && item.names.length && !/^Unnamed item$/i.test(item.names[0]);
   });
+  const newItem = parseItem(newText);
+  const exactIndex = parts.findIndex(part => {
+    const item = parseItem(part);
+    return inferSlot(item) === slot && sameItemIdentity(item, newItem);
+  });
   let replaced = false;
   const out = [];
-  for (const part of parts) {
+  for (let index = 0; index < parts.length; index++) {
+    const part = parts[index];
     const s = inferSlot(parseItem(part));
-    if (s === slot && !replaced) { out.push(newText.trim()); replaced = true; continue; }
+    const isTarget = exactIndex >= 0 ? index === exactIndex : s === slot && !replaced;
+    if (isTarget) { out.push(newText.trim()); replaced = true; continue; }
     out.push(part.trim());
   }
   if (!replaced) out.push(newText.trim());
@@ -910,24 +1426,41 @@ function deserializeProfile(raw) {
 // Extra weight multipliers applied per actContext on top of stage/slot weights.
 // Lets "Campaign progress" in Settings actually nudge priorities without replacing stage weights.
 const ACT_CONTEXT_WEIGHTS = {
-  act1:     { resistance: 0.65, attributes: 1.45, mobility: 1.35, defense: 0.85 },
-  act2plus: { resistance: 1.5,  defense: 1.2,  attributes: 0.9 },
-  maps:     { damage: 1.2,  synergy: 1.25, resistance: 1.1, attributes: 0.7 },
+  act1:     { resistance: 0.5,  attributes: 1.4, mobility: 1.4, defense: 0.8, damage: 1.25 },
+  act2:     { resistance: 0.75, attributes: 1.2, mobility: 1.3, defense: 0.9, damage: 1.25 },
+  act2plus: { resistance: 1.3,  defense: 1.2,  attributes: 0.9, damage: 1.1 },
+  act3plus: { resistance: 1.3,  defense: 1.2,  attributes: 0.9, damage: 1.1 },
+  maps:     { damage: 1.2,      synergy: 1.25, resistance: 1.4, defense: 1.25, attributes: 0.7 },
 };
 
+function getEffectiveActContext() {
+  const raw = currentSession.actContext || "auto";
+  if (raw !== "auto") {
+    if (raw === "act2plus") return "act3plus";
+    if (ACT_CONTEXT_WEIGHTS[raw]) return raw;
+  }
+  const lvl = Number(currentSession.playerLevel) || 1;
+  if (lvl <= 15) return "act1";
+  if (lvl <= 25) return "act2";
+  if (lvl <= 64) return "act3plus";
+  return "maps";
+}
+
 function actContextMult(category) {
-  const w = ACT_CONTEXT_WEIGHTS[currentSession.actContext] || {};
+  const effectiveAct = getEffectiveActContext();
+  const w = ACT_CONTEXT_WEIGHTS[effectiveAct] || {};
   return w[category] ?? 1.0;
 }
 
 let activeProfile   = DEFAULT_PROFILES.genericAttack;
-let currentSession  = { playerLevel:1, playerStr:0, playerDex:0, playerInt:0, actContext:"auto" };
+let currentSession  = { playerLevel:1, playerStr:0, playerDex:0, playerInt:0, actContext:"auto", league:"poe2/Forbidden Rites" };
 let savedGearMap    = {};
 let savedFullSession= null;
 let lastItem        = null;
 let lastScored      = null;
 let lastSlot        = "unknown";
 let lastItemText    = "";
+let currentSavedEntry = null;
 
 const shell      = document.getElementById("shell");
 const slotSelect = document.getElementById("slot-select");
@@ -969,7 +1502,14 @@ function render(itemText) {
 
   // Auto-set slot
   const det = inferSlot(item);
-  if (det !== "unknown" && slotSelect.querySelector(`option[value="${det}"]`)) {
+  if (det !== "unknown") {
+    let opt = slotSelect.querySelector(`option[value="${det}"]`);
+    if (!opt) {
+      opt = document.createElement("option");
+      opt.value = det;
+      opt.textContent = slotLabel(det);
+      slotSelect.append(opt);
+    }
     slotSelect.value = det;
   }
   lastSlot = slotSelect.value;
@@ -979,7 +1519,8 @@ function render(itemText) {
   lastScored     = scored;
 
   // Saved comparison
-  const savedEntry = savedGearMap[lastSlot];
+  const savedEntry = findSavedGearEntry(savedFullSession?.fullGearText || "", lastSlot, item) || savedGearMap[lastSlot];
+  currentSavedEntry = savedEntry;
   let savedScored  = null;
   let compDelta    = null;
   if (savedEntry?.item) {
@@ -1045,7 +1586,7 @@ async function fetchUniquePrice(item) {
     flask: "UniqueFlask",
   };
   const type = typeMap[item.slot] || "UniqueAccessory";
-  const league = currentSession.league || "Standard";
+  const league = (currentSession.league || "Forbidden Rites").replace(/^poe2\//, "");
 
   try {
     const result = await window.poe2Coach.getPrices({ type, league });
@@ -1121,7 +1662,8 @@ async function fetchAndShowTradeValueForItem(item, slot, isEquipped = false) {
   summary.innerHTML = `<div class="tr-loading" style="color:var(--poe-muted);">Fetching trade data for ${label}…</div>`;
   listings.innerHTML = "";
 
-  let tradeUrl = "https://www.pathofexile.com/trade2/search/poe2/Standard";
+  const leagueParam = encodeURIComponent(currentSession?.league || "poe2/Forbidden Rites");
+  let tradeUrl = `https://www.pathofexile.com/trade2/search/${leagueParam}`;
   if (openBtn) openBtn.onclick = () => window.poe2Coach.openTrade(tradeUrl);
 
   try {
@@ -1130,6 +1672,7 @@ async function fetchAndShowTradeValueForItem(item, slot, isEquipped = false) {
       name:   item.names?.[0] || "",
       slot:   slot,
       mods:   item.explicits || [],
+      league: currentSession.league || "poe2/Forbidden Rites",
     });
 
     if (result?.tradeUrl) {
@@ -1154,7 +1697,7 @@ async function fetchAndShowTradeValueForItem(item, slot, isEquipped = false) {
 
 // ─── IPC ─────────────────────────────────────────────────────────────────────
 
-window.poe2Coach.onItemDetected(({ itemText, session }) => {
+window?.poe2Coach?.onItemDetected?.(({ itemText, session }) => {
   savedFullSession = session || null;
 
   if (session) {
@@ -1168,6 +1711,7 @@ window.poe2Coach.onItemDetected(({ itemText, session }) => {
     currentSession.resistances = pStats.resistances || null;
     currentSession.keystones   = session.pobbBuild?.keystones || [];
     currentSession.actContext  = session.actContext || "auto";
+    currentSession.league      = session.league || "poe2/Forbidden Rites";
 
     // Trigger ignore mouse state to match active HUD Mode when item is updated
     if (window.poe2Coach?.setIgnoreMouseEvents) {
@@ -1195,9 +1739,10 @@ window.poe2Coach.onItemDetected(({ itemText, session }) => {
       const actCtx = currentSession.actContext;
       const inferredStage =
         actCtx === "act1"     ? "leveling"  :
-        actCtx === "act2plus" ? "leveling"  :
+        actCtx === "act2"     ? "leveling"  :
+        actCtx === "act2plus" || actCtx === "act3plus" ? (lvl >= 35 ? "earlyMaps" : "leveling") :
         actCtx === "maps"     ? "endgame"   :
-        lvl >= 65 ? "endgame" : lvl >= 30 ? "earlyMaps" : "leveling";
+        lvl >= 65 ? "endgame" : lvl >= 35 ? "earlyMaps" : "leveling";
       if (stageSelect.querySelector(`option[value="${inferredStage}"]`)) {
         stageSelect.value = inferredStage;
       }
@@ -1215,7 +1760,8 @@ window.poe2Coach.onItemDetected(({ itemText, session }) => {
 slotSelect.addEventListener("change",  () => { if (lastItemText) render(lastItemText); });
 stageSelect.addEventListener("change", () => { if (lastItemText) render(lastItemText); });
 
-// Set as equipped
+// Set, replace, or update the exact equipped item. Matching by Unique ID/name
+// prevents an upgraded Ring 2 or second weapon from overwriting the first one.
 document.getElementById("set-equipped-btn").addEventListener("click", () => {
   if (!savedFullSession || !lastItemText || lastSlot === "unknown") return;
   savedFullSession.fullGearText = replaceInGearMap(savedFullSession.fullGearText||"", lastSlot, lastItemText);
@@ -1236,7 +1782,7 @@ document.getElementById("ai-btn").addEventListener("click", async () => {
   aiLoading.style.display = "";
   aiText.textContent = "";
 
-  const savedEntry = savedGearMap[lastSlot];
+  const savedEntry = currentSavedEntry || savedGearMap[lastSlot];
   let savedScored  = null;
   if (savedEntry?.item) savedScored = scoreItem(savedEntry.item, activeProfile, lastSlot, stageSelect.value);
 
@@ -1247,21 +1793,31 @@ document.getElementById("ai-btn").addEventListener("click", async () => {
     categoryDeltas[k] = copiedScore - equippedScore;
   });
 
+  const lvl = Number(currentSession.playerLevel) || 1;
+  const isEndgame = lvl >= 65;
+  const resistTarget = isEndgame ? 75 : lvl <= 20 ? 25 : lvl <= 35 ? 40 : 55;
   const resistGaps = {};
   const urgentNeeds = [];
   if (currentSession.resistances) {
     ["fire", "cold", "lightning", "chaos"].forEach(key => {
       const val = Number(currentSession.resistances[key]) || 0;
-      if (val < 75) {
-        resistGaps[key] = val - 75;
-      }
-      if (val < 0) {
-        urgentNeeds.push(`${key} resistance`);
+      if (key === "chaos") {
+        if (isEndgame && val < 0) resistGaps[key] = val;
+      } else {
+        if (val < resistTarget) {
+          resistGaps[key] = val - resistTarget;
+        }
+        if (isEndgame ? val < 50 : val < -15) {
+          urgentNeeds.push(`${key} resistance`);
+        }
       }
     });
   }
 
   const payload = {
+    playerLevel: lvl,
+    campaignStage: lvl <= 15 ? "Act 1" : lvl <= 25 ? "Act 2" : lvl <= 40 ? "Act 3" : lvl <= 64 ? "Cruel / Late Campaign" : "Maps / Endgame",
+    resistTarget,
     copiedItem: {
       name: lastScored.item.names[0] || "Unknown Item",
       slot: lastSlot,
@@ -1280,8 +1836,9 @@ document.getElementById("ai-btn").addEventListener("click", async () => {
       stage: stageSelect.options[stageSelect.selectedIndex]?.textContent || stageSelect.value,
       hitChance: currentSession.hitChance,
       resistGaps,
-      playerLevel: currentSession.playerLevel || 1,
+      playerLevel: lvl,
       urgentNeeds,
+      league: currentSession.league || "poe2/Forbidden Rites",
     }
   };
 
@@ -1367,10 +1924,12 @@ document.getElementById("ai-btn").addEventListener("click", async () => {
 });
 
 // Dismiss / settings / full compare
-document.getElementById("close-btn").addEventListener("click",      () => window.poe2Coach.dismiss());
-document.getElementById("settings-btn").addEventListener("click",   () => window.poe2Coach.openSettings());
-document.getElementById("fullcompare-btn").addEventListener("click",() => window.poe2Coach.openSettings());
-document.addEventListener("keydown", e => { if (e.key==="Escape") window.poe2Coach.dismiss(); });
+if (typeof document !== "undefined") {
+  document.getElementById("close-btn")?.addEventListener("click",      () => window.poe2Coach?.dismiss?.());
+  document.getElementById("settings-btn")?.addEventListener("click",   () => window.poe2Coach?.openSettings?.());
+  document.getElementById("fullcompare-btn")?.addEventListener("click",() => window.poe2Coach?.openSettings?.());
+  document.addEventListener?.("keydown", e => { if (e.key==="Escape") window.poe2Coach?.dismiss?.(); });
+}
 
 // HUD click-through toggle
 let hudMode = false;
@@ -1400,21 +1959,38 @@ if (hudToggleBtn) {
   });
 }
 
-// Trade Research
-document.getElementById("price-btn").addEventListener("click", () => {
-  if (lastItem) fetchAndShowTradeValueForItem(lastItem, lastSlot, false);
-});
-
-const eqTradeBtn = document.getElementById("eq-trade-btn");
-if (eqTradeBtn) {
-  eqTradeBtn.addEventListener("click", () => {
-    const savedEntry = savedGearMap[lastSlot];
-    if (savedEntry?.item) {
-      fetchAndShowTradeValueForItem(savedEntry.item, lastSlot, true);
-    }
+if (typeof document !== "undefined") {
+  // Trade Research
+  document.getElementById("price-btn")?.addEventListener("click", () => {
+    if (lastItem) fetchAndShowTradeValueForItem(lastItem, lastSlot, false);
   });
+
+  const eqTradeBtn = document.getElementById("eq-trade-btn");
+  if (eqTradeBtn) {
+    eqTradeBtn.addEventListener("click", () => {
+      const savedEntry = currentSavedEntry || savedGearMap[lastSlot];
+      if (savedEntry?.item) {
+        fetchAndShowTradeValueForItem(savedEntry.item, lastSlot, true);
+      }
+    });
+  }
+
+  // Initial populate
+  if (typeof activeProfile !== "undefined" && typeof populateSlots === "function") {
+    populateSlots(activeProfile);
+    populateStages(activeProfile);
+  }
 }
 
-// Initial populate
-populateSlots(activeProfile);
-populateStages(activeProfile);
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = {
+    DEFAULT_PROFILES,
+    accuracyMultiplier,
+    defaultQuarterstaffRules,
+    defaultQuarterstaffSlotRules,
+    itemIdentity,
+    sameItemIdentity,
+    findSavedGearEntry,
+    gemCoachPlan,
+  };
+}

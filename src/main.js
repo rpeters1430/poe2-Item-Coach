@@ -299,9 +299,9 @@ function stopClipboardWatcher() {
 function isPoe2Item(text) {
   if (!text || text.length < 12) return false;
   const trimmed = String(text).trimStart();
-  const hasRarity = /^Rarity:\s*(Normal|Magic|Rare|Unique|Currency|Gem)/im.test(trimmed);
+  const hasRarity = /^Rarity:\s*(Normal|Magic|Rare|Unique|Currency|Gem|Augment|Socketable|Relic)/im.test(trimmed);
   const hasItemClass = /^Item Class:/im.test(trimmed);
-  const hasItemSignals = /(^|\n)(Requires:|Item Level:|Quality:|Armour:|Evasion:|Energy Shield:|Physical Damage:|Elemental Damage:|Critical Hit Chance:)/im.test(trimmed);
+  const hasItemSignals = /(^|\n)(Requires:|Item Level:|Quality:|Armour:|Evasion:|Energy Shield:|Physical Damage:|Elemental Damage:|Critical Hit Chance:|Waystone Tier:|Reward:|Charm Slots:|Can be inserted)/im.test(trimmed);
   const hasSeparator = trimmed.includes("--------");
 
   if (hasItemClass && (hasSeparator || hasRarity || hasItemSignals)) return true;
@@ -365,7 +365,9 @@ const VALID_NINJA_TYPES = new Set([
 
 ipcMain.handle("prices:get", async (_event, { type, league } = {}) => {
   const safeType = VALID_NINJA_TYPES.has(type) ? type : "UniqueWeapon";
-  const safeLeague = typeof league === "string" && league.trim() ? league.trim().slice(0, 100) : "Standard";
+  const session = loadSession() || {};
+  const defaultLeague = (session.league || "Forbidden Rites").replace(/^poe2\//, "");
+  const safeLeague = typeof league === "string" && league.trim() ? league.trim().replace(/^poe2\//, "").slice(0, 100) : defaultLeague;
   return fetchNinjaPrices(safeType, safeLeague);
 });
 
@@ -606,20 +608,42 @@ function buildTradeFilters(modLines, statsMap) {
   return filters;
 }
 
+const VALID_LEAGUES = [
+  "poe2/Forbidden Rites",
+  "poe2/Forbidden Rites Hardcore",
+  "poe2/Forbidden Rites Solo Self-Found",
+  "poe2/Forbidden Rites Hardcore Solo Self-Found",
+  "poe2/Standard",
+  "poe2/Hardcore",
+  "poe2/Solo Self-Found",
+  "poe2/Hardcore Solo Self-Found",
+];
+
+function resolveTradeLeague(arg) {
+  const session = loadSession() || {};
+  const requested = String(arg || session.league || "poe2/Forbidden Rites").trim();
+  if (VALID_LEAGUES.includes(requested)) return requested;
+  const match = VALID_LEAGUES.find(l => l.toLowerCase() === requested.toLowerCase() || l.toLowerCase().endsWith(requested.toLowerCase()));
+  return match || "poe2/Forbidden Rites";
+}
+
 const SLOT_TO_NINJA_TYPE = {
   weapon: "UniqueWeapon", offhand: "UniqueArmour", quiver: "UniqueWeapon",
   helmet: "UniqueArmour", body: "UniqueArmour", gloves: "UniqueArmour", boots: "UniqueArmour",
   ring: "UniqueAccessory", amulet: "UniqueAccessory", belt: "UniqueAccessory",
   flask: "UniqueFlask", jewel: "UniqueJewel",
+  soul_core: "UniqueAccessory", rune: "Currency", tablet: "UniqueMap", waystone: "UniqueMap", ultimatum: "UniqueMap",
 };
 
 const SLOT_TO_TRADE_CATEGORY = {
   weapon: "weapon", offhand: "armour.shield", quiver: "weapon.quiver",
   helmet: "armour.helmet", body: "armour.chest", gloves: "armour.gloves", boots: "armour.boots",
   ring: "accessory.ring", amulet: "accessory.amulet", belt: "accessory.belt",
+  soul_core: "socketable.soul_core", rune: "socketable.rune", jewel: "jewel",
+  tablet: "map.tablet", waystone: "map.waystone", ultimatum: "ultimatum",
 };
 
-ipcMain.handle("trade:price-check", async (_event, { rarity, name, slot, mods } = {}) => {
+ipcMain.handle("trade:price-check", async (_event, { rarity, name, slot, mods, league: leagueArg } = {}) => {
   if (typeof rarity !== "string" || typeof name !== "string" || (slot !== undefined && typeof slot !== "string")) {
     return { ok: false, error: "Invalid parameters." };
   }
@@ -627,7 +651,7 @@ ipcMain.handle("trade:price-check", async (_event, { rarity, name, slot, mods } 
     return { ok: false, error: "Mods must be an array of strings." };
   }
   const rarityL = (rarity || "").toLowerCase();
-  const league  = "poe2/Standard";
+  const league  = resolveTradeLeague(leagueArg);
   const baseUrl = `https://www.pathofexile.com/trade2/search/${league}`;
 
   // Warm up Cloudflare session on first use (idempotent — no-op after first call)
@@ -726,8 +750,7 @@ ipcMain.handle("trade:open", async (_event, url) => {
 });
 
 ipcMain.handle("trade:custom-search", async (_event, { slot, maxLevel, stats, rarity, league: leagueArg } = {}) => {
-  const VALID_LEAGUES = ["poe2/Standard", "poe2/Hardcore"];
-  const league  = VALID_LEAGUES.includes(leagueArg) ? leagueArg : "poe2/Standard";
+  const league  = resolveTradeLeague(leagueArg);
   const baseUrl = `https://www.pathofexile.com/trade2/search/${league}`;
 
   try { await warmTradeSession(); } catch {}
@@ -791,34 +814,482 @@ ipcMain.handle("trade:custom-search", async (_event, { slot, maxLevel, stats, ra
   }
 });
 
-// ─── Mobalytics guide import ────────────────────────────────────────────────
+// ─── Mobalytics guide & community build import ───────────────────────────────
 ipcMain.handle("mobalytics:import", async (_event, input) => importMobalyticsGuide(input));
 
-async function importMobalyticsGuide(input) {
-  let url;
-  try { url = new URL(String(input || "").trim()); } catch (_err) { return { ok: false, error: "Paste a valid Mobalytics build URL." }; }
-  const host = url.hostname.toLowerCase();
-  if (!(host === "mobalytics.gg" || host.endsWith(".mobalytics.gg")) || !/^\/poe-2\/builds\//i.test(url.pathname)) {
-    return { ok: false, error: "Only public mobalytics.gg/poe-2/builds URLs are supported." };
-  }
-  try {
-    const html = await httpsTextRequest(url.toString(), {
-      method: "GET",
-      headers: { "user-agent": "PoE2GearCoach/2.1", "accept": "text/html,*/*" }
-    });
-    const plain = htmlToPlainText(html);
-    const embedded = [];
-    for (const match of String(html).matchAll(/"(?:title|description|text|content)"\s*:\s*"((?:\\.|[^"\\]){12,2000})"/gi)) {
-      try {
-        const value = JSON.parse(`"${match[1]}"`).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-        if (value.length >= 12) embedded.push(value);
-      } catch (_err) { /* ignore malformed embedded values */ }
+function parseMobalyticsInput(input) {
+  const str = String(input || "").trim();
+  const uuidRegex = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+
+  // Check if it's a URL first
+  if (str.startsWith("http://") || str.startsWith("https://")) {
+    let url;
+    try {
+      url = new URL(str);
+    } catch {
+      return null;
     }
-    const text = [url.toString(), plain, ...uniqueStrings(embedded)].filter(Boolean).join("\n").slice(0, 100000);
-    if (text.length < 80) return { ok: false, error: "The Mobalytics page did not expose enough public guide text. Paste the creator notes with the URL instead." };
-    return { ok: true, url: url.toString(), text };
+
+    const host = url.hostname.toLowerCase();
+    if (!(host === "mobalytics.gg" || host.endsWith(".mobalytics.gg"))) {
+      return null;
+    }
+
+    const profileMatch = url.pathname.match(/\/poe-2\/profile\/([^/]+)\/builds\/([^/?#]+)/i);
+    if (profileMatch) {
+      const buildId = profileMatch[2];
+      if (uuidRegex.test(buildId)) {
+        return { type: "id", id: buildId, username: profileMatch[1], url: str };
+      }
+      return { type: "slug", slug: buildId, username: profileMatch[1], url: str };
+    }
+
+    const buildsMatch = url.pathname.match(/\/poe-2\/builds\/([^/?#]+)/i);
+    if (buildsMatch) {
+      const slugOrId = buildsMatch[1];
+      if (uuidRegex.test(slugOrId)) {
+        return { type: "id", id: slugOrId, url: str };
+      }
+      return { type: "slug", slug: slugOrId, url: str };
+    }
+
+    return null;
+  }
+
+  // Bare UUID input
+  if (uuidRegex.test(str)) {
+    const uuidMatch = str.match(uuidRegex);
+    return {
+      type: "id",
+      id: uuidMatch[0],
+      url: `https://mobalytics.gg/poe-2/builds/${uuidMatch[0]}`
+    };
+  }
+
+  return null;
+}
+
+function extractLexicalText(val) {
+  if (!val) return "";
+  if (typeof val === "string") {
+    const trimmed = val.trim();
+    if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+      try {
+        return extractLexicalText(JSON.parse(trimmed));
+      } catch {
+        return trimmed;
+      }
+    }
+    return trimmed;
+  }
+  if (Array.isArray(val)) {
+    return val.map(extractLexicalText).filter(Boolean).join(" ");
+  }
+  if (typeof val === "object") {
+    if (typeof val.text === "string") {
+      return val.text.trim();
+    }
+    if (Array.isArray(val.children)) {
+      return val.children.map(extractLexicalText).filter(Boolean).join(" ");
+    }
+    const parts = [];
+    for (const k of ["title", "subTitle", "description", "content", "root", "value", "strengths", "weaknesses"]) {
+      if (val[k]) {
+        const text = extractLexicalText(val[k]);
+        if (text) parts.push(text);
+      }
+    }
+    return parts.join("\n");
+  }
+  return "";
+}
+
+async function mobalyticsGraphQL(operationName, query, variables, referer) {
+  const endpoint = "https://mobalytics.gg/api/poe-2/v1/graphql/query";
+  const body = JSON.stringify({ operationName, query, variables });
+  const response = await net.fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+      "Origin": "https://mobalytics.gg",
+      "Referer": referer || "https://mobalytics.gg/poe-2",
+      "Accept": "*/*"
+    },
+    body
+  });
+  if (!response.ok) {
+    throw new Error(`Mobalytics API returned HTTP ${response.status}`);
+  }
+  const json = await response.json();
+  if (json.errors && json.errors.length) {
+    const msg = json.errors.map(e => e.message).join("; ");
+    throw new Error(`Mobalytics GraphQL error: ${msg}`);
+  }
+  return json.data;
+}
+
+const MOBALYTICS_DOC_BY_ID_QUERY = `
+query Poe2UgDocById($input: Poe2UserGeneratedDocumentInputById!) {
+  game: poe2 {
+    documents {
+      userGeneratedDocumentById(input: $input) {
+        error
+        errorMessage
+        data {
+          id
+          category
+          slugifiedName
+          type
+          author {
+            name
+            user {
+              username
+              displayName
+            }
+          }
+          data {
+            name
+            pobCode
+            lootFilter
+            buildVariants {
+              values {
+                id
+              }
+            }
+          }
+          content: contentV2 {
+            __typename
+            ... on NgfDocumentCmWidgetRichTextSimplifiedV2 {
+              data {
+                title
+                content {
+                  value
+                }
+              }
+            }
+            ... on NgfDocumentCmWidgetStrengthsAndWeaknessesV1 {
+              data {
+                strengths {
+                  value
+                }
+                weaknesses {
+                  value
+                }
+              }
+            }
+            ... on Poe2DocumentUgWidgetEquipmentV1 {
+              data {
+                title
+                description {
+                  value
+                }
+              }
+            }
+            ... on Poe2DocumentUgWidgetSkillGemsV1 {
+              data {
+                title
+                description {
+                  value
+                }
+              }
+            }
+            ... on Poe2DocumentUgWidgetPassiveTreeV1 {
+              data {
+                title
+                description {
+                  value
+                }
+              }
+            }
+            ... on Poe2DocumentUgWidgetAtlasTreeV1 {
+              data {
+                title
+                description {
+                  value
+                }
+              }
+            }
+            ... on Poe2DocumentUgWidgetBuildPlannerExportV1 {
+              data {
+                title
+                description {
+                  value
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+`;
+
+const MOBALYTICS_DOC_BY_SLUG_QUERY = `
+query Poe2UgDocBySlug($input: Poe2UserGeneratedDocumentInputBySlug!) {
+  game: poe2 {
+    documents {
+      userGeneratedDocumentBySlug(input: $input) {
+        error
+        errorMessage
+        data {
+          id
+          category
+          slugifiedName
+          type
+          author {
+            name
+            user {
+              username
+              displayName
+            }
+          }
+          data {
+            name
+            pobCode
+            lootFilter
+            buildVariants {
+              values {
+                id
+              }
+            }
+          }
+          content: contentV2 {
+            __typename
+            ... on NgfDocumentCmWidgetRichTextSimplifiedV2 {
+              data {
+                title
+                content {
+                  value
+                }
+              }
+            }
+            ... on NgfDocumentCmWidgetStrengthsAndWeaknessesV1 {
+              data {
+                strengths {
+                  value
+                }
+                weaknesses {
+                  value
+                }
+              }
+            }
+            ... on Poe2DocumentUgWidgetEquipmentV1 {
+              data {
+                title
+                description {
+                  value
+                }
+              }
+            }
+            ... on Poe2DocumentUgWidgetSkillGemsV1 {
+              data {
+                title
+                description {
+                  value
+                }
+              }
+            }
+            ... on Poe2DocumentUgWidgetPassiveTreeV1 {
+              data {
+                title
+                description {
+                  value
+                }
+              }
+            }
+            ... on Poe2DocumentUgWidgetAtlasTreeV1 {
+              data {
+                title
+                description {
+                  value
+                }
+              }
+            }
+            ... on Poe2DocumentUgWidgetBuildPlannerExportV1 {
+              data {
+                title
+                description {
+                  value
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+`;
+
+const MOBALYTICS_VARIANT_EXPORT_QUERY = `
+query Poe2UgDocumentWidgetBuildPlannerExportQuery($input: Poe2UserGeneratedDocumentInputById!, $variantId: String!) {
+  poe2 {
+    documents {
+      userGeneratedDocumentById(input: $input) {
+        error
+        errorMessage
+        data {
+          exportToGame(variantId: $variantId)
+        }
+      }
+    }
+  }
+}
+`;
+
+async function importMobalyticsGuide(input) {
+  const parsedInput = parseMobalyticsInput(input);
+  if (!parsedInput) {
+    return { ok: false, error: "Paste a valid Mobalytics build URL (e.g. mobalytics.gg/poe-2/profile/.../builds/... or /builds/...)." };
+  }
+
+  try {
+    let doc = null;
+    let docId = parsedInput.id;
+
+    if (parsedInput.type === "id") {
+      const data = await mobalyticsGraphQL("Poe2UgDocById", MOBALYTICS_DOC_BY_ID_QUERY, { input: { id: parsedInput.id } }, parsedInput.url);
+      const res = data?.game?.documents?.userGeneratedDocumentById;
+      if (res?.error) {
+        return { ok: false, error: `Mobalytics build error: ${res.errorMessage || res.error}` };
+      }
+      doc = res?.data;
+    } else if (parsedInput.type === "slug") {
+      let data = await mobalyticsGraphQL("Poe2UgDocBySlug", MOBALYTICS_DOC_BY_SLUG_QUERY, { input: { slug: parsedInput.slug, type: "builds" } }, parsedInput.url);
+      let res = data?.game?.documents?.userGeneratedDocumentBySlug;
+      if (res?.error === "NOT_FOUND" || !res?.data) {
+        data = await mobalyticsGraphQL("Poe2UgDocBySlug", MOBALYTICS_DOC_BY_SLUG_QUERY, { input: { slug: parsedInput.slug, type: "guides" } }, parsedInput.url);
+        res = data?.game?.documents?.userGeneratedDocumentBySlug;
+      }
+      if (res?.error) {
+        return { ok: false, error: `Mobalytics guide error: ${res.errorMessage || res.error}` };
+      }
+      doc = res?.data;
+      docId = doc?.id;
+    }
+
+    if (!doc) {
+      return { ok: false, error: "No Mobalytics document found for this link." };
+    }
+
+    const name = doc.data?.name || doc.slugifiedName || "Mobalytics Build";
+    const author = doc.author?.name || doc.author?.user?.displayName || doc.author?.user?.username || "Mobalytics";
+    const variantIds = (doc.data?.buildVariants?.values || []).map(v => v.id).filter(Boolean);
+
+    // Fetch variant .build exports
+    const variants = [];
+    for (const vid of variantIds) {
+      try {
+        const expData = await mobalyticsGraphQL("Poe2UgDocumentWidgetBuildPlannerExportQuery", MOBALYTICS_VARIANT_EXPORT_QUERY, {
+          input: { id: docId },
+          variantId: vid
+        }, parsedInput.url);
+        const rawJson = expData?.poe2?.documents?.userGeneratedDocumentById?.data?.exportToGame;
+        if (rawJson) {
+          const parsedVariant = JSON.parse(rawJson);
+          variants.push(parsedVariant);
+        }
+      } catch (err) {
+        console.warn(`Could not export variant ${vid}:`, err.message);
+      }
+    }
+
+    // Extract creator notes and instructions from content widgets
+    const notesParts = [];
+    const creatorInstructions = [];
+    for (const widget of doc.content || []) {
+      if (!widget.data) continue;
+      const title = widget.data.title ? String(widget.data.title).trim() : "";
+      const text = extractLexicalText(widget.data);
+      if (text) {
+        if (title) notesParts.push(`### ${title}`);
+        notesParts.push(text);
+
+        const lines = text.split(/(?<=[.!?])\s+|\n+/);
+        for (const line of lines) {
+          const clean = line.trim();
+          if (clean.length >= 18 && clean.length <= 400 &&
+              /\b(prioriti[sz]e|look for|use|swap|switch|replace|respec|keep|avoid|upgrade|until|later|early|then|after|before|recommend|need|important|focus on)\b/i.test(clean)) {
+            creatorInstructions.push(clean);
+          }
+        }
+      }
+    }
+
+    // Generate formatted guide text
+    const guideLines = [
+      parsedInput.url,
+      name,
+      `By ${author}`,
+      ""
+    ];
+
+    if (variants.length) {
+      guideLines.push("Variants");
+      for (const v of variants) {
+        guideLines.push(v.name || "Build Stage");
+      }
+      guideLines.push("");
+
+      const allSkills = new Set();
+      for (const v of variants) {
+        for (const s of v.skills || []) {
+          const gemName = String(s.id || "").split("/").pop().replace(/^(SkillGem|SupportGem)/i, "").replace(/([a-z])([A-Z])/g, "$1 $2");
+          if (gemName) allSkills.add(gemName);
+        }
+      }
+      if (allSkills.size) {
+        guideLines.push("Skills");
+        for (const s of allSkills) guideLines.push(s);
+        guideLines.push("");
+      }
+    }
+
+    if (notesParts.length) {
+      guideLines.push("Gear & Progression Notes");
+      guideLines.push(notesParts.join("\n\n"));
+    }
+
+    const formattedText = guideLines.join("\n");
+
+    return {
+      ok: true,
+      url: parsedInput.url,
+      id: docId,
+      name,
+      author,
+      variants,
+      creatorInstructions: uniqueStrings(creatorInstructions).slice(0, 80),
+      notes: notesParts.join("\n\n"),
+      text: formattedText,
+      pobCode: doc.data?.pobCode || "",
+      lootFilter: doc.data?.lootFilter || null
+    };
+
   } catch (err) {
-    return { ok: false, error: `Could not fetch the Mobalytics guide: ${cleanHttpError(err)}. Paste the page text with the URL instead.` };
+    // Fallback: if GraphQL endpoint failed, try fetching public page text
+    try {
+      const html = await httpsTextRequest(parsedInput.url, {
+        method: "GET",
+        headers: { "user-agent": "PoE2GearCoach/2.1", "accept": "text/html,*/*" }
+      });
+      const plain = htmlToPlainText(html);
+      const embedded = [];
+      for (const match of String(html).matchAll(/"(?:title|description|text|content)"\s*:\s*"((?:\\.|[^"\\]){12,2000})"/gi)) {
+        try {
+          const value = JSON.parse(`"${match[1]}"`).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+          if (value.length >= 12) embedded.push(value);
+        } catch (_err) { /* ignore */ }
+      }
+      const text = [parsedInput.url, plain, ...uniqueStrings(embedded)].filter(Boolean).join("\n").slice(0, 100000);
+      if (text.length >= 80) {
+        return { ok: true, url: parsedInput.url, text, variants: [] };
+      }
+    } catch (_fallbackErr) { /* ignore fallback error and report primary error */ }
+
+    return { ok: false, error: `Could not fetch the Mobalytics build: ${cleanHttpError(err)}. Paste the page text with the URL instead.` };
   }
 }
 
@@ -837,7 +1308,7 @@ async function importPobb(input) {
     return { ok: true, importMode: "direct-export", ...direct };
   }
 
-  const { url, id } = normalized;
+  const { url, rawUrl, id } = normalized;
   const userAgent = "PoE2GearCoach/0.27 personal overlay (contact: local-user)";
   let rawResult = null;
   let htmlError = null;
@@ -846,7 +1317,7 @@ async function importPobb(input) {
   // and gives us the real PoB export code for equipped gear.
   if (id) {
     try {
-      const raw = await httpsTextRequest(`https://pobb.in/pob/${id}/raw`, {
+      const raw = await httpsTextRequest(rawUrl || `${url}/raw`, {
         method: "GET",
         headers: { "user-agent": userAgent, "accept": "text/plain,*/*" }
       });
@@ -874,7 +1345,7 @@ async function importPobb(input) {
       ok: true,
       url,
       importMode: "raw-fallback",
-      importWarning: `pobb.in preview page could not be read (${htmlError}). Used /pob/${id}/raw instead. Visible final stats/resists may be missing until preview works again.`,
+      importWarning: `pobb.in preview page could not be read (${htmlError}). Used /${id}/raw instead. Visible final stats/resists may be missing until preview works again.`,
       ...rawResult
     };
   }
@@ -1094,14 +1565,48 @@ function parsePobbHtml(html, url) {
   }
   if (altNames.length) gearNames = uniqueStrings([...gearNames, ...altNames]);
 
-  const slotOrder = ["weapon", "quiver", "helmet", "body", "gloves", "boots", "amulet", "ring", "ring", "belt", "flask", "charm", "charm", "flask", "charm"];
-  let gear = gearNames.slice(0, slotOrder.length).map((itemName, index) => ({ slot: slotOrder[index] || "other", name: itemName }));
+  let gear = [];
   let equippedGearText = "";
   let decodedItemCount = 0;
   if (decodedData?.gear?.length) {
     gear = decodedData.gear.map(({ slot, name }) => ({ slot, name }));
     equippedGearText = decodedData.equippedGearText || "";
     decodedItemCount = decodedData.gear.length;
+  } else {
+    const isBowBuild = /bow|quiver|arrow/i.test(plain);
+    const assignedSlots = new Set();
+    for (const itemName of gearNames) {
+      const inferred = inferSlotFromItemName(itemName);
+      if (inferred) {
+        if (inferred === "ring") {
+          const ringCount = gear.filter(g => g.slot === "ring").length;
+          if (ringCount < 2) {
+            gear.push({ slot: "ring", name: itemName });
+            continue;
+          }
+        } else if (inferred === "flask") {
+          const flaskCount = gear.filter(g => g.slot === "flask").length;
+          if (flaskCount < 5) {
+            gear.push({ slot: "flask", name: itemName });
+            continue;
+          }
+        } else if (inferred === "charm") {
+          const charmCount = gear.filter(g => g.slot === "charm").length;
+          if (charmCount < 3) {
+            gear.push({ slot: "charm", name: itemName });
+            continue;
+          }
+        } else if (!assignedSlots.has(inferred)) {
+          assignedSlots.add(inferred);
+          gear.push({ slot: inferred, name: itemName });
+          continue;
+        }
+      }
+    }
+    if (!gear.length) {
+      const fallbackSlots = ["weapon", isBowBuild ? "quiver" : "offhand", "helmet", "body", "gloves", "boots", "amulet", "ring", "ring", "belt"];
+      gear = gearNames.slice(0, fallbackSlots.length).map((itemName, index) => ({ slot: fallbackSlots[index] || "other", name: itemName }));
+    }
   }
 
   const gemSection = plain.match(/Gems\s+([\s\S]*?)\s+Tree Preview/i)?.[1] || "";
@@ -1257,10 +1762,31 @@ function extractPobPassiveNodes(xml) {
   return uniqueStrings(String(active.nodes || "").split(/[,\s]+/).filter(Boolean)).slice(0, 500);
 }
 
+function inferSlotFromItemName(name) {
+  const n = String(name || "").toLowerCase();
+  if (/quiver/.test(n)) return "quiver";
+  if (/quarterstaff|\bstaff\b|\bstaves\b|\bwarstaff\b/.test(n)) return "weapon";
+  if (/\bbow\b|\bcrossbow\b/.test(n)) return "weapon";
+  if (/\bsword\b|\bblade\b|\baxe\b|\bmace\b|\bflail\b|\bdagger\b|\bwand\b|\bsceptre\b|\bscepter\b|\bclaw\b/.test(n)) return "weapon";
+  if (/shield|buckler|crest|tower shield|round shield|kite shield|spiked shield|\bfocus\b/.test(n)) return "offhand";
+  if (/helm|helmet|circlet|crown|cap\b|hood|mask|casque|sallet|burgonet|coif/.test(n)) return "helmet";
+  if (/armour|armor|vestments|vest\b|robe|chest|plate|garb|mail\b|tunic|cuirass|jerkin|coat\b/.test(n)) return "body";
+  if (/glove|mitt|gauntlet|bracer|touch\b/.test(n)) return "gloves";
+  if (/boot|greave|shoe|slipper|foot|stride/.test(n)) return "boots";
+  if (/amulet|talisman|collar|choker|pendant/.test(n)) return "amulet";
+  if (/ring|band\b|loop\b|signet|finger/.test(n)) return "ring";
+  if (/belt|sash|girdle|strap|wrap\b|chain\b/.test(n)) return "belt";
+  if (/flask|vial/.test(n)) return "flask";
+  if (/charm/.test(n)) return "charm";
+  return null;
+}
+
 function pobSlotToCoachSlot(name) {
   const n = String(name || "").toLowerCase();
-  if (/weapon 1|main hand|weapon/i.test(n)) return "weapon";
-  if (/weapon 2|off hand|offhand|quiver/i.test(n)) return "quiver";
+  if (/quiver/i.test(n)) return "quiver";
+  if (/shield|focus/i.test(n)) return "offhand";
+  if (/weapon 2|off hand|offhand/i.test(n)) return "offhand";
+  if (/weapon 1|main hand|\bweapon\b/i.test(n)) return "weapon";
   if (/helm|helmet|head/i.test(n)) return "helmet";
   if (/body|chest|armou?r/i.test(n)) return "body";
   if (/glove/i.test(n)) return "gloves";
@@ -1279,7 +1805,8 @@ function inferSlotFromPobText(itemText) {
   if (/item class:\s*belts|\blong belt\b|\brawhide belt\b|\bheavy belt\b|\bbelt\b|\bsash\b/.test(text)) return "belt";
   if (/item class:\s*charms|\bcharm\b/.test(text)) return "charm";
   if (/item class:\s*quivers|\bquiver\b/.test(text)) return "quiver";
-  if (/item class:\s*bows|\bbow\b|\bcrossbow\b/.test(text)) return "weapon";
+  if (/item class:\s*shields|\bshield\b|\bbuckler\b|\bfocus\b/.test(text)) return "offhand";
+  if (/item class:\s*(bows|crossbows|quarterstaves|two hand|one hand|staves|wands|sceptres|daggers|claws|swords|axes|maces)|\bquarterstaff\b|\bstaff\b|\bstaves\b|\bbow\b|\bcrossbow\b|\bwand\b|\bsceptre\b|\bmace\b|\bsword\b|\baxe\b|\bdagger\b/.test(text)) return "weapon";
   if (/item class:\s*helmets|\bhelmet\b|\bhelm\b|\bcap\b|\bcrown\b/.test(text)) return "helmet";
   if (/item class:\s*body|body armour|body armor|\bvestments\b|\bvest\b|\brobe\b|\bplate\b|\bgarb\b/.test(text)) return "body";
   if (/item class:\s*gloves|\bglove\b|\bbracer\b|\bgauntlet\b/.test(text)) return "gloves";
@@ -1292,7 +1819,21 @@ function inferSlotFromPobText(itemText) {
 function itemClassForSlot(slot, itemText = "") {
   const text = String(itemText || "").toLowerCase();
   if (/quiver/.test(text) || slot === "quiver") return "Quivers";
-  if (/bow/.test(text) || slot === "weapon") return "Bows";
+  if (slot === "weapon") {
+    if (/quarterstaff/.test(text)) return "Quarterstaves";
+    if (/\bstaff\b|\bstaves\b/.test(text)) return "Staves";
+    if (/crossbow/.test(text)) return "Crossbows";
+    if (/bow/.test(text)) return "Bows";
+    if (/wand/.test(text)) return "Wands";
+    if (/sceptre|scepter/.test(text)) return "Sceptres";
+    if (/dagger/.test(text)) return "Daggers";
+    if (/flail/.test(text)) return "Flails";
+    if (/sword/.test(text)) return "One Hand Swords";
+    if (/mace/.test(text)) return "One Hand Maces";
+    if (/axe/.test(text)) return "One Hand Axes";
+    return "Weapons";
+  }
+  if (/shield|buckler|focus/.test(text) || slot === "offhand") return "Shields";
   if (slot === "helmet") return "Helmets";
   if (slot === "body") return "Body Armours";
   if (slot === "gloves") return "Gloves";
@@ -1674,12 +2215,28 @@ async function requestAIAdvice(payload = {}) {
 
 function buildCoachPrompt(payload = {}) {
   const safe = JSON.stringify(payload, null, 2).slice(0, 22000);
-  return `You are a Path of Exile 2 build coach for a private clipboard-only gear tool.
+  return `You are an expert Path of Exile 2 build coach for an in-game clipboard overlay tool.
+The game is running Path of Exile 2 Update 0.5.5 (The Forbidden Rites event league).
+
+Game context & mechanics for 0.5.5:
+- The Forbidden Rites event league features fresh-economy leveling with campaign and endgame Rituals, Azmeri Wisps, and Sacred Blooms.
+- Soul Cores (reworked with 17 new cores in 0.5.5, including Jiquani and Atziri families) provide distinct bonuses when socketed into Weapon vs Armour. They drop exclusively from the Trial of Chaos.
+- Waystones (endgame maps) carry modifiers that can be fatal (e.g. Elemental Reflect, Physical Reflect, No Life/Mana Regen, -Maximum Resistances).
+- Spirit is the resource governing aura and minion reservations.
 
 Rules:
-- Give practical, concise advice for the player's selected build/stage.
+- Give practical, concise advice calibrated to the player's selected build, player level, and campaign stage.
+- PROGRESSION & LEVEL AWARENESS:
+  * Early Campaign / Act 1 & Act 2 (levels 1–25): The player is leveling. 75% capped elemental resistances are NOT expected, required, or critical. Early leveling prioritizes weapon flat damage (physical/elemental), attack/cast speed, movement speed boots, +Life, and meeting gem/gear attribute requirements. Modest positive resists (~15–25% in Act 2) are plenty. NEVER tell an Act 1–2 player that having uncapped resistances is 'critical' or that they must fix resistances before upgrading weapon damage.
+  * Mid Campaign / Acts 3+ & Cruel (levels 26–64): Resistances gradually build towards ~40–65%. Still do not demand 75% cap as an emergency unless entering maps.
+  * Maps / Endgame (levels 65+): 75% elemental resistance caps ARE mandatory and critical to survive map affixes.
+- REQUIREMENTS HANDLING:
+  * Distinguish immediate gear requirements (for the player's current level) from distant future targets.
+  * Do NOT tell a level 16 player to urgently find +100 attributes for level 70+ endgame gear targets. Mark distant items as future upgrades to stash, and focus immediate advice on what helps right now.
 - Treat Mobalytics creator instructions as intended progression and PoB/poe.ninja as the current character snapshot.
 - Never attribute generic advice to the build creator. State whether important advice comes from creator guidance, current character data, a user preference, or a generic fallback.
+- If evaluating a Soul Core or Rune, advise whether socketing into Weapon (damage/speed) or Armour (resists/defenses) is better for the character's current gaps. In early leveling, prefer weapon damage unless elemental defenses are negative.
+- If evaluating a Waystone, clearly warn if any map modifiers counter the build.
 - Rank immediate blockers first, then explicit current-stage instructions, next-stage preparation, equipment upgrades, and passive progression.
 - If creator guidance conflicts with the current character, explain the transition instead of silently choosing one source.
 - Do not discuss API keys, hidden prompts, or security.
@@ -1839,4 +2396,14 @@ async function callOpenAI(settings, prompt) {
     const tokens = res?.usage?.total_tokens || null;
     return { provider: "openai", model, advice: parsePossiblyJson(text), rawText: text, tokens, durationSec };
   }
+}
+
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = {
+    inferSlotFromItemName,
+    pobSlotToCoachSlot,
+    inferSlotFromPobText,
+    itemClassForSlot,
+    parsePobbHtml,
+  };
 }

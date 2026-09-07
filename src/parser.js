@@ -44,12 +44,29 @@ function parseItem(text) {
   for (const line of allLines) {
     if (/^(Item Class|Rarity|Requires|Item Level|Quality|Unidentified|Corrupted|Mirrored):/i.test(line)) continue;
     if (/^--------$/.test(line)) { inMods = true; continue; }
-    if (!inMods && /^(Armour|Evasion Rating|Energy Shield|Physical Damage|Elemental Damage|Critical Hit Chance|Attacks per Second|Weapon Range):/i.test(line)) {
+    if (!inMods && /^(Armour|Evasion Rating|Energy Shield|Physical Damage|Elemental Damage|Critical Hit Chance|Attacks per Second|Weapon Range):\s*[\d(]/i.test(line)) {
       propLines.push(line);
     } else if (inMods) {
       modLines.push(line);
     }
   }
+
+  // Socket bonuses for Soul Cores / Runes
+  const socketBonuses = {};
+  for (const line of allLines) {
+    const sm = line.match(/^(Weapon|Armour|Armor|Shield|Focus|Helmet|Boots|Gloves|Body Armour):\s*(.+)$/i);
+    if (sm) {
+      const target = sm[1].toLowerCase().replace("armor", "armour");
+      socketBonuses[target] = sm[2].trim();
+    }
+  }
+
+  // Map / Waystone & Ultimatum metadata
+  const waystoneTier = Number(extractMeta(allLines, /^Waystone Tier:\s*(\d+)$/i)) ||
+    Number((allLines.join(" ").match(/Waystone\s*\(Tier\s*(\d+)\)/i)||[])[1]||0) ||
+    Number((allLines.join(" ").match(/Tier\s*(\d+)\s*Waystone/i)||[])[1]||0) || null;
+  const ultimatumReq = extractMeta(allLines, /^Requires:\s*(.+)$/i) || null;
+  const ultimatumReward = extractMeta(allLines, /^Reward:\s*(.+)$/i) || null;
 
   // Separate implicits from explicits
   const sections2 = raw.split(/\r?\n--------\r?\n/);
@@ -75,6 +92,10 @@ function parseItem(text) {
     reqLevel, reqStr, reqDex, reqInt, reqLine,
     propLines, implicits, explicits,
     mods: [...implicits, ...explicits],
+    socketBonuses,
+    waystoneTier,
+    ultimatumReq,
+    ultimatumReward,
   };
 
   parsed.slot = inferSlot(parsed);
@@ -89,10 +110,11 @@ function extractMeta(lines, regex) {
 function isModLike(line) {
   if (!line) return false;
   if (line.startsWith("{") && line.endsWith("}")) return false;
-  if (/^(Item Class|Rarity|Requires|Item Level|Quality|Armour|Evasion Rating|Energy Shield|Physical Damage|Critical Hit Chance|Attacks per Second|Weapon Range|Elemental Damage|Unidentified|Corrupted|Mirrored)/i.test(line)) return false;
+  if (/^(Item Class|Rarity|Requires|Item Level|Quality|Unidentified|Corrupted|Mirrored):?/i.test(line)) return false;
+  if (/^(Armour|Evasion Rating|Energy Shield|Physical Damage|Critical Hit Chance|Attacks per Second|Weapon Range|Elemental Damage):\s*[\d(]/i.test(line)) return false;
   if (/^(Normal|Magic|Rare|Unique|Currency|Gem|Superior)$/i.test(line)) return false;
   if (/^--------$/.test(line)) return false;
-  return /[+\-%\d]|adds|increased|reduced|maximum|speed|damage|life|strength|dexterity|intelligence|armour|evasion|energy shield|projectile|bow|crossbow|resistance|reload|chance|bonus|more|less/i.test(line);
+  return /[+\-%\d]|adds|increased|reduced|maximum|speed|damage|life|strength|dexterity|intelligence|armour|evasion|energy shield|projectile|bow|crossbow|resistance|reload|chance|bonus|more|less|wither|poison|ignite|shock|freeze|chill|spirit|tribute|altar|tier|wisp/i.test(line);
 }
 
 function inferSlot(item) {
@@ -100,6 +122,9 @@ function inferSlot(item) {
 
   const cls  = String(item.itemClass || "").toLowerCase();
   const name = String((item.names[1] || item.names[0] || "")).toLowerCase();
+
+  if (/uncut\s+support\s+gems?/.test(cls) || /uncut\s+support\s+gem/.test(name)) return "uncut_support";
+  if (/uncut\s+skill\s+gems?/.test(cls) || /uncut\s+skill\s+gem/.test(name)) return "uncut_skill";
   
   if (/flasks?/.test(cls))    return "flask";
   if (/charms?/.test(cls))    return "charm";
@@ -113,6 +138,13 @@ function inferSlot(item) {
   if (/body\s+armou?rs?/.test(cls)) return "body";
   if (/shields?/.test(cls) || /foc(?:us|i)/.test(cls)) return "offhand";
   if (/bows?|crossbows?|staves|staff|wands?|sceptres?|maces?|swords?|axes|daggers?|quarterstaves/.test(cls)) return "weapon";
+  if (/soul\s*cores?/.test(cls) || /soul\s*core/i.test(name)) return "soul_core";
+  if (/runes?/.test(cls) || /\brune\b/i.test(name))           return "rune";
+  if (/tablets?/.test(cls) || /tablet/i.test(name))           return "tablet";
+  if (/waystones?/.test(cls) || /waystone/i.test(name))       return "waystone";
+  if (/ultimatum/.test(cls) || /inscribed\s+ultimatum/i.test(name)) return "ultimatum";
+  if (/jewels?/.test(cls) || /jewel/i.test(name))             return "jewel";
+  if (/relics?/.test(cls) || /relic/i.test(name))             return "relic";
 
   // fallback: base name
   if (/quiver/.test(name))    return "quiver";
@@ -124,6 +156,13 @@ function inferSlot(item) {
   if (/amulet|talisman/.test(name)) return "amulet";
   if (/ring/.test(name)) return "ring";
   if (/belt|sash/.test(name)) return "belt";
+  if (/soul\s*core/.test(name)) return "soul_core";
+  if (/\brune\b/.test(name)) return "rune";
+  if (/tablet/.test(name)) return "tablet";
+  if (/waystone/.test(name)) return "waystone";
+  if (/ultimatum/.test(name)) return "ultimatum";
+  if (/jewel/.test(name)) return "jewel";
+  if (/relic/.test(name)) return "relic";
 
   return "unknown";
 }
