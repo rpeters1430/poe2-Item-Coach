@@ -1048,10 +1048,23 @@ function renderCoach(scored, compDelta, savedItem) {
       confEl.style.display = "none";
     }
 
-    document.getElementById("set-equipped-btn").style.display = "";
-    document.getElementById("set-equipped-btn").textContent = sameItemIdentity(savedItem.item, scored.item)
-      ? "Update equipped item ↑"
-      : "Replace equipped item ↑";
+    // A genuine upgrade: a different item that scores strictly better than what's
+    // equipped. Lead with "Upgrade" in that case instead of the neutral swap action —
+    // same underlying swap, but the button/confirmation frame it as an upgrade.
+    const isUpgrade = compDelta !== null && compDelta > 0 && !sameItemIdentity(savedItem.item, scored.item);
+    const upgradeBtn = document.getElementById("upgrade-btn");
+    const setBtn = document.getElementById("set-equipped-btn");
+    if (isUpgrade) {
+      upgradeBtn.style.display = "";
+      upgradeBtn.textContent = `Upgrade ↑ (+${compDelta})`;
+      setBtn.style.display = "none";
+    } else {
+      upgradeBtn.style.display = "none";
+      setBtn.style.display = "";
+      setBtn.textContent = sameItemIdentity(savedItem.item, scored.item)
+        ? "Update equipped item ↑"
+        : "Replace equipped item ↑";
+    }
     const eqTradeBtn = document.getElementById("eq-trade-btn");
     if (eqTradeBtn) eqTradeBtn.style.display = "";
   } else {
@@ -1060,6 +1073,7 @@ function renderCoach(scored, compDelta, savedItem) {
     document.getElementById("eq-deltas").innerHTML = `<div class="eq-delta-stat neutral" style="color:var(--poe-muted); font-style:italic;">No equipped item saved for this slot. Paste/copy an item and set it as equipped below to enable comparisons.</div>`;
     const confEl = document.getElementById("eq-confidence");
     if (confEl) confEl.style.display = "none";
+    document.getElementById("upgrade-btn").style.display = "none";
     document.getElementById("set-equipped-btn").style.display = "";
     document.getElementById("set-equipped-btn").textContent = "Set as equipped ↑";
     const eqTradeBtn = document.getElementById("eq-trade-btn");
@@ -1465,6 +1479,7 @@ let currentSavedEntry = null;
 const shell      = document.getElementById("shell");
 const slotSelect = document.getElementById("slot-select");
 const stageSelect= document.getElementById("stage-select");
+const playerLevelDisplay = document.getElementById("player-level-display");
 const noBuildWarn= document.getElementById("no-build-warn");
 
 function populateSlots(profile) {
@@ -1481,6 +1496,21 @@ function populateStages(profile) {
     const o = document.createElement("option");
     o.value = k; o.textContent = s.label||k; stageSelect.append(o);
   });
+}
+
+function updatePlayerLevelDisplay() {
+  if (playerLevelDisplay) playerLevelDisplay.textContent = String(currentSession.playerLevel || 1);
+}
+
+// Same act/level → campaign-stage thresholds used to auto-infer a stage when
+// an item is first pasted with no stage saved in the session. Reused by the
+// "Level Up" button so bumping the tracked level can advance the stage too.
+function inferStageForLevel(lvl, actCtx) {
+  return actCtx === "act1"     ? "leveling"  :
+         actCtx === "act2"     ? "leveling"  :
+         actCtx === "act2plus" || actCtx === "act3plus" ? (lvl >= 35 ? "earlyMaps" : "leveling") :
+         actCtx === "maps"     ? "endgame"   :
+         lvl >= 65 ? "endgame" : lvl >= 35 ? "earlyMaps" : "leveling";
 }
 
 // ─── Main render ──────────────────────────────────────────────────────────────
@@ -1712,6 +1742,7 @@ window?.poe2Coach?.onItemDetected?.(({ itemText, session }) => {
     currentSession.keystones   = session.pobbBuild?.keystones || [];
     currentSession.actContext  = session.actContext || "auto";
     currentSession.league      = session.league || "poe2/Forbidden Rites";
+    updatePlayerLevelDisplay();
 
     // Trigger ignore mouse state to match active HUD Mode when item is updated
     if (window.poe2Coach?.setIgnoreMouseEvents) {
@@ -1751,6 +1782,7 @@ window?.poe2Coach?.onItemDetected?.(({ itemText, session }) => {
     noBuildWarn.style.display = "";
     populateSlots(activeProfile);
     populateStages(activeProfile);
+    updatePlayerLevelDisplay();
   }
 
   render(itemText);
@@ -1760,16 +1792,60 @@ window?.poe2Coach?.onItemDetected?.(({ itemText, session }) => {
 slotSelect.addEventListener("change",  () => { if (lastItemText) render(lastItemText); });
 stageSelect.addEventListener("change", () => { if (lastItemText) render(lastItemText); });
 
+// Gained a level in-game? Bump the tracked player level in place, persist it to the
+// session (so Settings and future item comparisons see it too), nudge the campaign
+// stage forward if the new level crosses into the next bucket, and rescore the
+// currently displayed item so everything (fit score, resist targets, level-gated
+// warnings, AI Coach context) reflects the new level immediately.
+document.getElementById("level-up-btn").addEventListener("click", () => {
+  const next = Math.min(100, (Number(currentSession.playerLevel) || 1) + 1);
+  currentSession.playerLevel = next;
+  updatePlayerLevelDisplay();
+
+  if (savedFullSession) {
+    savedFullSession.playerLevel = next;
+    window.poe2Coach.saveSession(savedFullSession);
+  }
+
+  const inferredStage = inferStageForLevel(next, currentSession.actContext || "auto");
+  if (stageSelect.querySelector(`option[value="${inferredStage}"]`)) {
+    stageSelect.value = inferredStage;
+  }
+
+  if (lastItemText) render(lastItemText);
+});
+
 // Set, replace, or update the exact equipped item. Matching by Unique ID/name
 // prevents an upgraded Ring 2 or second weapon from overwriting the first one.
-document.getElementById("set-equipped-btn").addEventListener("click", () => {
-  if (!savedFullSession || !lastItemText || lastSlot === "unknown") return;
+// Shared by both the neutral "Set as equipped" action and the "Upgrade" action —
+// they perform the identical swap; only the button label/confirmation differ.
+function swapEquippedItem() {
+  if (!savedFullSession || !lastItemText || lastSlot === "unknown") return null;
+  const previousEntry = currentSavedEntry || savedGearMap[lastSlot];
+  const previousName = previousEntry?.item?.names?.[0] || null;
   savedFullSession.fullGearText = replaceInGearMap(savedFullSession.fullGearText||"", lastSlot, lastItemText);
   savedGearMap = buildGearMap(savedFullSession.fullGearText);
   window.poe2Coach.saveSession(savedFullSession);
-  
-  // Re-render immediately to update comparison HUD
+  return previousName;
+}
+
+document.getElementById("set-equipped-btn").addEventListener("click", () => {
+  swapEquippedItem();
   render(lastItemText);
+});
+
+document.getElementById("upgrade-btn").addEventListener("click", () => {
+  const previousName = swapEquippedItem();
+  const newName = lastItem?.names?.[0] || "this item";
+  render(lastItemText);
+
+  const note = document.getElementById("upgrade-confirm");
+  if (note) {
+    note.textContent = previousName ? `Upgraded: ${previousName} → ${newName}` : `Equipped: ${newName}`;
+    note.style.display = "";
+    clearTimeout(note._hideTimer);
+    note._hideTimer = setTimeout(() => { note.style.display = "none"; }, 5000);
+  }
 });
 
 // AI Coach

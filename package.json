@@ -14,13 +14,16 @@
     "build-mac": "electron-builder --mac",
     "build-linux": "electron-builder --linux",
     "check": "node --check src/main.js && node --check src/preload.js && node --check src/overlay-renderer.js && node --check src/app.js && node --check src/build-knowledge.js && node --check src/recommendation-engine.js && node --check src/pob-code.js && node --check src/poe2-mod-data.js",
-    "test": "npm run check && npm run test:parser && npm run test:build-knowledge && npm run test:pob-code && npm run test:mobalytics && npm run test:monk && npm run test:recommendation",
+    "test": "npm run check && npm run test:parser && npm run test:build-knowledge && npm run test:pob-code && npm run test:pobb-gear && npm run test:level-up && npm run test:mobalytics && npm run test:monk && npm run test:recommendation && npm run test:clipboard",
     "test:parser": "node scripts/test-parser.js",
     "test:build-knowledge": "node scripts/test-build-knowledge.js",
     "test:pob-code": "node scripts/test-pob-code.js",
+    "test:pobb-gear": "node scripts/test-pobb-gear-slots.js",
+    "test:level-up": "node scripts/test-level-up.js",
     "test:mobalytics": "node scripts/test-mobalytics.js",
     "test:monk": "node scripts/test-monk-quarterstaff.js",
     "test:recommendation": "node scripts/test-recommendation-engine.js",
+    "test:clipboard": "node scripts/test-clipboard-watcher.js",
     "fetch-mods": "node scripts/fetch-poe2db.js"
   },
   "build": {

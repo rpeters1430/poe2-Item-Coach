@@ -115,6 +115,17 @@
       font-family: inherit; padding: 4px 6px; cursor: pointer;
     }
     #selectors select:focus { outline: none; border-color: var(--poe-border); }
+    #player-level-display {
+      font-size: 12px; color: var(--poe-gold-bright); font-weight: 700;
+      min-width: 16px; text-align: center;
+    }
+    #level-up-btn {
+      font-size: 11px; padding: 3px 8px; border-radius: 3px; white-space: nowrap;
+      background: linear-gradient(135deg, rgba(224,192,136,0.28), rgba(224,192,136,0.14));
+      border: 1px solid rgba(224,192,136,0.55);
+      color: var(--poe-gold-bright); font-family: inherit; font-weight: 700; cursor: pointer;
+    }
+    #level-up-btn:hover { background: linear-gradient(135deg, rgba(224,192,136,0.4), rgba(224,192,136,0.2)); }
 
     /* ── Body: layout ─────────────────────────────────────────── */
     #body {
@@ -340,6 +351,19 @@
       color: var(--poe-white); font-family: inherit; cursor: pointer; margin-top: 7px;
     }
     #eq-trade-btn:hover { background: rgba(40,55,80,0.6); border-color: var(--poe-border); }
+    #upgrade-btn {
+      font-size: 11px; padding: 4px 10px; border-radius: 3px;
+      background: linear-gradient(135deg, rgba(120,212,154,0.28), rgba(120,212,154,0.14));
+      border: 1px solid rgba(120,212,154,0.55);
+      color: var(--good); font-family: inherit; font-weight: 700; cursor: pointer; margin-top: 7px;
+    }
+    #upgrade-btn:hover { background: linear-gradient(135deg, rgba(120,212,154,0.4), rgba(120,212,154,0.2)); }
+    #upgrade-confirm {
+      display: none;
+      font-size: 11px; color: var(--good); margin-top: 6px;
+      padding: 5px 8px; border-radius: 3px;
+      background: rgba(120,212,154,0.08); border: 1px solid rgba(120,212,154,0.3);
+    }
 
     /* Pros / cons */
     .pca-section { margin-top: 8px; }
@@ -485,6 +509,9 @@
     <select id="slot-select"></select>
     <span class="sel-label">Stage</span>
     <select id="stage-select"></select>
+    <span class="sel-label">Lvl</span>
+    <span id="player-level-display">1</span>
+    <button id="level-up-btn" title="Gained a level in-game? Bump your tracked level so scoring, resist targets, and stage advice adapt.">▲ Level Up</button>
   </div>
 
   <!-- Urgent Needs Bar -->
@@ -599,9 +626,11 @@
         <div class="eq-delta-row" id="eq-deltas"></div>
         <div class="eq-confidence" id="eq-confidence" style="font-size: 10px; color: var(--poe-muted); margin-top: 8px; font-style: italic;"></div>
         <div style="display:flex; gap:6px; margin-top:7px;">
+          <button id="upgrade-btn" style="margin-top:0; flex:1; display:none;">Upgrade ↑</button>
           <button id="set-equipped-btn" style="margin-top:0; flex:1;">Set as equipped ↑</button>
           <button id="eq-trade-btn" style="margin-top:0; flex:1;">Search Trade ↗</button>
         </div>
+        <div id="upgrade-confirm"></div>
       </div>
 
       <!-- Trade Market Value (Inline) -->
