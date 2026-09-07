@@ -72,14 +72,16 @@ console.log("Running poe2-unique-data regression tests...\n");
 // ─── No item silently lost its slot due to a keyword-coverage regression ──────
 {
   const nullSlotItems = POE2_UNIQUE_DATA.items.filter(i => !i.slot);
-  // Expected: only jewel/tablet/relic base types have no coach slot (~16 today).
+  // Expected: only jewel/tablet/relic base types (plus Tethering Bands, which
+  // has no confirmed coach slot) have no coach slot — currently 28 items
+  // across 16 jewel/tablet/relic base types.
   // A much larger number would mean inferSlotFromItemName() regressed.
   assert.ok(
     nullSlotItems.length < 40,
-    `${nullSlotItems.length} items have no slot — expected roughly ~16 (jewels/tablets/relics). ` +
+    `${nullSlotItems.length} items have no slot — expected roughly 28 items across 16 jewel/tablet/relic base types (plus Tethering Bands). ` +
     `Names: ${nullSlotItems.map(i => i.name).join(", ")}`
   );
-  console.log(`  PASS: null-slot count is plausible (${nullSlotItems.length} items, expected ~16)`);
+  console.log(`  PASS: null-slot count is plausible (${nullSlotItems.length} items, expected roughly 28 across 16 jewel/tablet/relic base types)`);
 }
 
 console.log("\nAll poe2-unique-data tests passed.");

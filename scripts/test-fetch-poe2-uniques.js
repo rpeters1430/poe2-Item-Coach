@@ -51,6 +51,10 @@ const TRENCHTIMBRE_HTML = `<div class="d-flex border-top rounded"><div class="fl
   assert.deepEqual(extractRanges("Adds (10–14) to (16–20) Physical Damage"), [[10, 14], [16, 20]]);
   assert.deepEqual(extractRanges("+(30–50) to Accuracy Rating"), [[30, 50]]);
   assert.deepEqual(extractRanges("Causes Double Stun Buildup"), []);
+  assert.deepEqual(extractRanges("(-40–40)% to Fire Resistance"), [[-40, 40]]);
+  assert.deepEqual(extractRanges("(-40–-30)% to Lightning Resistance"), [[-40, -30]]);
+  assert.deepEqual(extractRanges("+(0.1–1.1)% to Unarmed Melee Crit Chance"), [[0.1, 1.1]]);
+  assert.deepEqual(extractRanges("(3.1–6) Life Regeneration per second"), [[3.1, 6]]);
   console.log("  PASS: extractRanges");
 }
 
@@ -65,6 +69,9 @@ const TRENCHTIMBRE_HTML = `<div class="d-flex border-top rounded"><div class="fl
   // Real observed edge case: some rows show "Int 200" (label before value) instead of "200 Int"
   const labelFirst = parseRequirements('<span class="colourDefault">Level 65</span>, <span class="colourAugmented">214 Str</span>, <span class="colourAugmented">Int 200</span>');
   assert.deepEqual(labelFirst, { levelReq: 65, attrReqs: { str: 214, dex: 0, int: 200 } });
+
+  const decimalAttr = parseRequirements('<span class="colourDefault">Level 33</span>, <span class="colourDefault">40.5 Dex</span>');
+  assert.deepEqual(decimalAttr, { levelReq: 33, attrReqs: { str: 0, dex: 40.5, int: 0 } });
   console.log("  PASS: parseRequirements");
 }
 

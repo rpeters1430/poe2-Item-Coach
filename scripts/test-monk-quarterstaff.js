@@ -192,6 +192,18 @@ console.log("3. Testing PoB slot and text helpers in main.js...");
   assert.equal(inferSlotFromItemName("Ritual Tablet"), null);
   assert.equal(inferSlotFromItemName("Seal Relic"), null);
 
+  // Found during final whole-branch review: generic material words ("plate",
+  // "mail", "shield") were stealing matches from more specific slot nouns
+  // checked later in the chain. Confirmed against real page data.
+  assert.equal(inferSlotFromItemName("Plate Belt"), "belt");
+  assert.equal(inferSlotFromItemName("Mail Belt"), "belt");
+  assert.equal(inferSlotFromItemName("Plate Gauntlets"), "gloves");
+  assert.equal(inferSlotFromItemName("Ringmail Gauntlets"), "gloves");
+  assert.equal(inferSlotFromItemName("Mail Sabatons"), "boots");
+  assert.equal(inferSlotFromItemName("Shielded Helm"), "helmet");
+  assert.equal(inferSlotFromItemName("Veridical Chain"), "amulet");
+  assert.equal(inferSlotFromItemName("Tethering Bands"), null, "no confirmed correct slot for this base type — null is the safe answer, not a guess");
+
   assert.equal(inferSlotFromPobText("Item Class: Quarterstaves\nPlain Quarterstaff"), "weapon");
   assert.equal(inferSlotFromPobText("Item Class: Shields\nRound Shield"), "offhand");
 

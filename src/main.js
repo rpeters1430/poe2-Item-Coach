@@ -1765,18 +1765,25 @@ function extractPobPassiveNodes(xml) {
 function inferSlotFromItemName(name) {
   const n = String(name || "").toLowerCase();
   if (/^primal markings$/i.test(n)) return "body"; // no shared body-armour keyword; exact-name special case
+  if (/^veridical chain$/i.test(n)) return "amulet"; // PoE1-style "Chain" naming; no amulet keyword matches, and "chain" is deliberately not a belt keyword below (no PoE2 belt base uses it)
   if (/quiver/.test(n)) return "quiver";
   if (/quarterstaff|\bstaff\b|\bstaves\b|\bwarstaff\b/.test(n)) return "weapon";
   if (/\bbow\b|\bcrossbow\b|shortbow/.test(n)) return "weapon";
   if (/\bsword\b|\bblade\b|\baxe\b|\bmace\b|\bflail\b|\bdagger\b|\bwand\b|\bsceptre\b|\bscepter\b|\bclaw\b|\bclub\b|hammer|\bpick\b|\bmaul\b|\bspear\b|\bcannon\b|\bfork\b|\bsledge\b|greatclub|warpick|morning star/.test(n)) return "weapon";
-  if (/shield|buckler|crest|tower shield|round shield|kite shield|spiked shield|\bfocus\b|\bdefender\b|\btarge\b|\bfortress\b/.test(n)) return "offhand";
-  if (/helm|helmet|circlet|crown|cap\b|hood|mask|casque|sallet|burgonet|coif|tiara|visor|visage/.test(n)) return "helmet";
-  if (/armour|armor|vestments|vest\b|robe|chest|plate|garb|mail\b|tunic|cuirass|jerkin|coat\b|raiment|mantle|regalia|garment|jacket/.test(n)) return "body";
+  // Specific slot nouns are checked before the generic material-word groups
+  // below (body's "plate"/"mail", offhand's "shield") — those generic words
+  // appear in base-type names across multiple slots (e.g. "Plate Belt",
+  // "Mail Sabatons", "Shielded Helm") and must not be allowed to steal a
+  // match from a more specific noun checked later in a naive top-to-bottom
+  // chain.
+  if (/belt|sash|girdle|strap|wrap\b/.test(n)) return "belt";
   if (/glove|mitt|gauntlet|bracer|touch\b|cuffs|wraps|manchettes/.test(n)) return "gloves";
   if (/boot|greave|shoe|slipper|foot|stride|sandal|sabaton|legging|cuisse/.test(n)) return "boots";
+  if (/helm|helmet|circlet|crown|cap\b|hood|mask|casque|sallet|burgonet|coif|tiara|visor|visage/.test(n)) return "helmet";
+  if (/shield|buckler|crest|tower shield|round shield|kite shield|spiked shield|\bfocus\b|\bdefender\b|\btarge\b|\bfortress\b/.test(n)) return "offhand";
+  if (/armour|armor|vestments|vest\b|robe|chest|plate|garb|mail\b|tunic|cuirass|jerkin|coat\b|raiment|mantle|regalia|garment|jacket/.test(n)) return "body";
   if (/amulet|talisman|collar|choker|pendant/.test(n)) return "amulet";
-  if (/ring|band\b|loop\b|signet|finger/.test(n)) return "ring";
-  if (/belt|sash|girdle|strap|wrap\b|chain\b/.test(n)) return "belt";
+  if (/\bring\b|band\b|loop\b|signet|finger/.test(n)) return "ring";
   if (/flask|vial/.test(n)) return "flask";
   if (/charm/.test(n)) return "charm";
   return null;

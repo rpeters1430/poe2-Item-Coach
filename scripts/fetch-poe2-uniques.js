@@ -28,7 +28,7 @@ function stripHtml(html) {
 
 function extractRanges(text) {
   const ranges = [];
-  const re = /\((\d+)[–—-](\d+)\)/g;
+  const re = /\((-?\d+(?:\.\d+)?)[–—](-?\d+(?:\.\d+)?)\)/g;
   let m;
   while ((m = re.exec(text))) ranges.push([Number(m[1]), Number(m[2])]);
   return ranges;
@@ -41,8 +41,8 @@ function parseRequirements(reqHtml) {
   for (const s of spans) {
     const lvlM = s.match(/^Level\s+(\d+)$/i);
     if (lvlM) { levelReq = Number(lvlM[1]); continue; }
-    const valueFirst = s.match(/^(\d+)\s*(Str|Dex|Int)$/i);
-    const labelFirst = s.match(/^(Str|Dex|Int)\s*(\d+)$/i);
+    const valueFirst = s.match(/^(\d+(?:\.\d+)?)\s*(Str|Dex|Int)$/i);
+    const labelFirst = s.match(/^(Str|Dex|Int)\s*(\d+(?:\.\d+)?)$/i);
     const attr = (valueFirst?.[2] || labelFirst?.[1] || "").toLowerCase();
     const value = Number(valueFirst?.[1] ?? labelFirst?.[2] ?? 0);
     if (attr === "str") attrReqs.str = value;

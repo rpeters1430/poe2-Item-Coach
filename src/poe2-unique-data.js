@@ -12,7 +12,7 @@
 /* eslint-disable no-unused-vars */
 const POE2_UNIQUE_DATA = {
   version: "1.0.0",
-  fetched: "2026-09-07T20:21:42.964Z",
+  fetched: "2026-09-07T20:41:57.955Z",
   source: "poe2db.tw/us/Unique_item",
   items: [
   {
@@ -1003,7 +1003,12 @@ const POE2_UNIQUE_DATA = {
       },
       {
         "text": "(-300–-200) to Accuracy Rating",
-        "ranges": []
+        "ranges": [
+          [
+            -300,
+            -200
+          ]
+        ]
       },
       {
         "text": "35% reduced Attack Speed",
@@ -2072,7 +2077,12 @@ const POE2_UNIQUE_DATA = {
       },
       {
         "text": "(-1–1) to Maximum Power Charges",
-        "ranges": []
+        "ranges": [
+          [
+            -1,
+            1
+          ]
+        ]
       },
       {
         "text": "power siphon unique elemental art variation [1]",
@@ -3917,7 +3927,12 @@ const POE2_UNIQUE_DATA = {
       },
       {
         "text": "(-13–13)% reduced Skill Effect Duration",
-        "ranges": []
+        "ranges": [
+          [
+            -13,
+            13
+          ]
+        ]
       },
       {
         "text": "Gain 27% of Damage as Extra Chaos Damage",
@@ -5332,7 +5347,12 @@ const POE2_UNIQUE_DATA = {
       },
       {
         "text": "(-5–-1)% to all Maximum Elemental Resistances",
-        "ranges": []
+        "ranges": [
+          [
+            -5,
+            -1
+          ]
+        ]
       },
       {
         "text": "+(200–300) to Stun Threshold",
@@ -5726,7 +5746,7 @@ const POE2_UNIQUE_DATA = {
     "levelReq": 33,
     "attrReqs": {
       "str": 0,
-      "dex": 0,
+      "dex": 40.5,
       "int": 0
     },
     "implicits": [],
@@ -5842,7 +5862,12 @@ const POE2_UNIQUE_DATA = {
       },
       {
         "text": "(-15–-10)% to Fire Resistance",
-        "ranges": []
+        "ranges": [
+          [
+            -15,
+            -10
+          ]
+        ]
       },
       {
         "text": "+(25–30)% to Cold Resistance",
@@ -5872,7 +5897,7 @@ const POE2_UNIQUE_DATA = {
     "id": "yriels_fostering",
     "name": "Yriel's Fostering",
     "baseType": "Strider Vest",
-    "slot": "body",
+    "slot": "boots",
     "levelReq": 52,
     "attrReqs": {
       "str": 0,
@@ -6317,7 +6342,12 @@ const POE2_UNIQUE_DATA = {
       },
       {
         "text": "Skills have (-2–-1) seconds to Cooldown",
-        "ranges": []
+        "ranges": [
+          [
+            -2,
+            -1
+          ]
+        ]
       }
     ]
   },
@@ -6744,7 +6774,12 @@ const POE2_UNIQUE_DATA = {
       },
       {
         "text": "(-20–-10)% to Fire Resistance",
-        "ranges": []
+        "ranges": [
+          [
+            -20,
+            -10
+          ]
+        ]
       },
       {
         "text": "+50% to Cold Resistance",
@@ -7234,7 +7269,12 @@ const POE2_UNIQUE_DATA = {
       },
       {
         "text": "(-40–-30)% to Lightning Resistance",
-        "ranges": []
+        "ranges": [
+          [
+            -40,
+            -30
+          ]
+        ]
       },
       {
         "text": "(30–50)% of Physical damage from Hits taken as Lightning damage",
@@ -8248,8 +8288,8 @@ const POE2_UNIQUE_DATA = {
     "levelReq": 39,
     "attrReqs": {
       "str": 0,
-      "dex": 0,
-      "int": 0
+      "dex": 52.5,
+      "int": 52.5
     },
     "implicits": [],
     "explicits": [
@@ -8277,11 +8317,21 @@ const POE2_UNIQUE_DATA = {
       },
       {
         "text": "(-30–30)% reduced Life Regeneration rate",
-        "ranges": []
+        "ranges": [
+          [
+            -30,
+            30
+          ]
+        ]
       },
       {
         "text": "(-30–30)% reduced Mana Regeneration Rate",
-        "ranges": []
+        "ranges": [
+          [
+            -30,
+            30
+          ]
+        ]
       },
       {
         "text": "Soul Eater",
@@ -9942,7 +9992,7 @@ const POE2_UNIQUE_DATA = {
     "id": "the_vile_knight",
     "name": "The Vile Knight",
     "baseType": "Shielded Helm",
-    "slot": "offhand",
+    "slot": "helmet",
     "levelReq": 33,
     "attrReqs": {
       "str": 27,
@@ -10782,15 +10832,30 @@ const POE2_UNIQUE_DATA = {
       },
       {
         "text": "(-30–30)% to Fire Resistance",
-        "ranges": []
+        "ranges": [
+          [
+            -30,
+            30
+          ]
+        ]
       },
       {
         "text": "(-30–30)% to Cold Resistance",
-        "ranges": []
+        "ranges": [
+          [
+            -30,
+            30
+          ]
+        ]
       },
       {
         "text": "(-30–30)% to Lightning Resistance",
-        "ranges": []
+        "ranges": [
+          [
+            -30,
+            30
+          ]
+        ]
       },
       {
         "text": "Chaos Resistance is zero",
@@ -11214,7 +11279,12 @@ const POE2_UNIQUE_DATA = {
       },
       {
         "text": "(-10–10) to Maximum Rage",
-        "ranges": []
+        "ranges": [
+          [
+            -10,
+            10
+          ]
+        ]
       }
     ]
   },
@@ -11715,7 +11785,12 @@ const POE2_UNIQUE_DATA = {
       },
       {
         "text": "(-20–-10)% to Cold Resistance",
-        "ranges": []
+        "ranges": [
+          [
+            -20,
+            -10
+          ]
+        ]
       },
       {
         "text": "Flammability Magnitude is doubled",
@@ -11979,7 +12054,7 @@ const POE2_UNIQUE_DATA = {
     "id": "jarngreipr",
     "name": "Jarngreipr",
     "baseType": "Ringmail Gauntlets",
-    "slot": "body",
+    "slot": "gloves",
     "levelReq": 6,
     "attrReqs": {
       "str": 6,
@@ -12125,7 +12200,7 @@ const POE2_UNIQUE_DATA = {
     "id": "valakos_vice",
     "name": "Valako's Vice",
     "baseType": "Plate Gauntlets",
-    "slot": "body",
+    "slot": "gloves",
     "levelReq": 45,
     "attrReqs": {
       "str": 32,
@@ -12753,7 +12828,12 @@ const POE2_UNIQUE_DATA = {
       },
       {
         "text": "+(0.1–1.1)% to Unarmed Melee Attack Critical Hit Chance",
-        "ranges": []
+        "ranges": [
+          [
+            0.1,
+            1.1
+          ]
+        ]
       },
       {
         "text": "use thunderfist art variation [1]",
@@ -13404,7 +13484,7 @@ const POE2_UNIQUE_DATA = {
     "id": "the_knight-errant",
     "name": "The Knight-errant",
     "baseType": "Mail Sabatons",
-    "slot": "body",
+    "slot": "boots",
     "levelReq": 6,
     "attrReqs": {
       "str": 7,
@@ -15873,7 +15953,7 @@ const POE2_UNIQUE_DATA = {
     "id": "the_masters_reach",
     "name": "The Master's Reach",
     "baseType": "Tethering Bands",
-    "slot": "ring",
+    "slot": null,
     "levelReq": 65,
     "attrReqs": {
       "str": 55,
@@ -15983,7 +16063,12 @@ const POE2_UNIQUE_DATA = {
       },
       {
         "text": "(-12–-6)% to amount of Damage Prevented by Deflection",
-        "ranges": []
+        "ranges": [
+          [
+            -12,
+            -6
+          ]
+        ]
       },
       {
         "text": "Cannot be Light Stunned by Deflected Hits",
@@ -16463,7 +16548,12 @@ const POE2_UNIQUE_DATA = {
       },
       {
         "text": "(-20–-5)% to all Elemental Resistances",
-        "ranges": []
+        "ranges": [
+          [
+            -20,
+            -5
+          ]
+        ]
       }
     ]
   },
@@ -16565,12 +16655,7 @@ const POE2_UNIQUE_DATA = {
       },
       {
         "text": "(20-10)% less [random stat]",
-        "ranges": [
-          [
-            20,
-            10
-          ]
-        ]
+        "ranges": []
       }
     ]
   },
@@ -17500,7 +17585,12 @@ const POE2_UNIQUE_DATA = {
       },
       {
         "text": "Life Flasks gain (0.17–0.25) charges per Second",
-        "ranges": []
+        "ranges": [
+          [
+            0.17,
+            0.25
+          ]
+        ]
       }
     ]
   },
@@ -18546,7 +18636,7 @@ const POE2_UNIQUE_DATA = {
     "id": "eventide_petals",
     "name": "Eventide Petals",
     "baseType": "Veridical Chain",
-    "slot": "belt",
+    "slot": "amulet",
     "levelReq": 55,
     "attrReqs": {
       "str": 0,
@@ -18598,7 +18688,12 @@ const POE2_UNIQUE_DATA = {
       },
       {
         "text": "Ice Crystals have (-3–3)% reduced maximum Life per 5% Cold Resistance you have",
-        "ranges": []
+        "ranges": [
+          [
+            -3,
+            3
+          ]
+        ]
       }
     ]
   },
@@ -18938,7 +19033,12 @@ const POE2_UNIQUE_DATA = {
       },
       {
         "text": "Mana Flasks gain (0.17–0.25) charges per Second",
-        "ranges": []
+        "ranges": [
+          [
+            0.17,
+            0.25
+          ]
+        ]
       },
       {
         "text": "Using a Mana Flask grants Guard equal to 100% of Flask's recovery amount for 4 seconds",
@@ -19040,7 +19140,12 @@ const POE2_UNIQUE_DATA = {
       },
       {
         "text": "(3.1–6) Life Regeneration per second",
-        "ranges": []
+        "ranges": [
+          [
+            3.1,
+            6
+          ]
+        ]
       },
       {
         "text": "(20–30)% increased Mana Regeneration Rate",
@@ -19100,7 +19205,12 @@ const POE2_UNIQUE_DATA = {
       },
       {
         "text": "(-15–-10)% to Cold Resistance",
-        "ranges": []
+        "ranges": [
+          [
+            -15,
+            -10
+          ]
+        ]
       },
       {
         "text": "You take Fire Damage instead of Physical Damage from Bleeding",
@@ -20253,19 +20363,39 @@ const POE2_UNIQUE_DATA = {
       },
       {
         "text": "(-25–25)% reduced Rarity of Items found",
-        "ranges": []
+        "ranges": [
+          [
+            -25,
+            25
+          ]
+        ]
       },
       {
         "text": "(-40–40)% to Fire Resistance",
-        "ranges": []
+        "ranges": [
+          [
+            -40,
+            40
+          ]
+        ]
       },
       {
         "text": "(-40–40)% to Cold Resistance",
-        "ranges": []
+        "ranges": [
+          [
+            -40,
+            40
+          ]
+        ]
       },
       {
         "text": "(-40–40)% to Lightning Resistance",
-        "ranges": []
+        "ranges": [
+          [
+            -40,
+            40
+          ]
+        ]
       }
     ]
   },
@@ -20671,11 +20801,21 @@ const POE2_UNIQUE_DATA = {
     "explicits": [
       {
         "text": "(-25–25)% reduced Flask Life Recovery rate",
-        "ranges": []
+        "ranges": [
+          [
+            -25,
+            25
+          ]
+        ]
       },
       {
         "text": "(-25–25)% reduced Flask Mana Recovery rate",
-        "ranges": []
+        "ranges": [
+          [
+            -25,
+            25
+          ]
+        ]
       },
       {
         "text": "Life Flasks gain 0.25 charges per Second",
@@ -21023,7 +21163,7 @@ const POE2_UNIQUE_DATA = {
     "id": "goregirdle",
     "name": "Goregirdle",
     "baseType": "Plate Belt",
-    "slot": "body",
+    "slot": "belt",
     "levelReq": 24,
     "attrReqs": {
       "str": 0,
@@ -21153,7 +21293,7 @@ const POE2_UNIQUE_DATA = {
     "id": "cowards_legacy",
     "name": "Coward's Legacy",
     "baseType": "Mail Belt",
-    "slot": "body",
+    "slot": "belt",
     "levelReq": 40,
     "attrReqs": {
       "str": 0,
@@ -21183,7 +21323,12 @@ const POE2_UNIQUE_DATA = {
     "explicits": [
       {
         "text": "(-20–-10) to Strength",
-        "ranges": []
+        "ranges": [
+          [
+            -20,
+            -10
+          ]
+        ]
       },
       {
         "text": "+(20–30) to Dexterity",
@@ -21587,11 +21732,21 @@ const POE2_UNIQUE_DATA = {
     "explicits": [
       {
         "text": "(-20–20)% reduced Charm Charges gained",
-        "ranges": []
+        "ranges": [
+          [
+            -20,
+            20
+          ]
+        ]
       },
       {
         "text": "(-10–10)% reduced Charm Charges used",
-        "ranges": []
+        "ranges": [
+          [
+            -10,
+            10
+          ]
+        ]
       },
       {
         "text": "(20–30)% increased bonuses gained from left Equipped Ring",
@@ -21851,7 +22006,12 @@ const POE2_UNIQUE_DATA = {
       },
       {
         "text": "Regenerate (2.5–5)% of maximum Runic Ward per second during Effect",
-        "ranges": []
+        "ranges": [
+          [
+            2.5,
+            5
+          ]
+        ]
       },
       {
         "text": "Gain Guard equal to Current Runic Ward for 10 seconds when Effect ends",
@@ -22084,7 +22244,12 @@ const POE2_UNIQUE_DATA = {
     "explicits": [
       {
         "text": "Gains (0.15–0.2) Charges per Second",
-        "ranges": []
+        "ranges": [
+          [
+            0.15,
+            0.2
+          ]
+        ]
       },
       {
         "text": "Creates Consecrated Ground on use",
@@ -22611,7 +22776,12 @@ const POE2_UNIQUE_DATA = {
       },
       {
         "text": "Breaches in Map have (-10–20)% reduced Pack Size",
-        "ranges": []
+        "ranges": [
+          [
+            -10,
+            20
+          ]
+        ]
       },
       {
         "text": "Unstable Breaches in Map take 120 additional seconds to collapse after timer is filled",
@@ -22652,7 +22822,12 @@ const POE2_UNIQUE_DATA = {
       },
       {
         "text": "Delirium Fog in Map applies (-10–10)% reduced Deliriousness to Players",
-        "ranges": []
+        "ranges": [
+          [
+            -10,
+            10
+          ]
+        ]
       }
     ]
   },
