@@ -35,6 +35,8 @@ let tray = null;
 let clipboardPoller = null;
 let lastClipboardText = "";
 let isPaused = false;
+let isProgrammaticMove = false;
+let userDraggedOverlay = false;
 
 // How often we check the clipboard (ms). Lower = more responsive, higher = less CPU.
 const CLIPBOARD_POLL_MS = 400;
@@ -134,13 +136,35 @@ function createOverlayWindow() {
   overlayWindow.setAlwaysOnTop(true, "screen-saver", 1);
   overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
+  overlayWindow.on("moved", () => {
+    if (!isProgrammaticMove && overlayWindow && !overlayWindow.isDestroyed()) {
+      userDraggedOverlay = true;
+      try {
+        const bounds = overlayWindow.getBounds();
+        if (bounds.x > -9000 && bounds.y > -9000) {
+          const session = loadSession() || {};
+          session.overlayPos = { x: bounds.x, y: bounds.y };
+          saveSession(session);
+        }
+      } catch (err) {
+        console.error("Failed to save dragged overlay position:", err);
+      }
+    }
+  });
+
+  overlayWindow.on("closed", () => {
+    overlayWindow = null;
+  });
+
   overlayWindow.on("blur", () => {
     // Only auto-hide if the overlay is focusable (it normally isn't)
   });
 }
 
 function showOverlay(itemText) {
-  if (!overlayWindow) return;
+  if (!overlayWindow || overlayWindow.isDestroyed()) {
+    createOverlayWindow();
+  }
 
   const session = loadSession();
   let wx, wy;
@@ -154,6 +178,7 @@ function showOverlay(itemText) {
       wx = x;
       wy = y;
       useSaved = true;
+      userDraggedOverlay = true;
     }
   }
 
@@ -178,11 +203,16 @@ function showOverlay(itemText) {
   if (wy < sy) wy = sy;
   if (wy + oh > sy + sh) wy = sy + sh - oh;
 
+  isProgrammaticMove = true;
   overlayWindow.setPosition(Math.round(wx), Math.round(wy));
+  setTimeout(() => { isProgrammaticMove = false; }, 150);
+
   overlayWindow.webContents.send("item:detected", { itemText, session });
   
   overlayWindow.setSkipTaskbar(true);
+  overlayWindow.setAlwaysOnTop(true, "screen-saver", 1);
   overlayWindow.showInactive(); // Show without stealing focus
+  overlayWindow.moveTop();
 
   if (!globalShortcut.isRegistered("Escape")) {
     globalShortcut.register("Escape", () => hideOverlay());
@@ -193,18 +223,7 @@ function hideOverlay() {
   if (globalShortcut.isRegistered("Escape")) {
     globalShortcut.unregister("Escape");
   }
-  if (overlayWindow && overlayWindow.isVisible()) {
-    try {
-      const bounds = overlayWindow.getBounds();
-      // Only save if it's not the initial off-screen coordinates (-9999)
-      if (bounds.x > -9000 && bounds.y > -9000) {
-        const session = loadSession() || {};
-        session.overlayPos = { x: bounds.x, y: bounds.y };
-        saveSession(session);
-      }
-    } catch (err) {
-      console.error("Failed to save overlay position:", err);
-    }
+  if (overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isVisible()) {
     overlayWindow.hide();
   }
 }
@@ -246,11 +265,17 @@ function createSettingsWindow() {
  */
 const CLIPBOARD_RETRY_MS = 80; // short retry after a transient Windows clipboard lock
 
+async function readClipboardText() {
+  const res = clipboard.readText();
+  return typeof res?.then === "function" ? await res : (res || "");
+}
+
 function scheduleClipboardPoll(delayMs = CLIPBOARD_POLL_MS) {
-  clipboardPoller = setTimeout(() => {
+  clipboardPoller = setTimeout(async () => {
     try {
       if (isPaused) return;
-      const text = clipboard.readText();
+      const text = await readClipboardText();
+      if (isPaused) return;
       if (text !== lastClipboardText) {
         lastClipboardText = text;
         if (isPoe2Item(text)) {
@@ -270,9 +295,13 @@ function scheduleClipboardPoll(delayMs = CLIPBOARD_POLL_MS) {
   }, delayMs);
 }
 
-function startClipboardWatcher() {
+async function startClipboardWatcher() {
   isPaused = false;
-  lastClipboardText = (() => { try { return clipboard.readText(); } catch { return ""; } })();
+  try {
+    lastClipboardText = await readClipboardText();
+  } catch {
+    lastClipboardText = "";
+  }
   if (clipboardPoller) {
     clearTimeout(clipboardPoller);
     clipboardPoller = null;
@@ -313,11 +342,13 @@ function isPoe2Item(text) {
 
 function registerHotkeys() {
   // Ctrl+Shift+G — manual trigger: re-evaluate whatever is currently in the clipboard
-  globalShortcut.register("CommandOrControl+Shift+G", () => {
-    const text = clipboard.readText();
-    if (isPoe2Item(text)) {
-      showOverlay(text);
-    }
+  globalShortcut.register("CommandOrControl+Shift+G", async () => {
+    try {
+      const text = await readClipboardText();
+      if (isPoe2Item(text)) {
+        showOverlay(text);
+      }
+    } catch (_err) {}
   });
 }
 
@@ -1677,8 +1708,18 @@ function parseDecodedPobExport(xml) {
       const slotFromSet = pobSlotToCoachSlot(attrs.name || attrs.slot || "");
       if (!slotFromSet || slotFromSet === "other") continue;
       const rawText = normalizePobItemText(itemsById.get(String(itemId)), slotFromSet);
-      const slotFromText = inferSlotFromPobText(rawText);
-      const slot = slotFromText && slotFromText !== "unknown" ? slotFromText : slotFromSet;
+      // slotFromSet comes straight from PoB's own <Slot name="..."> attribute and is
+      // authoritative — trust it. inferSlotFromPobText does unanchored keyword matching
+      // over the whole item text (mods included), so e.g. any body armour with a
+      // "maximum Energy Shield" roll or a belt with a "Flask Charges" mod would get
+      // misclassified into the wrong slot and silently vanish from its real one. Only
+      // let it refine the one genuinely ambiguous case PoB2 has: a quiver can be
+      // exported under a "Weapon"-named slot.
+      let slot = slotFromSet;
+      if (slotFromSet === "weapon" || slotFromSet === "offhand") {
+        const slotFromText = inferSlotFromPobText(rawText);
+        if (slotFromText === "quiver") slot = slotFromText;
+      }
       gear.push({ slot, name: detectPobItemName(rawText), text: rawText });
     }
   }
@@ -2101,6 +2142,7 @@ function updateTrayMenu() {
       label: "Reset overlay position",
       click: () => {
         try {
+          userDraggedOverlay = false;
           const s = loadSession() || {};
           delete s.overlayPos;
           saveSession(s);
@@ -2413,5 +2455,7 @@ if (typeof module !== "undefined" && module.exports) {
     inferSlotFromPobText,
     itemClassForSlot,
     parsePobbHtml,
+    readClipboardText,
+    isPoe2Item,
   };
 }

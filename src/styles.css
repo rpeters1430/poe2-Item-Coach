@@ -1,16 +1,18 @@
 :root {
   color-scheme: dark;
-  --bg: #11131a;
-  --panel: #1a1e29;
-  --panel-2: #222838;
-  --text: #eef2ff;
-  --muted: #a8b0c5;
-  --border: #333b52;
-  --accent: #78a6ff;
+  --bg: #0d0b08;
+  --panel: #17140d;
+  --panel-2: #1e1a10;
+  --text: #ece6d8;
+  --muted: #a89572;
+  --border: #3d3116;
+  --accent: #c8a96e;
   --good: #78d49a;
   --bad: #ff8b8b;
   --warn: #ffd166;
-  --shadow: 0 22px 70px rgba(0, 0, 0, 0.35);
+  --font-title: "Cinzel", "Fontin SmallCaps", serif;
+  --font-body: "Outfit", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --shadow: 0 22px 70px rgba(0, 0, 0, 0.5);
 }
 
 * {
@@ -20,11 +22,15 @@
 body {
   margin: 0;
   min-height: 100vh;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--font-body);
   background:
-    radial-gradient(circle at top left, rgba(120, 166, 255, 0.2), transparent 36rem),
-    linear-gradient(135deg, #0d0f15, var(--bg));
+    radial-gradient(circle at top left, rgba(200, 169, 110, 0.16), transparent 36rem),
+    linear-gradient(135deg, #0a0805, var(--bg));
   color: var(--text);
+}
+
+h1, h2, h3, .eyebrow, .top-bar-title {
+  font-family: var(--font-title);
 }
 
 .app-shell {
@@ -51,10 +57,10 @@ body {
 }
 
 h1 {
-  font-size: clamp(2.2rem, 5vw, 4.8rem);
-  line-height: 0.95;
+  font-size: clamp(2rem, 4.4vw, 4.1rem);
+  line-height: 1.05;
   margin: 0;
-  letter-spacing: -0.06em;
+  letter-spacing: -0.01em;
 }
 
 h2 {
@@ -128,7 +134,7 @@ input[type="text"],
 input[type="password"] {
   width: 100%;
   color: var(--text);
-  background: #111722;
+  background: #15110a;
   border: 1px solid var(--border);
   border-radius: 14px;
   outline: none;
@@ -144,7 +150,7 @@ input[type="text"],
 input[type="password"] {
   width: 100%;
   color: var(--text);
-  background: #111722;
+  background: #15110a;
   border: 1px solid var(--border);
   border-radius: 14px;
   outline: none;
@@ -163,7 +169,7 @@ textarea:focus,
 select:focus,
 input[type="number"]:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 4px rgba(120, 166, 255, 0.12);
+  box-shadow: 0 0 0 4px rgba(200, 169, 110, 0.12);
 }
 
 .grid.two-columns {
@@ -206,8 +212,8 @@ button:hover {
 }
 
 button.primary {
-  background: linear-gradient(135deg, #477cff, #8db2ff);
-  color: #061025;
+  background: linear-gradient(135deg, #af8c54, #e0c088);
+  color: #241a08;
   border: 0;
   font-weight: 800;
   padding-inline: 26px;
@@ -233,8 +239,8 @@ button.primary {
   gap: 10px;
   padding: 8px 14px;
   border-radius: 999px;
-  background: rgba(120, 166, 255, 0.12);
-  border: 1px solid rgba(120, 166, 255, 0.28);
+  background: rgba(200, 169, 110, 0.12);
+  border: 1px solid rgba(200, 169, 110, 0.28);
   color: var(--accent);
   font-weight: 800;
   margin-bottom: 14px;
@@ -403,9 +409,9 @@ code {
 .stage-chips span {
   display: inline-flex;
   align-items: center;
-  border: 1px solid rgba(120, 166, 255, 0.28);
+  border: 1px solid rgba(200, 169, 110, 0.28);
   border-radius: 999px;
-  background: rgba(120, 166, 255, 0.1);
+  background: rgba(200, 169, 110, 0.1);
   color: var(--accent);
   font-size: 0.84rem;
   font-weight: 700;
@@ -860,9 +866,9 @@ code {
   border: 1px solid rgba(255, 80, 80, 0.3);
 }
 .upgrade-label-badge.damage {
-  background: rgba(120, 166, 255, 0.1);
+  background: rgba(200, 169, 110, 0.1);
   color: var(--accent);
-  border: 1px solid rgba(120, 166, 255, 0.3);
+  border: 1px solid rgba(200, 169, 110, 0.3);
 }
 
 /* 4.5 — pobb.in import quality checklist */
