@@ -155,6 +155,43 @@ console.log("3. Testing PoB slot and text helpers in main.js...");
   assert.equal(inferSlotFromItemName("Broadhead Quiver"), "quiver");
   assert.equal(inferSlotFromItemName("Round Shield"), "offhand");
 
+  // Base types confirmed against poe2db.tw's own item-class pages (2026-09-07) —
+  // these previously returned null because the keywords below were missing.
+  assert.equal(inferSlotFromItemName("Wooden Club"), "weapon");
+  assert.equal(inferSlotFromItemName("Oak Greathammer"), "weapon");
+  assert.equal(inferSlotFromItemName("Kalguuran Forgehammer"), "weapon");
+  assert.equal(inferSlotFromItemName("Warpick"), "weapon");
+  assert.equal(inferSlotFromItemName("Aberrant Sledge"), "weapon");
+  assert.equal(inferSlotFromItemName("Hardwood Spear"), "weapon");
+  assert.equal(inferSlotFromItemName("Heartwood Shortbow"), "weapon");
+  assert.equal(inferSlotFromItemName("Trarthan Cannon"), "weapon");
+  assert.equal(inferSlotFromItemName("Runic Fork"), "weapon");
+  assert.equal(inferSlotFromItemName("Morning Star"), "weapon");
+  assert.equal(inferSlotFromItemName("Felled Greatclub"), "weapon");
+  assert.equal(inferSlotFromItemName("Crescent Targe"), "offhand");
+  assert.equal(inferSlotFromItemName("Glacial Fortress"), "offhand");
+  assert.equal(inferSlotFromItemName("Venerable Defender"), "offhand");
+  assert.equal(inferSlotFromItemName("Wicker Tiara"), "helmet");
+  assert.equal(inferSlotFromItemName("Ancient Visor"), "helmet");
+  assert.equal(inferSlotFromItemName("Grand Visage"), "helmet");
+  assert.equal(inferSlotFromItemName("Bone Raiment"), "body");
+  assert.equal(inferSlotFromItemName("Corvus Mantle"), "body");
+  assert.equal(inferSlotFromItemName("Grand Regalia"), "body");
+  assert.equal(inferSlotFromItemName("Waxed Jacket"), "body");
+  assert.equal(inferSlotFromItemName("Primal Markings"), "body");
+  assert.equal(inferSlotFromItemName("Rope Cuffs"), "gloves");
+  assert.equal(inferSlotFromItemName("Gauze Wraps"), "gloves");
+  assert.equal(inferSlotFromItemName("Grand Manchettes"), "gloves");
+  assert.equal(inferSlotFromItemName("Straw Sandals"), "boots");
+  assert.equal(inferSlotFromItemName("Braced Sabatons"), "boots");
+  assert.equal(inferSlotFromItemName("Ancient Leggings"), "boots");
+  assert.equal(inferSlotFromItemName("Grand Cuisses"), "boots");
+  // Jewel/Tablet/Relic base types legitimately have no coach slot — must stay null.
+  assert.equal(inferSlotFromItemName("Diamond"), null);
+  assert.equal(inferSlotFromItemName("Timeless Jewel"), null);
+  assert.equal(inferSlotFromItemName("Ritual Tablet"), null);
+  assert.equal(inferSlotFromItemName("Seal Relic"), null);
+
   assert.equal(inferSlotFromPobText("Item Class: Quarterstaves\nPlain Quarterstaff"), "weapon");
   assert.equal(inferSlotFromPobText("Item Class: Shields\nRound Shield"), "offhand");
 

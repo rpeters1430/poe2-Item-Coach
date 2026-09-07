@@ -1764,15 +1764,16 @@ function extractPobPassiveNodes(xml) {
 
 function inferSlotFromItemName(name) {
   const n = String(name || "").toLowerCase();
+  if (/^primal markings$/i.test(n)) return "body"; // no shared body-armour keyword; exact-name special case
   if (/quiver/.test(n)) return "quiver";
   if (/quarterstaff|\bstaff\b|\bstaves\b|\bwarstaff\b/.test(n)) return "weapon";
-  if (/\bbow\b|\bcrossbow\b/.test(n)) return "weapon";
-  if (/\bsword\b|\bblade\b|\baxe\b|\bmace\b|\bflail\b|\bdagger\b|\bwand\b|\bsceptre\b|\bscepter\b|\bclaw\b/.test(n)) return "weapon";
-  if (/shield|buckler|crest|tower shield|round shield|kite shield|spiked shield|\bfocus\b/.test(n)) return "offhand";
-  if (/helm|helmet|circlet|crown|cap\b|hood|mask|casque|sallet|burgonet|coif/.test(n)) return "helmet";
-  if (/armour|armor|vestments|vest\b|robe|chest|plate|garb|mail\b|tunic|cuirass|jerkin|coat\b/.test(n)) return "body";
-  if (/glove|mitt|gauntlet|bracer|touch\b/.test(n)) return "gloves";
-  if (/boot|greave|shoe|slipper|foot|stride/.test(n)) return "boots";
+  if (/\bbow\b|\bcrossbow\b|shortbow/.test(n)) return "weapon";
+  if (/\bsword\b|\bblade\b|\baxe\b|\bmace\b|\bflail\b|\bdagger\b|\bwand\b|\bsceptre\b|\bscepter\b|\bclaw\b|\bclub\b|hammer|\bpick\b|\bmaul\b|\bspear\b|\bcannon\b|\bfork\b|\bsledge\b|greatclub|warpick|morning star/.test(n)) return "weapon";
+  if (/shield|buckler|crest|tower shield|round shield|kite shield|spiked shield|\bfocus\b|\bdefender\b|\btarge\b|\bfortress\b/.test(n)) return "offhand";
+  if (/helm|helmet|circlet|crown|cap\b|hood|mask|casque|sallet|burgonet|coif|tiara|visor|visage/.test(n)) return "helmet";
+  if (/armour|armor|vestments|vest\b|robe|chest|plate|garb|mail\b|tunic|cuirass|jerkin|coat\b|raiment|mantle|regalia|garment|jacket/.test(n)) return "body";
+  if (/glove|mitt|gauntlet|bracer|touch\b|cuffs|wraps|manchettes/.test(n)) return "gloves";
+  if (/boot|greave|shoe|slipper|foot|stride|sandal|sabaton|legging|cuisse/.test(n)) return "boots";
   if (/amulet|talisman|collar|choker|pendant/.test(n)) return "amulet";
   if (/ring|band\b|loop\b|signet|finger/.test(n)) return "ring";
   if (/belt|sash|girdle|strap|wrap\b|chain\b/.test(n)) return "belt";
