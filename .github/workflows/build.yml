@@ -31,7 +31,7 @@ jobs:
           name: poe2-gear-coach-windows
           path: dist/*.exe
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 7
       # Tag pushes also publish the installer to a GitHub Release, so a new
       # machine can grab it from the Releases page without Node, git, or
       # cloning the repo at all.
